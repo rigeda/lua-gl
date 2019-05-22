@@ -13,7 +13,7 @@ require("iupluacd")
 w=0
 h=0
 
---load image using im 
+-- load image using im 
 function open_file(canvas, filename)
   local image, err = im.FileImageLoadBitmap(filename, 0)
   
