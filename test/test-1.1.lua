@@ -33,7 +33,7 @@ config:Load()
 
 canvas = iup.canvas{
   config = config,
-  dirty = nil,
+  dirty = nil
 }
 
 --responsible for drawing the image on canvas
