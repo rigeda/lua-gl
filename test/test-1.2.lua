@@ -14,7 +14,8 @@ w=0
 h=0
 saveVar=false
 drawPath=false
--- load image using im 
+
+-- load image using im or open image
 function open_file(canvas, filename)
   local image, err = im.FileImageLoadBitmap(filename, 0)
   
@@ -27,7 +28,7 @@ function open_file(canvas, filename)
   end
   
 end
-
+--set configration
 config = iup.config{}
 config.app_name = "test-1.1"
 config:Load()
@@ -104,6 +105,7 @@ function canvas:button_cb(b, e, x, y, r)
 
 end
 
+--to save the current image
 function btnSave:action() 
     local image=canvas.image
     if image then
@@ -118,33 +120,28 @@ function canvas:dropfiles_cb(filename)
 end
 
 
-function new_file(ih, image)
-    local dlg = iup.GetDialog(ih)
-    local canvas = dlg.canvas
-    local old_image = canvas.image
-
-    canvas.image = image
-  
-    iup.Update(canvas)
-  
-    if (old_image) then
-      old_image:Destroy()
-    end
-  end
-
-
-function check_new_file(dlg)
+--to check new image. if new image then put black image on canvas
+function new_image(dlg)
     local canvas = dlg.canvas
     local image = canvas.image
     if (not image) then
-      local config = canvas.config
-      local width = config:GetVariableDef("NewImage", "Width", 640)
-      local height = config:GetVariableDef("NewImage", "Height", 480)
+        local config = canvas.config
+        local width = config:GetVariableDef("NewImage", "Width", 640)
+        local height = config:GetVariableDef("NewImage", "Height", 480)
   
-      local image = im.ImageCreate(width, height, im.RGB, im.BYTE)
-       new_file(dlg, image)
+        local image = im.ImageCreate(width, height, im.RGB, im.BYTE)
+
+        local old_image = canvas.image
+
+        canvas.image = image
+  
+        iup.Update(canvas)
+  
+        if (old_image) then
+            old_image:Destroy()
+        end
     end
-  end
+end
 
 vbox = iup.vbox{
   canvas,
@@ -162,7 +159,7 @@ dlg = iup.dialog{
 
 -- show the dialog at the last position
 config:DialogShow(dlg, "MainWindow")
-check_new_file(dlg)
+new_image(dlg)
 -- to be able to run this script inside another context
 if (iup.MainLoopLevel()==0) then
   iup.MainLoop()

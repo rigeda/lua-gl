@@ -84,6 +84,7 @@ function Render()
 	if doline then
 		cdbCanvas:SetForeground(cd.EncodeColor(255, 0, 0))
 		cdbCanvas:Line(100,cdbCanvas:UpdateYAxis(10),200,cdbCanvas:UpdateYAxis(20))
+		
 	end
 	cdbCanvas:Flush()	-- To switch the canvas to the buffer changes
 end
