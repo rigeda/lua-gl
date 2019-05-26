@@ -38,16 +38,18 @@ function cnv:motion_cb(x, y, r)
 	Render()
   end
 end
-
+-- to draw grid
 function drawGrid()
   local w,h = cdbCanvas:GetSize()
   local x,y
+  --first for loop to draw horizontal
   cdbCanvas:SetForeground(cd.EncodeColor(192,192,192))
   for y=0, h do
       if y%10==0 then
           cdbCanvas:Line(0,y,w,y)
       end
   end
+  -- for loop used to draw vertical line
   cdbCanvas:SetForeground(cd.EncodeColor(192,192,192))
   for x=0, w do
       if x%10==0 then
@@ -71,8 +73,8 @@ end
 function Render()
 	cdbCanvas:Activate()
 	cdbCanvas:SetBackground(cd.EncodeColor(255, 255, 255))
-  cdbCanvas:Clear()
-  drawGrid()
+    cdbCanvas:Clear()
+    drawGrid()  --used to draw grid
 	cdbCanvas:SetForeground(cd.EncodeColor(0, 255, 0))
 	cdbCanvas:Line(10,cdbCanvas:UpdateYAxis(10),200,cdbCanvas:UpdateYAxis(200))
 	print("IMG: ",img)
