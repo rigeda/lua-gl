@@ -8,14 +8,10 @@ require("iupluaim")
 require("cdluaim")
 
 cnv = iup.canvas {rastersize="600x400"}
-bt = iup.button{
-	title = "Draw Line",
-}
 
 dg = iup.dialog{
 	iup.vbox{
 		cnv,
-		bt
 	}; 
 	title="IupCanvas"
 }
@@ -75,8 +71,7 @@ function Render()
 	cdbCanvas:SetBackground(cd.EncodeColor(255, 255, 255))
     cdbCanvas:Clear()
     drawGrid()  --used to draw grid
-	cdbCanvas:SetForeground(cd.EncodeColor(0, 255, 0))
-	cdbCanvas:Line(10,cdbCanvas:UpdateYAxis(10),200,cdbCanvas:UpdateYAxis(200))
+	
 	print("IMG: ",img)
 	if not img then
 		-- Executing 1st time fill img with the image of area where the box will be drawn
@@ -121,11 +116,7 @@ function Render()
 		boxImg = cdbCanvas:CreateImage(iw,ih)
 		cdbCanvas:GetImage(boxImg, boxc.x-iw/2, cdbCanvas:UpdateYAxis(boxc.y+ih/2))	-- y + 10 because that is the lower left corner of the box
 	end
-	if doline then
-		cdbCanvas:SetForeground(cd.EncodeColor(255, 0, 0))
-		cdbCanvas:Line(100,cdbCanvas:UpdateYAxis(10),200,cdbCanvas:UpdateYAxis(20))
-		
-	end
+	
 	cdbCanvas:Flush()	-- To switch the canvas to the buffer changes
 end
 
@@ -160,11 +151,6 @@ function cnv:action(posx,posy)
 end
 
 function cnv:resize_cb()
-	Render()
-end
-
-function bt:action()
-	doline = true
 	Render()
 end
 
