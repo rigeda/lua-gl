@@ -40,17 +40,13 @@ function drawGrid()
   local x,y
   --first for loop to draw horizontal
   cdbCanvas:SetForeground(cd.EncodeColor(192,192,192))
-  for y=0, h do
-      if y%10==0 then
-          cdbCanvas:Line(0,y,w,y)
-      end
+  for y=h, 0, -10 do
+    cdbCanvas:Line(0,y,w,y)
   end
   -- for loop used to draw vertical line
   cdbCanvas:SetForeground(cd.EncodeColor(192,192,192))
-  for x=0, w do
-      if x%10==0 then
-          cdbCanvas:Line(x,0,x,h)
-      end
+  for x=0, w,10 do
+    cdbCanvas:Line(x,0,x,h)
   end
   
 end
@@ -69,7 +65,7 @@ end
 function Render()
 	cdbCanvas:Activate()
 	cdbCanvas:SetBackground(cd.EncodeColor(255, 255, 255))
-    cdbCanvas:Clear()
+  cdbCanvas:Clear()
     drawGrid()  --used to draw grid
 	
 	print("IMG: ",img)
@@ -107,7 +103,7 @@ function Render()
         tempy = boxc.y+ih/2  - (boxc.y+ih/2)%10 
       end
 
-      cdbCanvas:PutImImage(boxImg, tempx,cdbCanvas:UpdateYAxis(tempy-4),iw,ih)
+      cdbCanvas:PutImImage(boxImg, tempx,cdbCanvas:UpdateYAxis(tempy-1),iw,ih)
     end
 		--cdbCanvas:PutImImage(boxImg, boxc.x-iw/2,cdbCanvas:UpdateYAxis(boxc.y+ih/2),iw,ih)
 	end
