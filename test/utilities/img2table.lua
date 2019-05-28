@@ -158,7 +158,7 @@ print()
 
 args = table.pack(...)
 if args[1] then
-	--print("Hello")
+	print(args[1])
 	i = im.FileImageLoad(args[1])
 	if i then
 		print(i:Height(),i:Width())
