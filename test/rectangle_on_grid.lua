@@ -6,10 +6,10 @@ require("iupluacd")
 require("imlua")
 require("iupluaim")
 require("cdluaim")
-static_x=0
-static_y=0
-pos_x=0
-pos_y=0
+start_x=0
+start_y=0
+end_x=0
+end_y=0
 
 cnv = iup.canvas {rastersize="600x400"}
 dg = iup.dialog{
@@ -23,10 +23,10 @@ dg = iup.dialog{
 function cnv:motion_cb(x, y, r)
   --print(x, y, r)
   if move then
-		 static_x=move[1]
-		 static_y=move[2]
-		 pos_x = x 
-		 pos_y = y
+		 start_x=move[1]
+		 start_y=move[2]
+		 end_x = x 
+		 end_y = y
 		 drawRect()
   end
 end
@@ -49,41 +49,39 @@ end
 
 
 function check_grid(static_x,pos_x,static_y,pos_y)
-	print("we are in")
-	if static_x%10~=0 or static_y%10~=0 then
-		-- if static_x and static_y are not multiple of 10 then we have to adjust it
-		-- first let static_x is not multiple of 10
-		if static_x%10~=0 and static_x%10>=5 then
-			static_x = static_x + (10 - static_x%10 )
-			print(static_x)  -- if remdnder of static_x with 10 is greater then 5 then we will take upper bound     
+	if start_x%10~=0 or start_y%10~=0 then
+		-- if start_x and start_y are not multiple of 10 then we have to adjust it
+		-- first let start_x is not multiple of 10
+		if start_x%10~=0 and start_x%10>=5 then
+			start_x = start_x + (10 - start_x%10 )
+		 -- if remdnder of start_x with 10 is greater then 5 then we will take upper bound     
 		else
-			static_x = static_x  - static_x%10 --else we will take lower bound
-			print(static_x)
+			start_x = start_x  - start_x%10 --else we will take lower bound
+			--print(static_x)
 		end
-		-- static_y is not multiple of 10
+		-- start_y is not multiple of 10
 
-		if static_y%10~=0 and static_y%10>=5 then
-			static_y = static_y + (10 - static_y%10 )
+		if start_y%10~=0 and start_y%10>=5 then
+			start_y = start_y + (10 - start_y%10 )
 		else
-			static_y = static_y  - static_y%10 
+			start_y = start_y  - start_y%10 
 		end
 	end
 
-	if pos_x%10~=0 or pos_y%10~=0 then
-		if pos_x%10~=0 and pos_x%10>=5 then
-			pos_x = pos_x + (10 - pos_x%10 )
+	if end_x%10~=0 or end_y%10~=0 then
+		if end_x%10~=0 and end_x%10>=5 then
+			end_x = end_x + (10 - end_x%10 )
 		else
-			pos_x = pos_x  - pos_x%10 
+			end_x = end_x  - end_x%10 
 		end
 
-		if pos_y%10~=0 and pos_y%10>=5 then
-			pos_y = pos_y + (10 - pos_y%10 )
+		if end_y%10~=0 and end_y%10>=5 then
+			end_y = end_y + (10 - end_y%10 )
 		else
-			pos_y = pos_y  - pos_y%10 
+			end_y = pos_y  - end_y%10 
 		end
 	end
-	print(static_x,pos_x,static_y,pos_y)
-	return static_x,pos_x,static_y,pos_y
+	return start_x,end_x,start_y,end_y
 end
 --to draw rectangle
 function drawRect() 
@@ -94,7 +92,7 @@ function drawRect()
 	
 	cdbCanvas:Foreground(cd.EncodeColor(255, 0, 0))
 	 
-	 p,q,r,s= check_grid(static_x,pos_x,static_y,pos_y) --the set rectangle on the grid. we have to adjust initial and final mouse pointer position so rectangle can best fit a grid.
+	 p,q,r,s= check_grid(start_x,end_x,start_y,end_y) --the set rectangle on the grid. we have to adjust initial and final mouse pointer position so rectangle can best fit a grid.
 	  
 	cdbCanvas:Rect(p,q,cdbCanvas:UpdateYAxis(r),cdbCanvas:UpdateYAxis(s))
 	cdbCanvas:Flush()	
