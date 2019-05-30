@@ -48,7 +48,7 @@ function drawGrid()
 end
 
 
-function check_grid(static_x,pos_x,static_y,pos_y)
+function check_grid(start_x,end_x,start_y,end_y)
 	if start_x%10~=0 or start_y%10~=0 then
 		-- if start_x and start_y are not multiple of 10 then we have to adjust it
 		-- first let start_x is not multiple of 10
@@ -78,7 +78,7 @@ function check_grid(static_x,pos_x,static_y,pos_y)
 		if end_y%10~=0 and end_y%10>=5 then
 			end_y = end_y + (10 - end_y%10 )
 		else
-			end_y = pos_y  - end_y%10 
+			end_y = end_y  - end_y%10 
 		end
 	end
 	return start_x,end_x,start_y,end_y
