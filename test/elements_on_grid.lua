@@ -7,6 +7,8 @@ require("cdlua")
 require("iupluacd")
 require("cdluaim")
 
+--********************************** Utilities *****************************************
+
 shapeNo = 0
 
 function Line_button()
@@ -130,6 +132,17 @@ function drawGrid(cd_canvas)
   end
 end
 
+-- this function call only one time. it draw grid on canvas
+function NotGrid() 
+  image = canvas.image
+  if image then
+    local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
+    drawGrid(grid_canvas)
+    grid_canvas:Kill()
+  end
+end
+--********************************** End Utilities *****************************************
+
 
 canvas = iup.canvas{ }
 
@@ -166,15 +179,7 @@ function canvas:unmap_cb()
   cd_canvas:Kill()
 end
 
--- this function call only one time. it draw grid on canvas
-function NotGrid() 
-  image = canvas.image
-  if image then
-    local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
-    drawGrid(grid_canvas)
-    grid_canvas:Kill()
-  end
-end
+
 
 function canvas:button_cb(button, pressed, x, y)
   local image = self.image
@@ -232,7 +237,7 @@ end
 
 
 
---********************************** Main (Part 2/2) *****************************************
+--********************************** Main *****************************************
 
 hbox = iup.hbox{
   iup.vbox {
