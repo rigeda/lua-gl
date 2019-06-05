@@ -173,7 +173,7 @@ function drawGrid(cd_canvas)
   local x,y
   --first for loop to draw horizontal line
   cd_canvas:SetForeground(cd.EncodeColor(192,192,192))
-  for y=h, 0, -10 do
+  for y=h-2, 0, -10 do
     cd_canvas:Line(0,y,w,y)
   end
   -- for loop used to draw vertical line
