@@ -269,8 +269,7 @@ function canvas:button_cb(button, pressed, x, y)
                 end_x = end_x + x - center_x
                 end_y = end_y + y - center_y
                 
-                DrawShape(temp_canvas,start_x, start_y,end_x,end_y)
-               
+                DrawShape(temp_canvas,start_x, start_y,end_x,end_y) 
               end
               print("\n function end \n")
             else
