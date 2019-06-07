@@ -357,7 +357,7 @@ function new_shape()
   local str = read_file()
   
   put_white_image_and_draw_grid_on_canvas(dlg)
-  
+  iup.Update(canvas)
   newShapeIsReady = true
   
 end
