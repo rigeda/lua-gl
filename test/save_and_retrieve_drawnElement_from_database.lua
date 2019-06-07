@@ -41,13 +41,13 @@ end
 ----------------******* Read write function ********------------------
 function write_file(start_x,start_y,end_x,end_y)
   
-    local ifile = io.open("database.txt", "a")
+    local ifile = io.open("/home/dsr/lua_gui/database.txt", "a")
     if (not ifile) then
       iup.Message("Error", "Can't open file: " .. "database.txt")
       return false
     end
-
-    local str = "{"..shapeName..","..start_x..","..start_y..","..end_x..","..end_y.."}\n"
+  -- { obj="ELLIPSE", stx = 246, sty=381,enx=323,eny=217}
+    local str = "{obj="..shapeName..",stx="..start_x..",sty="..start_y..",enx="..end_x..",eny="..end_y.."}\n"
     
     if (not ifile:write(str)) then
       iup.Message("Error", "Fail when writing to file: " .."database.txt")
@@ -58,7 +58,7 @@ function write_file(start_x,start_y,end_x,end_y)
 end
 
 function read_file()
-  local file = io.open("database.txt", "r")
+  local file = io.open("/home/dsr/lua_gui/database.txt", "r")
   if (not file) then
     iup.Message("Error","Can't open file:".."database.txt")
     return false
@@ -110,7 +110,7 @@ function put_white_image_and_draw_grid_on_canvas(dlg)
 end
 
 --this function fits the element coordinate to the grid
-function check_grid(start_x,end_x,start_y,end_y)
+function check_grid(start_x,start_y,end_x,end_y)
 	if start_x%10~=0 or start_y%10~=0 then
 		-- if start_x and start_y are not multiple of 10 then we have to adjust it
 		-- first let start_x is not multiple of 10
@@ -143,13 +143,24 @@ function check_grid(start_x,end_x,start_y,end_y)
 			end_y = end_y  - end_y%10 
 		end
 	end
-	return start_x,end_x,start_y,end_y
+	return start_x, start_y,end_x, end_y
+end
+
+function check_grid_one_argument(x)
+  if x%10 ~= 0 then
+    if x%10 >= 5 then
+      x = x + ( 10 - x%10 )
+    elseif x%10 < 5 then
+      x = x - x%10
+    end
+  end
+  return x
 end
 
 --Used to Draw Shape
-function DrawShape(cnv, s_x, s_y, e_x, e_y)
+function DrawShape(cnv, start_x, start_y, end_x, end_y)
   --map mouse pointer and grid
-  start_x, end_x, start_y, end_y = check_grid(s_x, e_x, s_y, e_y)
+  --start_x, end_x, start_y, end_y = check_grid(s_x, e_x, s_y, e_y)
   
   cnv:Foreground(cd.EncodeColor(0, 0, 255))
   print(shapeName.." is going to draw",start_x,start_y,end_x,end_y)
@@ -208,6 +219,7 @@ function canvas:action()
       if newShapeIsReady then 
          --if the new shape is ready then no need to draw an element we have to draw a new shape
       else
+        start_x, start_y, end_x, end_y = check_grid(start_x, start_y, end_x, end_y)
         DrawShape(cd_canvas, start_x, start_y, end_x, end_y)
       end
     end
@@ -252,17 +264,17 @@ function canvas:button_cb(button, pressed, x, y)
 
               local center_x,center_y
               center = true
+              
               --retrieve data from the database.txt file
               for word in string.gmatch(str, "{.-}") do 
-                shapeName, start_x, start_y, end_x, end_y = string.match(word,"{(%a*),(%d*),(%d*).0,(%d*),(%d*).0}*")
-                
-                
+                shapeName, start_x, start_y, end_x, end_y = string.match(word,"{%a*=(%a*),%a*=(%d*).?.?,%a*=(%d*).?.?,%a*=(%d*).?.?,%a*=(%d*).?.?}*")                
                 --calculate center_x, center_y which will use to adjust start_x, start_y, end_x, end_y according to the mouse pointer(cursor)                if center == true then
                 if center == true then
-                  center_x , center_y = math.floor((end_x - start_x)/2+start_x),math.floor((end_y-start_y)/2+start_y)
+                  center_x , center_y = math.abs((end_x - start_x)/2+start_x), math.abs((end_y-start_y)/2+start_y)
                   center = false 
                 end
-                
+                x = check_grid_one_argument(x)
+                y = check_grid_one_argument(y)
                 --adjust start_x, start_y, end_x, end_y according to the mouse pointer(cursor)
                 start_x = start_x + x - center_x
                 start_y = start_y + y - center_y
@@ -275,6 +287,7 @@ function canvas:button_cb(button, pressed, x, y)
             else
               local start_x = canvas.start_x
               local start_y = canvas.start_y
+              start_x, start_y, x, y = check_grid(start_x, start_y, x, y)
               DrawShape(temp_canvas, start_x, start_y, x, y)
               --write elements in the database.txt file
               write_file(start_x,start_y,x,y)  
@@ -386,7 +399,7 @@ ElementBox.parentdialog = dlg
 
 --to delete all data of database.txt file
 function dlg:close_cb()
-  local file = io.open("database.txt","w")
+  local file = io.open("/home/dsr/lua_gui/database.txt","w")
   file:close()
 end
 
