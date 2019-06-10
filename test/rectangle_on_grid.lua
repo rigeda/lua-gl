@@ -3,15 +3,15 @@
 require( "iuplua" )
 require("cdlua")
 require("iupluacd")
-require("imlua")
-require("iupluaim")
 require("cdluaim")
+
 start_x=0
 start_y=0
 end_x=0
 end_y=0
 
 cnv = iup.canvas {rastersize="600x400"}
+
 dg = iup.dialog{
 	iup.vbox{
 		cnv,
@@ -93,7 +93,7 @@ function drawRect()
 	cdbCanvas:Foreground(cd.EncodeColor(255, 0, 0))
 	 
 	 p,q,r,s= check_grid(start_x,end_x,start_y,end_y) --the set rectangle on the grid. we have to adjust initial and final mouse pointer position so rectangle can best fit a grid.
-	cdbCanvas:LineWidth(5) 
+	cdbCanvas:LineWidth(2) 
 	cdbCanvas:Rect(p,q,cdbCanvas:UpdateYAxis(r),cdbCanvas:UpdateYAxis(s))
 	cdbCanvas:LineWidth(1)
 	cdbCanvas:Flush()	
