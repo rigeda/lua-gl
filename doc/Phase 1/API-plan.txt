@@ -1,0 +1,40 @@
+LGL = require("lua-gl")
+
+cnvobj = LGL.new({mode="EDITOR/DRAWING",width=300,height=300,gridx=10,gridy=10})
+
+vbox = iup.vbox{
+  cnvobj.canvas,
+}
+
+dlg = iup.dialog{
+  vbox,
+  title = "Draw elements on grid",
+  size = "FULLxFULL",
+}
+
+gridx = cnvobj.config.gridx
+cnv = cnvobj.canvas
+
+-------------------------------
+str = cnvobj:save()
+
+cnvobj:erase()
+cnvobj:refresh()
+
+cnvobj:load(str)
+     - populate .objects
+	 - private function - drawObjects
+	                           - drawRect(....)
+
+------------------------
+---DRAWING MODE
+
+cnvobj:drawObj("RECT")
+cnvobj:drawObj("LINE")
+
+--------------------------
+--- EDITOR MODE
+cnvobj.objects.number
+cnvobj.objects[1].type --- RECT LINE IMAGE
+
+
