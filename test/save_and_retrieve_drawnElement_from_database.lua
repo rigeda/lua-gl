@@ -7,8 +7,10 @@ require("cdlua")
 require("iupluacd")
 require("cdluaim")
 
---********************************** Utilities *****************************************
+local tU=require("utilities.tableUtils")
 
+--********************************** Utilities *****************************************
+local str = "{"
 
 
 function Line_button()
@@ -39,7 +41,7 @@ end
 
 
 ----------------******* Read write function ********------------------
-function write_file(start_x,start_y,end_x,end_y)
+function write_file(str)
   
     local ifile = io.open("/home/dsr/lua_gui/database.txt", "a")
     if (not ifile) then
@@ -47,7 +49,6 @@ function write_file(start_x,start_y,end_x,end_y)
       return false
     end
   -- { obj="ELLIPSE", stx = 246, sty=381,enx=323,eny=217}
-    local str = "{obj="..shapeName..",stx="..start_x..",sty="..start_y..",enx="..end_x..",eny="..end_y.."}\n"
     
     if (not ifile:write(str)) then
       iup.Message("Error", "Fail when writing to file: " .."database.txt")
@@ -109,61 +110,24 @@ function put_white_image_and_draw_grid_on_canvas(dlg)
     
 end
 
---this function fits the element coordinate to the grid
-function check_grid(start_x,start_y,end_x,end_y)
-	if start_x%10~=0 or start_y%10~=0 then
-		-- if start_x and start_y are not multiple of 10 then we have to adjust it
-		-- first let start_x is not multiple of 10
-		if start_x%10~=0 and start_x%10>=5 then
-			start_x = start_x + (10 - start_x%10 )
-		 -- if remdnder of start_x with 10 is greater then 5 then we will take upper bound     
-		else
-			start_x = start_x  - start_x%10 --else we will take lower bound
-		end
-		-- start_y is not multiple of 10
-
-		if start_y%10~=0 and start_y%10>=5 then
-			start_y = start_y + (10 - start_y%10 )
-		else
-			start_y = start_y  - start_y%10 
-    end
-    
-	end
-
-	if end_x%10~=0 or end_y%10~=0 then
-		if end_x%10~=0 and end_x%10>=5 then
-			end_x = end_x + (10 - end_x%10 )
-		else
-			end_x = end_x  - end_x%10 
-		end
-
-		if end_y%10~=0 and end_y%10>=5 then
-			end_y = end_y + (10 - end_y%10 )
-		else
-			end_y = end_y  - end_y%10 
-		end
-	end
-	return start_x, start_y,end_x, end_y
-end
-
-function check_grid_one_argument(x)
-  if x%10 ~= 0 then
-    if x%10 >= 5 then
+--adjust x, or x should be multiple of 10
+function check_grid(x)
+  if x%10 ~= 0 then   --if x is not multiple of 10 then we have to adjust it
+    if x%10 >= 5 then   --upper bound 
       x = x + ( 10 - x%10 )
-    elseif x%10 < 5 then
+    elseif x%10 < 5 then -- lower bound
       x = x - x%10
     end
   end
   return x
 end
 
+
 --Used to Draw Shape
 function DrawShape(cnv, start_x, start_y, end_x, end_y)
-  --map mouse pointer and grid
-  --start_x, end_x, start_y, end_y = check_grid(s_x, e_x, s_y, e_y)
-  
+
   cnv:Foreground(cd.EncodeColor(0, 0, 255))
-  print(shapeName.." is going to draw",start_x,start_y,end_x,end_y)
+
   canvas.shape = shapeName
   if (canvas.shape == "LINE") then
     cnv:Line(start_x, start_y, end_x, end_y)
@@ -188,7 +152,6 @@ function drawGrid(cd_canvas)
     cd_canvas:Line(0,y,w,y)
   end
   -- for loop used to draw vertical line
-  cd_canvas:SetForeground(cd.EncodeColor(192,192,192))
   for x=0, w,10 do
     cd_canvas:Line(x,0,x,h)
   end
@@ -219,7 +182,10 @@ function canvas:action()
       if newShapeIsReady then 
          --if the new shape is ready then no need to draw an element we have to draw a new shape
       else
-        start_x, start_y, end_x, end_y = check_grid(start_x, start_y, end_x, end_y)
+        start_x = check_grid(start_x)
+        start_y = check_grid(start_y)
+        end_x = check_grid(end_x)
+        end_y = check_grid(end_y)
         DrawShape(cd_canvas, start_x, start_y, end_x, end_y)
       end
     end
@@ -261,20 +227,27 @@ function canvas:button_cb(button, pressed, x, y)
             if newShapeIsReady then
               --read the data from the database.txt file
               local str=read_file()
-
+               
+              local table = tU.s2t(str)  --convert string to table
+              
               local center_x,center_y
               center = true
               
               --retrieve data from the database.txt file
-              for word in string.gmatch(str, "{.-}") do 
-                shapeName, start_x, start_y, end_x, end_y = string.match(word,"{%a*=(%a*),%a*=(%d*).?.?,%a*=(%d*).?.?,%a*=(%d*).?.?,%a*=(%d*).?.?}*")                
-                --calculate center_x, center_y which will use to adjust start_x, start_y, end_x, end_y according to the mouse pointer(cursor)                if center == true then
+
+              for i=1, #table do 
+                shapeName = table[i]['obj']
+                start_x = table[i]['stx']
+                start_y = table[i]['sty']
+                end_x = table[i]['enx']
+                end_y = table[i]['eny']
+                --calculate center_x, center_y of first element which will use to adjust start_x, start_y, end_x, end_y according to the mouse pointer(cursor)          
                 if center == true then
                   center_x , center_y = math.abs((end_x - start_x)/2+start_x), math.abs((end_y-start_y)/2+start_y)
                   center = false 
                 end
-                x = check_grid_one_argument(x)
-                y = check_grid_one_argument(y)
+                x = check_grid(x)
+                y = check_grid(y)
                 --adjust start_x, start_y, end_x, end_y according to the mouse pointer(cursor)
                 start_x = start_x + x - center_x
                 start_y = start_y + y - center_y
@@ -283,14 +256,17 @@ function canvas:button_cb(button, pressed, x, y)
                 
                 DrawShape(temp_canvas,start_x, start_y,end_x,end_y) 
               end
-              print("\n function end \n")
+              
             else
               local start_x = canvas.start_x
               local start_y = canvas.start_y
-              start_x, start_y, x, y = check_grid(start_x, start_y, x, y)
+              start_x = check_grid(start_x)
+              start_y = check_grid(start_y)
+              x = check_grid(x)
+              y = check_grid(y)
               DrawShape(temp_canvas, start_x, start_y, x, y)
-              --write elements in the database.txt file
-              write_file(start_x,start_y,x,y)  
+              --concatinate elements with str 
+              str = str.."{obj='"..shapeName.."',stx="..start_x..",sty="..start_y..",enx="..x..",eny="..y.."},"  
               
             end
             temp_canvas:Kill()
@@ -315,16 +291,18 @@ function canvas:motion_cb(x, y, status)
     y = canvas_height - y 
     if (iup.isbutton1(status)) then -- button1 is pressed 
 
-        self.end_x = x
-        self.end_y = y 
-        self.shape = shapeName
-        iup.Update(self)
-
+      self.end_x = x
+      self.end_y = y 
+      self.shape = shapeName
+      iup.Update(self)
     end
  end
 end
 
-
+function canvas:resize_cb()
+  local widht_x, height_x = string.match(canvas.drawsize,"(%d*)x(%d*)")
+  print(widht_x,height_x)
+end
 
 
 
@@ -350,12 +328,13 @@ function dialog_which_contain_created_shape()
   created_shape:showxy(iup.RIGHT,iup.RIGHT)
 end
 
---when new_shape button pressed it will clear the canvas.it will put a white image and draw the grid on the canvas. 
+--when new_shape button pressed it will clear the canvas. it will put a white image and draw the grid on the canvas. 
 --this button set newShapeIsReady = true
+
 function new_shape()
   
-  local str = read_file()
-  
+  str = str.."}"
+  write_file(str)
   put_white_image_and_draw_grid_on_canvas(dlg)
   iup.Update(canvas)
   newShapeIsReady = true
@@ -368,13 +347,13 @@ end
 
 hbox = iup.hbox{
   iup.vbox {
-  iup.button{ title="Line", tip="Line", action = Line_button},
-  iup.button{ title="Rect",  tip="Rectangle", action = Rect_button},
-  iup.button{ title="Filled Rect",  tip="Filled Rectangle", action = Filled_rect_button},
-  iup.button{ title="Ellipse", tip="Ellipse", action = Ellipse_button},
-  iup.button{ title="Filled Ellipse", tip="Filled Ellipse", action = Filled_ellipse_button},
-  iup.button{ title="Save", action = dialog_which_contain_created_shape},
-  margin = "20x20",
+    iup.button{ title="Line", tip="Line", action = Line_button},
+    iup.button{ title="Rect",  tip="Rectangle", action = Rect_button},
+    iup.button{ title="Filled Rect",  tip="Filled Rectangle", action = Filled_rect_button},
+    iup.button{ title="Ellipse", tip="Ellipse", action = Ellipse_button},
+    iup.button{ title="Filled Ellipse", tip="Filled Ellipse", action = Filled_ellipse_button},
+    iup.button{ title="Save", action = dialog_which_contain_created_shape},
+    margin = "20x20",
   }
 }
 --element box
