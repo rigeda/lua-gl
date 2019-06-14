@@ -79,7 +79,7 @@ end
 -----------------********* End Read Write **********---------------------------
 
 
---If not any image then this function put a white image on the canvas. and draw a grid on the canvas
+--If not any image then this function create a white image. and draw a grid on the image.
 function put_white_image_and_draw_grid_on_canvas(dlg)
   local canvas = dlg.canvas
   
@@ -166,7 +166,7 @@ canvas = iup.canvas{ }
 function canvas:action()
   local image = canvas.image
   local cd_canvas = canvas.cdCanvas
-  local canvas_width, canvas_height = cd_canvas:GetSize()
+  local canvas_width, canvas_height = cd_canvas:GetSize() 
   
   cd_canvas:Activate()
   cd_canvas:Background(cd.EncodeColor(255, 255, 255))
