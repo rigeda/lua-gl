@@ -3,7 +3,7 @@
 require( "iuplua" )
 require("cdlua")
 require("iupluacd")
-require("cdluaim")
+
 
 start_x=0
 start_y=0
