@@ -43,7 +43,7 @@ function create_white_image_and_draw_grid_on_image(canvas)
 end
 
  -- to draw grid
- function drawGrid(cd_canvas,canvas)
+function drawGrid(cd_canvas,canvas)
  
   --local w,h = string.match(canvas.size,"(%d*)x(%d*)")
   local w,h = cd_canvas:GetSize()
@@ -58,6 +58,17 @@ end
   for x=0, w, grid_x do
     cd_canvas:Line(x,0,x,h)
   end
+end
+
+  
+function canvas:map_cb()
+  cd_canvas = cd.CreateCanvas(cd.IUPDBUFFER, canvas)
+  canvas.cdCanvas = cd_canvas
+end
+
+function canvas:unmap_cb()
+  local cd_canvas = canvas.cdCanvas
+  cd_canvas:Kill()
 end
 
 function cnv()
