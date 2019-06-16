@@ -7,8 +7,9 @@ canvasObj = {
 	height = 100, --default value
 	cnv = nil,
 	str = "",
+	module = nil,
     --function to create new canvas object	
-	new = function(mode, gridx, gridy, width, height)
+	new = function(mode, gridx, gridy, t_width, t_height)
 		local table = {}
 		
 		for k,v in pairs(canvasObj) do 
@@ -17,8 +18,16 @@ canvasObj = {
 		table.mode = mode
 		table.grid_x = gridx
 		table.grid_y = gridy
-		table.width = width
-		table.height = height
+		table.width = t_width
+		table.height = t_height
+		grid_x_size = gridx
+		grid_y_size = gridy
+		width, height = t_width, t_height
+		m = require("createCanvas")
+		table.cnv = m.newcanvas(gridx, gridy, t_width, t_height)
+		table.module = m
+		print(table.cnv)
+		--print(table.module.cnv)
 		return table
 	end,
 	--function to draw shape(object) on canvas
@@ -26,11 +35,10 @@ canvasObj = {
 		if self.mode == "DRAWING" then
 			
 			shapeName = obj
-			grid_x_size = self.grid_x
-			grid_y_size = self.grid_y
-			width, height = self.width, self.height
-		    m = require("dependency")
-			self.cnv = m.cnv()
+			
+			require("motion")
+			--print(self.cnv, self.mode, self.grid_x, self.grid_y, self.width, self.height)
+
 			return self.cnv
 		else
 			iup.Message("Error","you can draw only in drawing mode")
@@ -38,13 +46,13 @@ canvasObj = {
 		end
 		
 	end,
-    --save
+    -- save
 	save = function(self)
-		m = require("dependency")
-		self.str = m.save()
+		--m = require("t2depen")
+		self.str = self.module.save()
 		return self.str 
 	end,
-    --erase canvas object
+
 	erase = function(self)
 		self.mode = nil
 		self.grid_x = nil
