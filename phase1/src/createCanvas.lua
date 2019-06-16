@@ -77,6 +77,7 @@ end
 module.cnv = cnv
 
 function save()
+  str = str:sub(1,-2) -- remove last comma
   str = str.."}"
   return str
 end
