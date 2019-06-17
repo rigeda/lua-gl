@@ -7,7 +7,7 @@ require("cdlua")
 require("iupluacd")
 require("cdluaim")
 
-LGL = require("LUAgl")
+LGL = require("lua-gl")
 
 cnvobj1=LGL.new("DRAWING", 30, 30, 200, 200)  
 cnvobj2=LGL.new("DRAWING", 40, 40, 500, 500)

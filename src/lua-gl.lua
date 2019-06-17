@@ -7,7 +7,7 @@ canvasObj = {
 	height = 100, --default value
 	cnv = nil,
 	str = "",
-	module = nil,
+	module = require("createCanvas"),
     --function to create new canvas object	
 	new = function(mode, gridx, gridy, t_width, t_height)
 		local table = {}
@@ -23,10 +23,11 @@ canvasObj = {
 		grid_x_size = gridx
 		grid_y_size = gridy
 		width, height = t_width, t_height
-		m = require("createCanvas")
-		table.cnv = m.newcanvas(gridx, gridy, t_width, t_height)
-		table.module = m
-		print(table.cnv)
+		table.module = canvasObj.module
+		table.cnv = table.module.newcanvas(gridx, gridy, t_width, t_height)
+		print("canvas is = ",table.cnv)
+		
+		--print(table.cnv)
 		--print(table.module.cnv)
 		return table
 	end,
@@ -35,9 +36,12 @@ canvasObj = {
 		if self.mode == "DRAWING" then
 			
 			shapeName = obj
-			
+			canvas = self.cnv
 			require("motion")
-			--print(self.cnv, self.mode, self.grid_x, self.grid_y, self.width, self.height)
+			--[[grid_x_size = self.grid_x
+			grid_y_size = self.grid_y
+			width, height = self.width, self.height]]
+			print(self.cnv, self.mode, self.grid_x, self.grid_y, self.width, self.height)
 
 			return self.cnv
 		else
