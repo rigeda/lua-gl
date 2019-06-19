@@ -12,7 +12,7 @@ createCanvasAndDrawObj = {
   end,
 
   --If not any image then this function create a white image. and draw a grid on the image
-  create_white_image_and_draw_grid_on_image = function(canvas)
+  create_white_image_and_draw_grid_on_image = function(canvas, cnvobj)
   
     local w, h = string.match(canvas.rastersize,"(%d*)x(%d*)")
   
@@ -34,10 +34,12 @@ createCanvasAndDrawObj = {
       end
     end
     canvas.image = image
-    if image then
-      local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
-      createCanvasAndDrawObj.drawGrid(grid_canvas,canvas)
-      grid_canvas:Kill()
+    if cnvobj.gridVisibility then
+      if image then
+        local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
+        createCanvasAndDrawObj.drawGrid(grid_canvas,canvas)
+        grid_canvas:Kill()
+      end
     end
   end,
 
@@ -256,7 +258,7 @@ createCanvasAndDrawObj = {
     height = cnvobj.height
     canvas = iup.canvas{}
     canvas.rastersize=""..width.."x"..height..""
-    createCanvasAndDrawObj.create_white_image_and_draw_grid_on_image(canvas)
+    createCanvasAndDrawObj.create_white_image_and_draw_grid_on_image(canvas,cnvobj)
     return canvas
   end,
   --module.newcanvas = newcanvas

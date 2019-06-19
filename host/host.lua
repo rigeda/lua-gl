@@ -23,10 +23,11 @@ LTdlg:showxy(iup.RIGHT, iup.RIGHT)
 -------------<<<<<<<<<<< ##### LuaTerminal End ##### >>>>>>>>>>>>>-------------
 
 
---------------<<<<<<<<< ######## lua-gl ######## >>>>>>>>>>------------------
+-------------<<<<<<<<< ##### lua-gl ##### >>>>>>>>>>----------------------
 LGL = require("lua-gl")
-cnvobj1 = LGL.new("DRAWING", 40, 40, 600, 300)  
-cnvobj2 =  LGL.new("DRAWING", 15, 15, 600, 300)
+-- format LGL.new(mode, gridx, gridy, width, height, gridVisibility)
+cnvobj1 = LGL.new("DRAWING", 40, 40, 600, 300, false)  
+cnvobj2 =  LGL.new("DRAWING", 15, 15, 600, 300, true)
 
 
 dlg = iup.dialog{
@@ -47,6 +48,3 @@ if iup.MainLoopLevel()==0 then
     iup.MainLoop()
     iup.Close()
 end
-
-
-

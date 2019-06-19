@@ -10,13 +10,15 @@ canvasObj = {
 	cnv = nil,
 	drawnEle = {},  --The table which contains all the drawn elements data
 	shape = "",
+    gridVisibility = true,
     --function to create new canvas object	
-	new = function(newMode, gridx, gridy, t_width, t_height)
+	new = function(newMode, gridx, gridy, t_width, t_height, grid_visibility)
 		local cnvobj = {}
 		
 		for k,v in pairs(canvasObj) do 
 			cnvobj[k]=v 	
 		end
+		cnvobj.gridVisibility = grid_visibility
 		cnvobj.drawnEle = {}
 		cnvobj.mode = newMode
 		cnvobj.grid_x = gridx
