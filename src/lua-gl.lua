@@ -1,3 +1,5 @@
+local m = require("createCanvas")
+local module = m.new()
 
 canvasObj = {
 	mode = "",
@@ -6,55 +8,64 @@ canvasObj = {
 	width = 100,
 	height = 100, --default value
 	cnv = nil,
-	str = "",
-	module = require("createCanvas"),
+	drawnEle = {},  --The table which contains all the drawn elements data
+	shape = "",
     --function to create new canvas object	
-	new = function(mode, gridx, gridy, t_width, t_height)
-		local table = {}
+	new = function(newMode, gridx, gridy, t_width, t_height)
+		local cnvobj = {}
 		
 		for k,v in pairs(canvasObj) do 
-			table[k]=v 	
+			cnvobj[k]=v 	
 		end
-		table.mode = mode
-		table.grid_x = gridx
-		table.grid_y = gridy
-		table.width = t_width
-		table.height = t_height
-		grid_x_size = gridx
-		grid_y_size = gridy
-		width, height = t_width, t_height
-		table.module = canvasObj.module
-		table.cnv = table.module.newcanvas(gridx, gridy, t_width, t_height)
-		print("canvas is = ",table.cnv)
+		cnvobj.drawnEle = {}
+		cnvobj.mode = newMode
+		cnvobj.grid_x = gridx
+		cnvobj.grid_y = gridy
+		cnvobj.width = t_width
+		cnvobj.height = t_height
 		
-		--print(table.cnv)
-		--print(table.module.cnv)
-		return table
-	end,
-	--function to draw shape(object) on canvas
-	drawObj = function(self,obj)
-		if self.mode == "DRAWING" then
-			
-			shapeName = obj
-			canvas = self.cnv
-			require("motion")
-			--[[grid_x_size = self.grid_x
-			grid_y_size = self.grid_y
-			width, height = self.width, self.height]]
-			print(self.cnv, self.mode, self.grid_x, self.grid_y, self.width, self.height)
+		cnvobj.cnv = module.newcanvas(cnvobj)
 
-			return self.cnv
+		function cnvobj.cnv:action()
+			module.action(cnvobj)
+		end
+		function cnvobj.cnv:map_cb()
+			module.map_cb(self)
+		end
+		function cnvobj.cnv:unmap_cb()
+			module.unmap_cb(self)
+		end
+		
+		return cnvobj
+	end,
+	--function to draw shape/object on canvas
+	drawObj = function(cnvobj,shape)
+		if cnvobj.mode == "DRAWING" then
+			
+			cnvobj.shape = shape
+
+			function cnvobj.cnv:action()
+				module.action(cnvobj)
+			end
+			function cnvobj.cnv:button_cb(button,pressed,x,y)
+				module.button_cb(cnvobj,button, pressed, x, y)
+			end
+			function cnvobj.cnv:motion_cb(x, y, status)
+				
+				module.motion_cb(cnvobj, x, y, status)
+				
+			end
+			function cnvobj.cnv:map_cb()
+				module.map_cb(self)
+			end
+			function cnvobj.cnv:unmap_cb()
+				module.unmap_cb(self)
+			end            
 		else
 			iup.Message("Error","you can draw only in drawing mode")
 			return false
 		end
 		
-	end,
-    -- save
-	save = function(self)
-		--m = require("t2depen")
-		self.str = self.module.save()
-		return self.str 
 	end,
 
 	erase = function(self)
@@ -68,7 +79,6 @@ canvasObj = {
 		self.new = nil
 		self.drawObj = nil
 		self.save = nil
-		--print(self.mode, self.grid_x,self.grid_y, self.width, self.height)
 	end
 }
 return canvasObj

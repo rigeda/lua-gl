@@ -7,33 +7,46 @@ require("cdlua")
 require("iupluacd")
 require("cdluaim")
 
+-------------<<<<<<<<<<< ##### LuaTerminal ##### >>>>>>>>>>>>>-------------
+require("iuplua_scintilla")
+LT = require("LuaTerminal")
+LT.USESCINTILLA = true
+
+-- Create terminal
+newterm = LT.newTerm(_ENV,true,"testlog.txt")
+
+--print("newterm: ", newterm)
+LTbox = iup.vbox{newterm}
+
+LTdlg = iup.dialog{LTbox; title="LuaTerminal", size="QUARTERxQUARTER"}
+LTdlg:showxy(iup.RIGHT, iup.RIGHT)
+-------------<<<<<<<<<<< ##### LuaTerminal End ##### >>>>>>>>>>>>>-------------
+
+
+--------------<<<<<<<<< ######## lua-gl ######## >>>>>>>>>>------------------
 LGL = require("lua-gl")
+cnvobj1 = LGL.new("DRAWING", 40, 40, 600, 300)  
+cnvobj2 =  LGL.new("DRAWING", 15, 15, 600, 300)
 
-cnvobj1=LGL.new("DRAWING", 30, 30, 200, 200)  
-cnvobj2=LGL.new("DRAWING", 40, 40, 500, 500)
-cnvobj1:erase()
---cnv1 = cnvobj1:drawObj("ELLIPSE")
-
-cnv2 = cnvobj2:drawObj("LINE")
 
 dlg = iup.dialog{
     iup.vbox{
-        cnv2
+        iup.button{title = "----------------Canvas1---------------"},
+        cnvobj1.cnv,
+        iup.button{title = "----------------Canvas2---------------"},
+        cnvobj2.cnv,
     },
     title="Phase1",
-    canvas=cnv2,
+    canvas=cnv1,
     
 }
 
---dlg1:show()
-dlg:show()
+dlg:showxy(iup.CENTER, iup.CENTER)
 
 if iup.MainLoopLevel()==0 then
     iup.MainLoop()
     iup.Close()
 end
 
-st1 = cnvobj2:save()
-print("string = "..st1)
 
 
