@@ -1,5 +1,6 @@
 
 --********************************** Utilities *****************************************
+
 createCanvasAndDrawObj = {
 
   
@@ -37,17 +38,19 @@ createCanvasAndDrawObj = {
     if cnvobj.gridVisibility then
       if image then
         local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
-        createCanvasAndDrawObj.drawGrid(grid_canvas,canvas)
+        createCanvasAndDrawObj.drawGrid(grid_canvas,cnvobj)
         grid_canvas:Kill()
       end
     end
   end,
 
   -- to draw grid
-  drawGrid = function(cd_canvas,canvas)
+  drawGrid = function(cd_canvas,cnvobj)
     --local w,h = string.match(canvas.size,"(%d*)x(%d*)")
     local w,h = cd_canvas:GetSize()
     local x,y
+    local grid_x = cnvobj.grid_x
+    local grid_y = cnvobj.grid_y
     --first for loop to draw horizontal line
     cd_canvas:SetForeground(cd.EncodeColor(192,192,192))
     for y=0, h, grid_y do
@@ -160,7 +163,8 @@ createCanvasAndDrawObj = {
     local cd_canvas = canvas.cdCanvas
     cd_canvas:Kill()
   end,
-
+   
+ 
 
   button_cb = function(cnvobj,button, pressed, x, y)
     canvas = cnvobj.cnv
