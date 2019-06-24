@@ -33,7 +33,7 @@ cnvobj2 = LGL.new{mode = "DRAWING", grid_x = 15, grid_y = 15, width = 600, heigh
 
 dlg = iup.dialog{
     iup.vbox{
-        iup.lable{title = "----------------Canvas1---------------"},
+        iup.label{title = "----------------Canvas1---------------"},
         cnvobj1.cnv,
         iup.label{title = "----------------Canvas2---------------"},
         cnvobj2.cnv,

@@ -151,6 +151,7 @@ new = function(para)
 	print(cnvobj.cnv.cdCanvas)
 	
 	function cnvobj.cnv.action()
+		--print(cnvobj.cnv.cdCanvas)
 		module.action(cnvobj)
 	end
 	
