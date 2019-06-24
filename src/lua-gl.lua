@@ -1,60 +1,38 @@
-local m = require("createCanvas")
-local module = m.new()
+
+local require = require
+local pairs = pairs
 local print = print
 local iup = iup
 local cd = cd
 local im = im 
-
+local tonumber = tonumber 
+local string = string 
+local setmetatable = setmetatable
+local type = type
 
 local M = {}
-package.loaded[...]= M 
-_ENV = M
+package.loaded[...] = M
+_ENV = M		-- Lua 5.2+
 
-	mode = ''
-	grid_x = 10 --default value
-	grid_y = 10 --default value
-	width = 100
-	height = 100 --default value
-	cnv = nil
-	drawnEle = {}  --The table which contains all the drawn elements data
-	savedEle = {}
-	shape = ''
-	gridVisibility = true
-	
-    --function to create new canvas object	
-	new = function(nMode, gridx, gridy, t_width, t_height, grid_visibility)
-		local cnvobj = {}
-		cnvobj.save = save
-		cnvobj.refresh = refresh
-		cnvobj.load = load
-		cnvobj.drawObj = drawObj
-		cnvobj.erase = erase
-		cnvobj.gridVisibility = grid_visibility
-		cnvobj.drawnEle = {}
-		cnvobj.savedEle = {}
-		cnvobj.mode = nMode
-		cnvobj.grid_x = gridx
-		cnvobj.grid_y = gridy
-		cnvobj.width = t_width
-		cnvobj.height = t_height
+local tableUtils = require("tableUtils")
+local module = require("createCanvas")
+
+
+local objFuncs = {
+
+	erase = function(cnvobj)
 		
-		cnvobj.cnv = module.newcanvas(cnvobj)
+		cnvobj.drawnEle = {}
+		module.create_white_image_and_draw_grid_on_image(cnvobj.cnv,cnvobj)
+		iup.Update(cnvobj.cnv)
 
 		function cnvobj.cnv:action()
 			module.action(cnvobj)
 		end
-		function cnvobj.cnv:map_cb()
-			module.map_cb(self)
-		end
-		function cnvobj.cnv:unmap_cb()
-			module.unmap_cb(self)
-		end
-		
-		return cnvobj
-	end
-	--function to draw shape/object on canvas
+	end,
+
 	drawObj = function(cnvobj,shape)
-		if cnvobj then
+	 	if cnvobj then
 			
 			cnvobj.shape = shape
 
@@ -71,17 +49,23 @@ _ENV = M
 				end
 			end         
 		else
-			iup.Message("Error","cnvobj required")
+			--iup.Message("Error","cnvobj required")
 			return false
 		end
 		
-	end
-	
+	end,
+
 	save = function(cnvobj)
 		cnvobj.savedEle = cnvobj.drawnEle
-	end
+		local str = tableUtils.t2s(cnvobj.savedEle)
+		return str
+		--refresh(cnvobj)
+	end,
 
 	load = function(cnvobj)
+		function cnvobj.cnv:action()
+			module.action(cnvobj)
+		end
 		if cnvobj then
 			function cnvobj.cnv:button_cb(button,pressed,x,y)
 				
@@ -94,37 +78,83 @@ _ENV = M
 						end
 
 						temp_canvas:Kill()
-						
-						cnvobj.cnv.shape = nil
+						cnvobj.shape = nil
 						iup.Update(cnvobj.cnv)
 					end
 				end
 			end
 		end
 		
+	end,
+
+}
+
+
+mapCB = function(self)
+	local cd_Canvas = cd.CreateCanvas(cd.IUP, self)
+	local cd_bCanvas = cd.CreateCanvas(cd.DBUFFER,cd_Canvas)
+	self.cdCanvas = cd_Canvas
+	self.cdbCanvas = cd_bCanvas
+end
+unmapCB = function(self)
+	local cd_bCanvas = self.cdbCanvas
+	local cd_Canvas = self.cdCanvas
+	cd_bCanvas:Kill()
+	cd_Canvas:Kill()
+end
+
+local function checkPara(para)
+	if not para.mode or type(para.mode) ~= "string" then
+		return nil,"mode not given or not a string"
+	end
+	if not para.width or type(para.width) ~= "number" then
+		return nil,"Width not given or not a number"
+	end
+	if not para.height or type(para.height) ~= "number" then
+		return nil,"height not given or not a number"
+	end
+	if not para.grid_x or type(para.grid_x) ~= "number" then
+		return nil,"grid_x not given or not a number"
+	end
+	if not para.grid_y or type(para.grid_y) ~= "number" then
+		return nil,"grid_y not given or not a number"
+	end
+	if not para.gridVisibility or type(para.gridVisibility) ~= "boolean" then
+		return nil, "gridVisibility not given or not a boolean"
 	end
 	
-	erase = function(cnvobj)
-		
-		cnvobj.drawnEle = {}
-		module.create_white_image_and_draw_grid_on_image(cnvobj.cnv,cnvobj)
-		iup.Update(cnvobj.cnv)
+	return true
+end
 
-		function cnvobj.cnv:action()
-			module.action(cnvobj)
-		end
+
+
+new = function(para)
+	local cnvobj = {}
+	local resp,msg = checkPara(para)
+   
+	if not resp then
+		print(resp)
+		return nil,msg
 	end
 
-	--[[erase = function(self)
-		self.mode = nil
-		self.grid_x = nil
-		self.grid_y = nil
-		self.width = nil
-		self.height = nil
-		self.cnv = nil 
-		self.str = nil 
-		self.new = nil
-		self.drawObj = nil
-		self.save = nil
-	end]]
+	for k,v in pairs(para) do
+		cnvobj[k] = v
+	end
 
+	cnvobj.cnv = module.newcanvas(cnvobj)
+	cnvobj.drawnEle = {}
+	cnvobj.savedEle = {}
+
+	cnvobj.cnv.map_cb = mapCB
+	cnvobj.cnv.unmap_cb = unmapCB
+	
+	print(cnvobj.cnv.cdCanvas)
+	
+	function cnvobj.cnv.action()
+		module.action(cnvobj)
+	end
+	
+	setmetatable(cnvobj,{__index = objFuncs})
+	
+	return cnvobj
+end

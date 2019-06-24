@@ -1,25 +1,23 @@
 
---********************************** Utilities *****************************************
+--********************************** Utilities ****************************************
+local iup = iup
+local im = im 
+local cd = cd
+local print = print 
+local string = string 
+local tonumber = tonumber
+local math = math
 
-createCanvasAndDrawObj = {
 
-  
-  new = function()
-    local t = {}
-    for key,value in pairs(createCanvasAndDrawObj) do
-      t[key]=value 
-    end
-    return t
-  end,
+local M = {}
+package.loaded[...] = M 
+_ENV = M -- Lua 5.2+
 
-  --If not any image then this function create a white image. and draw a grid on the image
+  -- this function create a white image. and draw a grid on the image
   create_white_image_and_draw_grid_on_image = function(canvas, cnvobj)
   
     local w, h = string.match(canvas.rastersize,"(%d*)x(%d*)")
-  
-    local cd_canvas = canvas.cdCanvas
-  
-  
+    
     --create imimage
     local image = im.ImageCreate(w, h, im.RGB, im.BYTE)
     --fill new image with white color
@@ -38,11 +36,11 @@ createCanvasAndDrawObj = {
     if cnvobj.gridVisibility then
       if image then
         local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
-        createCanvasAndDrawObj.drawGrid(grid_canvas,cnvobj)
+        drawGrid(grid_canvas,cnvobj)
         grid_canvas:Kill()
       end
     end
-  end,
+  end
 
   -- to draw grid
   drawGrid = function(cd_canvas,cnvobj)
@@ -60,12 +58,12 @@ createCanvasAndDrawObj = {
     for x=0, w, grid_x do
       cd_canvas:Line(x,0,x,h)
     end
-  end,
+  end
 
 
 
   --adjust x, or x should be multiple of grid_x
-  check_grid_x = function(x)
+  snap_x = function(x)
     if x%grid_x ~= 0 then   --if x is not multiple of grid_x then we have to adjust it
       if x%grid_x >= grid_x/2 then   --upper bound 
         x = x + ( grid_x - x%grid_x )
@@ -74,9 +72,9 @@ createCanvasAndDrawObj = {
       end
     end
     return x
-  end,
+  end
 
-  check_grid_y = function(y)
+  snap_y = function(y)
     if y%grid_y ~= 0 then   --if x is not multiple of grid_y then we have to adjust it
       if y%grid_y >= grid_y/2 then   --upper bound 
         y = y + ( grid_y - y%grid_y )
@@ -85,7 +83,7 @@ createCanvasAndDrawObj = {
       end
     end
     return y
-  end,
+  end
 
 
   --Used to Draw Shape
@@ -105,7 +103,8 @@ createCanvasAndDrawObj = {
     elseif (canvas.shape == "FILLEDELLIPSE") then
       cnv:Sector(math.floor((end_x + start_x) / 2), math.floor((end_y + start_y) / 2), math.abs(end_x - start_x), math.abs(end_y - start_y), 0, 360)
     end
-  end,
+    shapeName = nil
+  end
 
 
 
@@ -117,7 +116,8 @@ createCanvasAndDrawObj = {
   action = function(cnvobj)
     canvas = cnvobj.cnv
     local image = canvas.image
-    local cd_canvas = canvas.cdCanvas
+    local cd_canvas = canvas.cdbCanvas
+   
   
     shapeName = cnvobj.shape
     grid_x = cnvobj.grid_x
@@ -133,7 +133,6 @@ createCanvasAndDrawObj = {
     cd_canvas:Activate()
     cd_canvas:Background(cd.EncodeColor(255, 255, 255))
     cd_canvas:Clear()
-
     if (image) then
       cd_canvas:PutImImage(image, 0, 0, canvas_width, canvas_height)  
       if (canvas.shape) then
@@ -142,19 +141,19 @@ createCanvasAndDrawObj = {
         local end_x = canvas.end_x
         local end_y = canvas.end_y
         
-        start_x =createCanvasAndDrawObj.check_grid_x(start_x)
-        start_y = createCanvasAndDrawObj.check_grid_y(start_y)
-        end_x = createCanvasAndDrawObj.check_grid_x(end_x)
-        end_y = createCanvasAndDrawObj.check_grid_y(end_y)
+        start_x =snap_x(start_x)
+        start_y = snap_y(start_y)
+        end_x = snap_x(end_x)
+        end_y = snap_y(end_y)
      
-        createCanvasAndDrawObj.DrawShape(cd_canvas, start_x, start_y, end_x, end_y, canvas.shape)
+        DrawShape(cd_canvas, start_x, start_y, end_x, end_y, canvas.shape)
   
       end
     end
     cd_canvas:Flush()
-  end,
+  end
 
-  map_cb = function(canvas)
+  --[[map_cb = function(canvas)
     local cd_canvas = cd.CreateCanvas(cd.IUP, canvas)
     canvas.cdCanvas = cd_canvas
   end,
@@ -162,7 +161,7 @@ createCanvasAndDrawObj = {
   unmap_cb = function(canvas)
     local cd_canvas = canvas.cdCanvas
     cd_canvas:Kill()
-  end,
+  end,]]
    
  
 
@@ -197,16 +196,13 @@ createCanvasAndDrawObj = {
             local temp_canvas = cd.CreateCanvas(cd.IMIMAGE, image)         
             local start_x = canvas.start_x
             local start_y = canvas.start_y
-            start_x = createCanvasAndDrawObj.check_grid_x(start_x)
-            start_y = createCanvasAndDrawObj.check_grid_y(start_y)
-            x = createCanvasAndDrawObj.check_grid_x(x)
-            y = createCanvasAndDrawObj.check_grid_y(y)
+            start_x = snap_x(start_x)
+            start_y = snap_y(start_y)
+            x = snap_x(x)
+            y = snap_y(y)
           
-
-            createCanvasAndDrawObj.DrawShape(temp_canvas, start_x, start_y, x, y,shapeName)
-            --concatinate elements with str 
             local index = #cnvobj.drawnEle
-            --print(createCanvasAndDrawObj.dataTableOfDrawnElement)
+            --print(dataTableOfDrawnElement)
             cnvobj.drawnEle[index+1] = {}
             cnvobj.drawnEle[index+1].shape = shapeName
             cnvobj.drawnEle[index+1].start_x = start_x
@@ -214,8 +210,12 @@ createCanvasAndDrawObj = {
             cnvobj.drawnEle[index+1].end_x = x
             cnvobj.drawnEle[index+1].end_y = y 
 
-            --createCanvasAndDrawObj.i = createCanvasAndDrawObj.i + 1
-            --table.str = createCanvasAndDrawObj.dataTableOfDrawnElement
+            DrawShape(temp_canvas, start_x, start_y, x, y,shapeName)
+            --concatinate elements with str 
+            
+           
+            --i = i + 1
+            --table.str = dataTableOfDrawnElement
             --print(table.str)
             temp_canvas:Kill()
             canvas.shape = nil
@@ -224,7 +224,7 @@ createCanvasAndDrawObj = {
         end
       end
     end
-  end,
+  end
  
   motion_cb = function(cnvobj, x, y, status)
     canvas = cnvobj.cnv
@@ -244,14 +244,10 @@ createCanvasAndDrawObj = {
         iup.Update(canvas)
       end
     end
-  end,
+  end
 
 
-  --create_white_image_and_draw_grid_on_image(canvas)
 
-  cnv = function()
-    return canvas 
-  end,
   --module.cnv = cnv
   --module.save = save
 
@@ -262,9 +258,8 @@ createCanvasAndDrawObj = {
     height = cnvobj.height
     canvas = iup.canvas{}
     canvas.rastersize=""..width.."x"..height..""
-    createCanvasAndDrawObj.create_white_image_and_draw_grid_on_image(canvas,cnvobj)
+
+    create_white_image_and_draw_grid_on_image(canvas,cnvobj)
     return canvas
-  end,
+  end
   --module.newcanvas = newcanvas
-}
-return createCanvasAndDrawObj
