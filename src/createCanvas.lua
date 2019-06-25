@@ -7,16 +7,15 @@ local print = print
 local string = string 
 local tonumber = tonumber
 local math = math
-
-
+local require = require
 local M = {}
 package.loaded[...] = M 
 _ENV = M -- Lua 5.2+
-
+local snap = require("snap")
   -- this function create a white image. and draw a grid on the image
-  create_white_image_and_draw_grid_on_image = function(canvas, cnvobj)
-  
-    local w, h = string.match(canvas.rastersize,"(%d*)x(%d*)")
+  create_white_image_and_draw_grid_on_image = function(cnvobj)
+    local canvas = cnvobj.cnv
+    local w, h = cnvobj.width, cnvobj.height
     
     --create imimage
     local image = im.ImageCreate(w, h, im.RGB, im.BYTE)
@@ -45,7 +44,7 @@ _ENV = M -- Lua 5.2+
   -- to draw grid
   drawGrid = function(cd_canvas,cnvobj)
     --local w,h = string.match(canvas.size,"(%d*)x(%d*)")
-    local w,h = cd_canvas:GetSize()
+    local w,h = cnvobj.width, cnvobj.height
     local x,y
     local grid_x = cnvobj.grid_x
     local grid_y = cnvobj.grid_y
@@ -60,30 +59,6 @@ _ENV = M -- Lua 5.2+
     end
   end
 
-
-
-  --adjust x, or x should be multiple of grid_x
-  snap_x = function(x)
-    if x%grid_x ~= 0 then   --if x is not multiple of grid_x then we have to adjust it
-      if x%grid_x >= grid_x/2 then   --upper bound 
-        x = x + ( grid_x - x%grid_x )
-      elseif x%grid_x < grid_x/2 then -- lower bound
-        x = x - x%grid_x
-      end
-    end
-    return x
-  end
-
-  snap_y = function(y)
-    if y%grid_y ~= 0 then   --if x is not multiple of grid_y then we have to adjust it
-      if y%grid_y >= grid_y/2 then   --upper bound 
-        y = y + ( grid_y - y%grid_y )
-      elseif y%grid_y < grid_y/2 then -- lower bound
-        y = y - y%grid_y
-      end
-    end
-    return y
-  end
 
 
   --Used to Draw Shape
@@ -103,33 +78,19 @@ _ENV = M -- Lua 5.2+
     elseif (canvas.shape == "FILLEDELLIPSE") then
       cnv:Sector(math.floor((end_x + start_x) / 2), math.floor((end_y + start_y) / 2), math.abs(end_x - start_x), math.abs(end_y - start_y), 0, 360)
     end
-    shapeName = nil
   end
 
-
-
 --********************************** End Utilities *****************************************
-
-
-
-
   action = function(cnvobj)
     canvas = cnvobj.cnv
     local image = canvas.image
     local cd_canvas = canvas.cdbCanvas
-   
-  
     shapeName = cnvobj.shape
     grid_x = cnvobj.grid_x
     grid_y = cnvobj.grid_y 
-    width = cnvobj.width
-    height = cnvobj.height
   
-    local canvas_width, canvas_height = string.match(canvas.rastersize,"(%d*)x(%d*)")
-    canvas_width = tonumber(canvas_width)
-    canvas_height = tonumber(canvas_height)
-
-  
+    local canvas_width, canvas_height = cnvobj.width, cnvobj.height
+    
     cd_canvas:Activate()
     cd_canvas:Background(cd.EncodeColor(255, 255, 255))
     cd_canvas:Clear()
@@ -141,10 +102,10 @@ _ENV = M -- Lua 5.2+
         local end_x = canvas.end_x
         local end_y = canvas.end_y
         
-        start_x =snap_x(start_x)
-        start_y = snap_y(start_y)
-        end_x = snap_x(end_x)
-        end_y = snap_y(end_y)
+        start_x =snap.Sx(start_x, grid_x)
+        start_y = snap.Sy(start_y, grid_y)
+        end_x = snap.Sx(end_x, grid_x)
+        end_y = snap.Sy(end_y, grid_y)
      
         DrawShape(cd_canvas, start_x, start_y, end_x, end_y, canvas.shape)
   
@@ -153,18 +114,6 @@ _ENV = M -- Lua 5.2+
     cd_canvas:Flush()
   end
 
-  --[[map_cb = function(canvas)
-    local cd_canvas = cd.CreateCanvas(cd.IUP, canvas)
-    canvas.cdCanvas = cd_canvas
-  end,
-
-  unmap_cb = function(canvas)
-    local cd_canvas = canvas.cdCanvas
-    cd_canvas:Kill()
-  end,]]
-   
- 
-
   button_cb = function(cnvobj,button, pressed, x, y)
     canvas = cnvobj.cnv
     local image = canvas.image
@@ -172,14 +121,9 @@ _ENV = M -- Lua 5.2+
     shapeName = cnvobj.shape
     grid_x = cnvobj.grid_x
     grid_y = cnvobj.grid_y 
-    width = cnvobj.width
-    height = cnvobj.height
-    --To get canvas width and height
-    --print(grid_x, grid_y, width, height) 
 
-    local canvas_width, canvas_height = string.match(canvas.rastersize,"(%d*)x(%d*)")
-    canvas_width = tonumber(canvas_width)
-    canvas_height = tonumber(canvas_height)
+    local canvas_width, canvas_height = cnvobj.width, cnvobj.height
+
     if (image) then
     
       y = canvas_height - y 
@@ -196,10 +140,10 @@ _ENV = M -- Lua 5.2+
             local temp_canvas = cd.CreateCanvas(cd.IMIMAGE, image)         
             local start_x = canvas.start_x
             local start_y = canvas.start_y
-            start_x = snap_x(start_x)
-            start_y = snap_y(start_y)
-            x = snap_x(x)
-            y = snap_y(y)
+            start_x = snap.Sx(start_x, grid_x)
+            start_y = snap.Sy(start_y, grid_y)
+            x = snap.Sx(x, grid_x)
+            y = snap.Sy(y, grid_y)
           
             local index = #cnvobj.drawnEle
             --print(dataTableOfDrawnElement)
@@ -211,12 +155,6 @@ _ENV = M -- Lua 5.2+
             cnvobj.drawnEle[index+1].end_y = y 
 
             DrawShape(temp_canvas, start_x, start_y, x, y,shapeName)
-            --concatinate elements with str 
-            
-           
-            --i = i + 1
-            --table.str = dataTableOfDrawnElement
-            --print(table.str)
             temp_canvas:Kill()
             canvas.shape = nil
             iup.Update(canvas)
@@ -230,9 +168,7 @@ _ENV = M -- Lua 5.2+
     canvas = cnvobj.cnv
     local  image = canvas.image
   
-    local canvas_width, canvas_height = string.match(canvas.rastersize,"(%d*)x(%d*)")
-    canvas_width = tonumber(canvas_width)
-    canvas_height = tonumber(canvas_height)
+    local canvas_width, canvas_height = cnvobj.width, cnvobj.height
 
     if (image) then
       y = canvas_height - y 
@@ -245,21 +181,3 @@ _ENV = M -- Lua 5.2+
       end
     end
   end
-
-
-
-  --module.cnv = cnv
-  --module.save = save
-
-  newcanvas = function(cnvobj)
-    grid_x = cnvobj.grid_x
-    grid_y = cnvobj.grid_y
-    width = cnvobj.width
-    height = cnvobj.height
-    canvas = iup.canvas{}
-    canvas.rastersize=""..width.."x"..height..""
-
-    create_white_image_and_draw_grid_on_image(canvas,cnvobj)
-    return canvas
-  end
-  --module.newcanvas = newcanvas

@@ -21,14 +21,9 @@ local module = require("createCanvas")
 local objFuncs = {
 
 	erase = function(cnvobj)
-		
 		cnvobj.drawnEle = {}
-		module.create_white_image_and_draw_grid_on_image(cnvobj.cnv,cnvobj)
+		module.create_white_image_and_draw_grid_on_image(cnvobj)
 		iup.Update(cnvobj.cnv)
-
-		function cnvobj.cnv:action()
-			module.action(cnvobj)
-		end
 	end,
 
 	drawObj = function(cnvobj,shape)
@@ -38,37 +33,28 @@ local objFuncs = {
 
 			function cnvobj.cnv:button_cb(button,pressed,x,y)
 				if cnvobj.mode == "DRAWING" then
-					--print("button")
 					module.button_cb(cnvobj,button, pressed, x, y)
 				end
 			end
+
 			function cnvobj.cnv:motion_cb(x, y, status)
 				if cnvobj.mode == "DRAWING" then 
 					--print("motion")
 					module.motion_cb(cnvobj, x, y, status)
 				end
 			end         
-		else
-			--iup.Message("Error","cnvobj required")
-			return false
-		end
-		
+		end	
 	end,
 
 	save = function(cnvobj)
 		cnvobj.savedEle = cnvobj.drawnEle
 		local str = tableUtils.t2s(cnvobj.savedEle)
 		return str
-		--refresh(cnvobj)
 	end,
 
 	load = function(cnvobj)
-		function cnvobj.cnv:action()
-			module.action(cnvobj)
-		end
 		if cnvobj then
 			function cnvobj.cnv:button_cb(button,pressed,x,y)
-				
 				if cnvobj.mode == "EDITOR" then
 					local image = cnvobj.cnv.image
 					if pressed == 1 then
@@ -90,6 +76,10 @@ local objFuncs = {
 }
 
 
+
+actionCB = function(cnvobj)
+	module.action(cnvobj)
+end
 mapCB = function(self)
 	local cd_Canvas = cd.CreateCanvas(cd.IUP, self)
 	local cd_bCanvas = cd.CreateCanvas(cd.DBUFFER,cd_Canvas)
@@ -141,21 +131,26 @@ new = function(para)
 		cnvobj[k] = v
 	end
 
-	cnvobj.cnv = module.newcanvas(cnvobj)
 	cnvobj.drawnEle = {}
 	cnvobj.savedEle = {}
 
+	cnvobj.cnv = iup.canvas{}
+	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	cnvobj.cnv.map_cb = mapCB
-	cnvobj.cnv.unmap_cb = unmapCB
-	
-	print(cnvobj.cnv.cdCanvas)
-	
+	cnvobj.cnv.unmap_cv = unmapCB
+
 	function cnvobj.cnv.action()
-		--print(cnvobj.cnv.cdCanvas)
-		module.action(cnvobj)
+		actionCB(cnvobj)
 	end
+
+	module.create_white_image_and_draw_grid_on_image(cnvobj)
 	
 	setmetatable(cnvobj,{__index = objFuncs})
 	
 	return cnvobj
 end
+
+
+	
+	
+
