@@ -1,19 +1,10 @@
 
 --********************************** Utilities ****************************************
-local iup = iup
-local im = im 
-local cd = cd
-local print = print 
-local string = string 
-local tonumber = tonumber
-local math = math
-local require = require
+
 local M = {}
-package.loaded[...] = M 
-_ENV = M -- Lua 5.2+
 local snap = require("snap")
   -- this function create a white image. and draw a grid on the image
-  create_white_image_and_draw_grid_on_image = function(cnvobj)
+function M.create_white_image_and_draw_grid_on_image(cnvobj)
     local canvas = cnvobj.cnv
     local w, h = cnvobj.width, cnvobj.height
     
@@ -32,17 +23,17 @@ local snap = require("snap")
       end
     end
     canvas.image = image
-    if cnvobj.gridVisibility then
+    --[[if cnvobj.gridVisibility then
       if image then
         local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
-        drawGrid(grid_canvas,cnvobj)
+        --M.drawGrid(grid_canvas,cnvobj)
         grid_canvas:Kill()
       end
-    end
-  end
+    end]]
+end
 
   -- to draw grid
-  drawGrid = function(cd_canvas,cnvobj)
+function M.drawGrid(cd_canvas,cnvobj)
     --local w,h = string.match(canvas.size,"(%d*)x(%d*)")
     local w,h = cnvobj.width, cnvobj.height
     local x,y
@@ -57,16 +48,16 @@ local snap = require("snap")
     for x=0, w, grid_x do
       cd_canvas:Line(x,0,x,h)
     end
-  end
+end
 
 
 
   --Used to Draw Shape
-  DrawShape = function(cnv, start_x, start_y, end_x, end_y, shapeName)
+function  M.DrawShape(cnv, start_x, start_y, end_x, end_y, shapeName)
   
     cnv:Foreground(cd.EncodeColor(0, 0, 255))
     canvas.shape = shapeName
-    --print(canvas.shape, cnv, start_x, start_y, end_x, end_y)
+   
     if (canvas.shape == "LINE") then
       cnv:Line(start_x, start_y, end_x, end_y)
     elseif (canvas.shape == "RECT") then
@@ -78,43 +69,54 @@ local snap = require("snap")
     elseif (canvas.shape == "FILLEDELLIPSE") then
       cnv:Sector(math.floor((end_x + start_x) / 2), math.floor((end_y + start_y) / 2), math.abs(end_x - start_x), math.abs(end_y - start_y), 0, 360)
     end
-  end
+end
 
 --********************************** End Utilities *****************************************
-  action = function(cnvobj)
+function  M.render(cnvobj)
     canvas = cnvobj.cnv
     local image = canvas.image
-    local cd_canvas = canvas.cdbCanvas
+    local cd_bcanvas = cnvobj.cdbCanvas
     shapeName = cnvobj.shape
     grid_x = cnvobj.grid_x
     grid_y = cnvobj.grid_y 
   
     local canvas_width, canvas_height = cnvobj.width, cnvobj.height
     
-    cd_canvas:Activate()
-    cd_canvas:Background(cd.EncodeColor(255, 255, 255))
-    cd_canvas:Clear()
-    if (image) then
-      cd_canvas:PutImImage(image, 0, 0, canvas_width, canvas_height)  
-      if (canvas.shape) then
-        local start_x = canvas.start_x
-        local start_y = canvas.start_y
-        local end_x = canvas.end_x
-        local end_y = canvas.end_y
-        
-        start_x =snap.Sx(start_x, grid_x)
-        start_y = snap.Sy(start_y, grid_y)
-        end_x = snap.Sx(end_x, grid_x)
-        end_y = snap.Sy(end_y, grid_y)
-     
-        DrawShape(cd_canvas, start_x, start_y, end_x, end_y, canvas.shape)
-  
+    cd_bcanvas:Activate()
+    cd_bcanvas:Background(cd.EncodeColor(255, 255, 255))
+    cd_bcanvas:Clear()
+    
+    --canvas.image = image
+    if cnvobj.gridVisibility then
+      if image then
+        local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
+        M.drawGrid(grid_canvas,cnvobj)
+        grid_canvas:Kill()
       end
     end
-    cd_canvas:Flush()
-  end
 
-  button_cb = function(cnvobj,button, pressed, x, y)
+    if (image) then
+      cd_bcanvas:PutImImage(image, 0, 0, canvas_width, canvas_height)  
+      if cnvobj.drawing == "START" then
+        if (canvas.shape) then
+          local start_x = canvas.start_x
+          local start_y = canvas.start_y
+          local end_x = canvas.end_x
+          local end_y = canvas.end_y
+        
+          start_x =snap.Sx(start_x, grid_x)
+          start_y = snap.Sy(start_y, grid_y)
+          end_x = snap.Sx(end_x, grid_x)
+          end_y = snap.Sy(end_y, grid_y)
+          M.DrawShape(cd_bcanvas, start_x, start_y, end_x, end_y, canvas.shape)
+  
+        end
+      end
+    end
+    cd_bcanvas:Flush()
+end
+
+function M.button_cb(cnvobj,button, pressed, x, y)
     canvas = cnvobj.cnv
     local image = canvas.image
   
@@ -146,7 +148,6 @@ local snap = require("snap")
             y = snap.Sy(y, grid_y)
           
             local index = #cnvobj.drawnEle
-            --print(dataTableOfDrawnElement)
             cnvobj.drawnEle[index+1] = {}
             cnvobj.drawnEle[index+1].shape = shapeName
             cnvobj.drawnEle[index+1].start_x = start_x
@@ -154,7 +155,7 @@ local snap = require("snap")
             cnvobj.drawnEle[index+1].end_x = x
             cnvobj.drawnEle[index+1].end_y = y 
 
-            DrawShape(temp_canvas, start_x, start_y, x, y,shapeName)
+            M.DrawShape(temp_canvas, start_x, start_y, x, y,shapeName,nil)
             temp_canvas:Kill()
             canvas.shape = nil
             iup.Update(canvas)
@@ -162,9 +163,9 @@ local snap = require("snap")
         end
       end
     end
-  end
+end
  
-  motion_cb = function(cnvobj, x, y, status)
+function M.motion_cb(cnvobj, x, y, status)
     canvas = cnvobj.cnv
     local  image = canvas.image
   
@@ -180,4 +181,6 @@ local snap = require("snap")
         iup.Update(canvas)
       end
     end
-  end
+end
+
+return M 
