@@ -1,10 +1,17 @@
 
 --********************************** Utilities ****************************************
+local snap = require("snap")
+local im = im 
+local iup = iup 
+local print = print
+local cd = cd
+local math = math
 
 local M = {}
-local snap = require("snap")
+package.loaded[...] = M 
+local _ENV = M
   -- this function create a white image. and draw a grid on the image
-function M.create_white_image_and_draw_grid_on_image(cnvobj)
+function  create_white_image_and_draw_grid_on_image(cnvobj)
     local canvas = cnvobj.cnv
     local w, h = cnvobj.width, cnvobj.height
     
@@ -26,14 +33,14 @@ function M.create_white_image_and_draw_grid_on_image(cnvobj)
     --[[if cnvobj.gridVisibility then
       if image then
         local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
-        --M.drawGrid(grid_canvas,cnvobj)
+        --drawGrid(grid_canvas,cnvobj)
         grid_canvas:Kill()
       end
     end]]
 end
 
   -- to draw grid
-function M.drawGrid(cd_canvas,cnvobj)
+function drawGrid(cd_canvas,cnvobj)
     --local w,h = string.match(canvas.size,"(%d*)x(%d*)")
     local w,h = cnvobj.width, cnvobj.height
     local x,y
@@ -53,7 +60,7 @@ end
 
 
   --Used to Draw Shape
-function  M.DrawShape(cnv, start_x, start_y, end_x, end_y, shapeName)
+function  DrawShape(cnv, start_x, start_y, end_x, end_y, shapeName)
   
     cnv:Foreground(cd.EncodeColor(0, 0, 255))
     canvas.shape = shapeName
@@ -72,7 +79,7 @@ function  M.DrawShape(cnv, start_x, start_y, end_x, end_y, shapeName)
 end
 
 --********************************** End Utilities *****************************************
-function  M.render(cnvobj)
+function  render(cnvobj)
     canvas = cnvobj.cnv
     local image = canvas.image
     local cd_bcanvas = cnvobj.cdbCanvas
@@ -90,7 +97,7 @@ function  M.render(cnvobj)
     if cnvobj.gridVisibility then
       if image then
         local grid_canvas = cd.CreateCanvas(cd.IMIMAGE,image)
-        M.drawGrid(grid_canvas,cnvobj)
+        drawGrid(grid_canvas,cnvobj)
         grid_canvas:Kill()
       end
     end
@@ -108,7 +115,7 @@ function  M.render(cnvobj)
           start_y = snap.Sy(start_y, grid_y)
           end_x = snap.Sx(end_x, grid_x)
           end_y = snap.Sy(end_y, grid_y)
-          M.DrawShape(cd_bcanvas, start_x, start_y, end_x, end_y, canvas.shape)
+          DrawShape(cd_bcanvas, start_x, start_y, end_x, end_y, canvas.shape)
   
         end
       end
@@ -116,7 +123,7 @@ function  M.render(cnvobj)
     cd_bcanvas:Flush()
 end
 
-function M.button_cb(cnvobj,button, pressed, x, y)
+function button_cb(cnvobj,button, pressed, x, y)
     canvas = cnvobj.cnv
     local image = canvas.image
   
@@ -155,7 +162,7 @@ function M.button_cb(cnvobj,button, pressed, x, y)
             cnvobj.drawnEle[index+1].end_x = x
             cnvobj.drawnEle[index+1].end_y = y 
 
-            M.DrawShape(temp_canvas, start_x, start_y, x, y,shapeName,nil)
+            DrawShape(temp_canvas, start_x, start_y, x, y,shapeName,nil)
             temp_canvas:Kill()
             canvas.shape = nil
             iup.Update(canvas)
@@ -165,7 +172,7 @@ function M.button_cb(cnvobj,button, pressed, x, y)
     end
 end
  
-function M.motion_cb(cnvobj, x, y, status)
+function motion_cb(cnvobj, x, y, status)
     canvas = cnvobj.cnv
     local  image = canvas.image
   
@@ -182,5 +189,3 @@ function M.motion_cb(cnvobj, x, y, status)
       end
     end
 end
-
-return M 
