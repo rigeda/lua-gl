@@ -1,53 +1,49 @@
-local test_str  
-local require = require
+
 local pairs = pairs
 local print = print
 local iup = iup
 local cd = cd
-local im = im 
-local tonumber = tonumber 
-local string = string 
 local setmetatable = setmetatable
 local type = type
 local math = math
 local snap = require("snap")
-local M = {}
-package.loaded[...] = M
-_ENV = M		-- Lua 5.2+
 
 local tableUtils = require("tableUtils")
 local CC = require("createCanvas")
 
---[[this function is used to draw the loaded shape it takes 4 arguments 
-	the first cnvobj which used for snaping, second a CD Canvas where we have to draw a loaded shape, 
-	third and forth x & y where we have to place the loaded shape on the CD Canvas
-	
-	this function simply calculates the center of the first element of shape according to the center place all the elements of shape on CD canvas.
-	]]
+local M = {}
+package.loaded[...] = M
+_ENV = M		-- Lua 5.2+
 
-local function draw_loaded_shape(cnvobj,temp_canvas,x,y,IsSnap)
-	local center_x , center_y = math.abs((cnvobj.loadedEle[1].end_x - cnvobj.loadedEle[1].start_x)/2+cnvobj.loadedEle[1].start_x), math.abs((cnvobj.loadedEle[1].end_y-cnvobj.loadedEle[1].start_y)/2+cnvobj.loadedEle[1].start_y)
+
+local function Manipulate_loaded_shape(cnvobj,temp_canvas,x,y,buttonReleased)
+	if #cnvobj.loadedEle > 0 then
+		local center_x , center_y = math.abs((cnvobj.loadedEle[1].end_x - cnvobj.loadedEle[1].start_x)/2+cnvobj.loadedEle[1].start_x), math.abs((cnvobj.loadedEle[1].end_y-cnvobj.loadedEle[1].start_y)/2+cnvobj.loadedEle[1].start_y)
 		y = cnvobj.height - y
 
-    if IsSnap == true then
+    	if buttonReleased == true then
 			x = snap.Sx(x,cnvobj.grid_x)
 			y = snap.Sy(y,cnvobj.grid_y)
 			center_x = snap.Sx(center_x, cnvobj.grid_x)
 			center_y = snap.Sy(center_y, cnvobj.grid_y)
 		end					
 					
-		for i=1, #cnvobj.loadedEle do
-		start_x = cnvobj.loadedEle[i].start_x
-		start_y = cnvobj.loadedEle[i].start_y
-		end_x = cnvobj.loadedEle[i].end_x
-		end_y = cnvobj.loadedEle[i].end_y
-
-		start_x = start_x + x - center_x
-    start_y = start_y + y - center_y
-    end_x = end_x + x - center_x
-		end_y = end_y + y - center_y
-
-		CC.DrawShape(temp_canvas, start_x, start_y, end_x, end_y, cnvobj.loadedEle[i].shape)
+		for i=1, #cnvobj.loadedEle do	
+			cnvobj.loadedEle[i].start_x = cnvobj.loadedEle[i].start_x + x - center_x
+			cnvobj.loadedEle[i].start_y = cnvobj.loadedEle[i].start_y + y - center_y
+			cnvobj.loadedEle[i].end_x = cnvobj.loadedEle[i].end_x + x - center_x
+			cnvobj.loadedEle[i].end_y = cnvobj.loadedEle[i].end_y + y - center_y
+	
+			if buttonReleased == true then
+				local index = #cnvobj.drawnEle
+	 			cnvobj.drawnEle[index+1] = {}
+	  			cnvobj.drawnEle[index+1].shape = cnvobj.loadedEle[i].shape
+	  			cnvobj.drawnEle[index+1].start_x = cnvobj.loadedEle[i].start_x
+	  			cnvobj.drawnEle[index+1].start_y = cnvobj.loadedEle[i].start_y
+	  			cnvobj.drawnEle[index+1].end_x = cnvobj.loadedEle[i].end_x
+	  			cnvobj.drawnEle[index+1].end_y = cnvobj.loadedEle[i].end_y
+			end
+		end
 	end
 end
 
@@ -56,13 +52,13 @@ local objFuncs = {
 
 	erase = function(cnvobj)
 		cnvobj.drawnEle = {}
-		CC.create_white_image_and_draw_grid_on_image(cnvobj)
+		cnvobj.loadedEle = {}
 		iup.Update(cnvobj.cnv)
 	end,
 
 	drawObj = function(cnvobj,shape)
 	 	if cnvobj then
-			
+			cnvobj.drawing = "START"
 			cnvobj.shape = shape
 
 			function cnvobj.cnv:button_cb(button,pressed,x,y)
@@ -81,20 +77,20 @@ local objFuncs = {
 	end,
 
 	save = function(cnvobj)
-		
 		local str = tableUtils.t2s(cnvobj.drawnEle)
 		return str
 	end,
 
 	load = function(cnvobj,str)
 		if cnvobj then
+			cnvobj.drawing = "STOP"
 			cnvobj.shape = nil
 			move = false
     
 			cnvobj.loadedEle = tableUtils.s2t(str)
 
 			if #cnvobj.loadedEle == 0 then
-				local msg = "loadedEle table is empty"
+				local msg = "length of string is zero"
 				return msg
 			end
 
@@ -107,14 +103,7 @@ local objFuncs = {
 							move = true
 						else
 							move = false
-
-							local image = cnvobj.cnv.image
-							local temp_canvas = cd.CreateCanvas(cd.IMIMAGE, image)
-
-		          draw_loaded_shape(cnvobj,temp_canvas,x,y,true)
-
-							temp_canvas:Kill()
-							iup.Update(cnvobj.cnv)
+		          			Manipulate_loaded_shape(cnvobj,cnvobj.cdbCanvas,x,y,true)
 						end
 					end
 				end	
@@ -125,7 +114,7 @@ local objFuncs = {
 				if move then
 				  if cnvobj.drawing == "STOP" and iup.isbutton1(status) then
 					 
-						draw_loaded_shape(cnvobj,cnvobj.cdbCanvas,x,y,false)
+						Manipulate_loaded_shape(cnvobj,cnvobj.cdbCanvas,x,y,false)
 
 						cnvobj.cdbCanvas:Flush()
 						iup.Update(cnvobj.cnv)
@@ -137,13 +126,14 @@ local objFuncs = {
 
 }
 
-mapCB = function(cnvobj)
+local function mapCB(cnvobj)
 	local cd_Canvas = cd.CreateCanvas(cd.IUP, cnvobj.cnv)
 	local cd_bCanvas = cd.CreateCanvas(cd.DBUFFER,cd_Canvas)
 	cnvobj.cdCanvas = cd_Canvas
 	cnvobj.cdbCanvas = cd_bCanvas
 end
-unmapCB = function(cnvobj)
+
+local function unmapCB(cnvobj)
 	local cd_bCanvas = cnvobj.cdbCanvas
 	local cd_Canvas = cnvobj.cdCanvas
 	cd_bCanvas:Kill()
@@ -151,9 +141,7 @@ unmapCB = function(cnvobj)
 end
 
 local function checkPara(para)
-	--[[if not para.drawing or type(para.drawing) ~= "string" then
-		return nil,"drawing not given or not a string"
-	end]]
+
 	if not para.width or type(para.width) ~= "number" then
 		return nil,"Width not given or not a number"
 	end
@@ -187,11 +175,9 @@ new = function(para)
 	for k,v in pairs(para) do
 		cnvobj[k] = v
 	end
-  
-	cnvobj.drawing = "START"
-	
+  	
 	cnvobj.drawnEle = {}
-  cnvobj.loadedEle = {}
+  	cnvobj.loadedEle = {}
 	cnvobj.cnv = iup.canvas{}
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	
@@ -204,17 +190,10 @@ new = function(para)
 	end
 	
 	function cnvobj.cnv.action()
-			CC.render(cnvobj)
+		CC.render(cnvobj)
 	end
-
-	CC.create_white_image_and_draw_grid_on_image(cnvobj)
 	
 	setmetatable(cnvobj,{__index = objFuncs})
 	
 	return cnvobj
 end
-
-
-	
-	
-
