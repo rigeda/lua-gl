@@ -28,7 +28,7 @@ LTdlg:showxy(iup.RIGHT, iup.LEFT)
 LGL = require("lua-gl")
 -- format LGL.new(mode, gridx, gridy, width, height, gridVisibility)
 cnvobj1 = LGL.new{mode = "DRAWING", grid_x = 40, grid_y = 40, width = 600, height = 300, gridVisibility = true}  
-cnvobj2 = LGL.new{mode = "DRAWING", grid_x = 15, grid_y = 15, width = 600, height = 300, gridVisibility = true}
+cnvobj2 = LGL.new{mode = "DRAWING", grid_x = 20, grid_y = 20, width = 600, height = 300, gridVisibility = true}
 
 
 dlg = iup.dialog{
