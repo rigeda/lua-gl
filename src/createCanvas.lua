@@ -71,6 +71,10 @@ function  render(cnvobj)
       DrawShape(cd_bcanvas, cnvobj.loadedEle[i].start_x, cnvobj.loadedEle[i].start_y, cnvobj.loadedEle[i].end_x, cnvobj.loadedEle[i].end_y, cnvobj.loadedEle[i].shape)
     end
   end
+  
+  if #cnvobj.activeEle > 0 then
+    DrawShape(cd_bcanvas, cnvobj.activeEle[1].start_x, cnvobj.activeEle[1].start_y, cnvobj.activeEle[1].end_x, cnvobj.activeEle[1].end_y, cnvobj.activeEle[1].shape)
+  end
 
   if cnvobj.drawing == "START" then
     if cnvobj.motion then
@@ -84,7 +88,6 @@ function  render(cnvobj)
       end_x = snap.Sx(end_x, grid_x)
       end_y = snap.Sy(end_y, grid_y)
       DrawShape(cd_bcanvas, start_x, start_y, end_x, end_y, cnvobj.shape)
-  
     end
   end
   cd_bcanvas:Flush()
