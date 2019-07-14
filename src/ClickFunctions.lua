@@ -79,7 +79,7 @@ function main(cnvobj, x, y)
 
             -- for rect
             if cnvobj.drawnEle[i].shape == "RECT" then
-                -- for coor. of rect
+                -- four coor. of rect
                 local x1, y1 = cnvobj.drawnEle[i].start_x, cnvobj.drawnEle[i].start_y
                 local x3, y3 = cnvobj.drawnEle[i].end_x , cnvobj.drawnEle[i].end_y
                 local x2, y2, x4, y4
