@@ -79,10 +79,6 @@ local objFuncs = {
 				if cnvobj.drawing == "START" then
 					CC.buttonCB(cnvobj,button, pressed, x, y)
 					if pressed == 0 then
-						cnvobj.end_x = nil
-						cnvobj.end_y = nil
-						cnvobj.start_x = nil
-						cnvobj.start_y = nil
 						cnvobj.drawing = "STOP"
 					end
 				end
@@ -92,7 +88,7 @@ local objFuncs = {
 					if index ~= 0 and index then --index should not nill
 						cnvobj.drawing = "CLICKED"
 					end
-				elseif #cnvobj.activeEle > 0 and cnvobj.drawing == "CLICKED" then
+				elseif #cnvobj.activeEle > 0 and cnvobj.drawing == "CLICKED" and pressed == 0 then
 					cnvobj.drawing = "STOP"
 					
 					cnvobj.drawnEle[#cnvobj.drawnEle + 1] = cnvobj.activeEle[1]
