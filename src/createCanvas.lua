@@ -93,7 +93,7 @@ function  render(cnvobj)
   cd_bcanvas:Flush()
 end
 
-function button_cb(cnvobj,button, pressed, x, y)
+function buttonCB(cnvobj,button, pressed, x, y)
   canvas = cnvobj.cnv
   grid_x = cnvobj.grid_x
   grid_y = cnvobj.grid_y 
@@ -123,12 +123,13 @@ function button_cb(cnvobj,button, pressed, x, y)
         cnvobj.drawnEle[index+1].start_y = start_y
         cnvobj.drawnEle[index+1].end_x = x
         cnvobj.drawnEle[index+1].end_y = y 
+        cnvobj.motion = false
       end
     end
   end
 end
  
-function motion_cb(cnvobj, x, y, status)
+function motionCB(cnvobj, x, y, status)
   canvas = cnvobj.cnv
   local canvas_width, canvas_height = cnvobj.width, cnvobj.height
 

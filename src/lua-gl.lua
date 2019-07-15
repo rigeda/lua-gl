@@ -30,10 +30,10 @@ local function Manipulate_loaded_shape(cnvobj,temp_canvas,x,y,buttonReleased)
 		end					
 					
 		for i=1, #cnvobj.loadedEle do	
-			cnvobj.loadedEle[i].start_x = cnvobj.loadedEle[i].start_x + x - center_x
-			cnvobj.loadedEle[i].start_y = cnvobj.loadedEle[i].start_y + y - center_y
-			cnvobj.loadedEle[i].end_x = cnvobj.loadedEle[i].end_x + x - center_x
-			cnvobj.loadedEle[i].end_y = cnvobj.loadedEle[i].end_y + y - center_y
+			cnvobj.loadedEle[i].start_x = math.floor(cnvobj.loadedEle[i].start_x + x - center_x)
+			cnvobj.loadedEle[i].start_y = math.floor(cnvobj.loadedEle[i].start_y + y - center_y)
+			cnvobj.loadedEle[i].end_x = math.floor(cnvobj.loadedEle[i].end_x + x - center_x)
+			cnvobj.loadedEle[i].end_y = math.floor(cnvobj.loadedEle[i].end_y + y - center_y)
 	
 			if buttonReleased == true then
 				local index = #cnvobj.drawnEle
@@ -55,10 +55,10 @@ local function Manipulate_activeEle(cnvobj,x,y)
 	if #cnvobj.activeEle > 0 then
 		local center_x , center_y = math.abs((cnvobj.activeEle[1].end_x - cnvobj.activeEle[1].start_x)/2+cnvobj.activeEle[1].start_x), math.abs((cnvobj.activeEle[1].end_y-cnvobj.activeEle[1].start_y)/2+cnvobj.activeEle[1].start_y)
 		y = cnvobj.height - y
-		cnvobj.activeEle[1].start_x = cnvobj.activeEle[1].start_x + x - center_x
-		cnvobj.activeEle[1].start_y = cnvobj.activeEle[1].start_y + y - center_y
-		cnvobj.activeEle[1].end_x = cnvobj.activeEle[1].end_x + x - center_x
-		cnvobj.activeEle[1].end_y = cnvobj.activeEle[1].end_y + y - center_y
+		cnvobj.activeEle[1].start_x = math.floor(cnvobj.activeEle[1].start_x + x - center_x)
+		cnvobj.activeEle[1].start_y = math.floor(cnvobj.activeEle[1].start_y + y - center_y)
+		cnvobj.activeEle[1].end_x = math.floor(cnvobj.activeEle[1].end_x + x - center_x)
+		cnvobj.activeEle[1].end_y = math.floor(cnvobj.activeEle[1].end_y + y - center_y)
 	end
 end
 
@@ -77,31 +77,37 @@ local objFuncs = {
 
 			function cnvobj.cnv:button_cb(button,pressed,x,y)
 				if cnvobj.drawing == "START" then
-					CC.button_cb(cnvobj,button, pressed, x, y)
+					CC.buttonCB(cnvobj,button, pressed, x, y)
 					if pressed == 0 then
+						cnvobj.end_x = nil
+						cnvobj.end_y = nil
+						cnvobj.start_x = nil
+						cnvobj.start_y = nil
 						cnvobj.drawing = "STOP"
 					end
 				end
 				--click function
 				if #cnvobj.drawnEle > 0 and cnvobj.drawing == "STOP" and pressed == 1 then
 					local index = check.main(cnvobj,x,y)
-					if index ~= 0 then
+					if index ~= 0 and index then --index should not nill
 						cnvobj.drawing = "CLICKED"
 					end
 				elseif #cnvobj.activeEle > 0 and cnvobj.drawing == "CLICKED" then
 					cnvobj.drawing = "STOP"
+					
 					cnvobj.drawnEle[#cnvobj.drawnEle + 1] = cnvobj.activeEle[1]
 					cnvobj.activeEle = {}
 				end
 
 				--if load function is called
-				if cnvobj.drawing == "STOP" then
+				if cnvobj.drawing == "LOAD" then
 					if button == iup.BUTTON1 then
 						if pressed == 1 then
 							move = true
 						else
 							move = false
 							Manipulate_loaded_shape(cnvobj,cnvobj.cdbCanvas,x,y,true)
+							cnvobj.drawing = "STOP"
 						end
 					end
 				end	
@@ -110,20 +116,18 @@ local objFuncs = {
 
 			function cnvobj.cnv:motion_cb(x, y, status)
 				if cnvobj.drawing == "START" then 
-					CC.motion_cb(cnvobj, x, y, status)
+					CC.motionCB(cnvobj, x, y, status)
 				end
 				
 				-- click fun.
 				if iup.isbutton1(status) and cnvobj.drawing == "CLICKED" and #cnvobj.activeEle > 0 then
 					Manipulate_activeEle(cnvobj,x,y)
-					cnvobj.cdbCanvas:Flush()
 					iup.Update(cnvobj.cnv)
 				end
 				
 				-- if load function is called then 
-				if iup.isbutton1(status) and cnvobj.drawing == "STOP" and move then
+				if iup.isbutton1(status) and cnvobj.drawing == "LOAD" and move then
 					Manipulate_loaded_shape(cnvobj,cnvobj.cdbCanvas,x,y,false)
-					cnvobj.cdbCanvas:Flush()
 					iup.Update(cnvobj.cnv)
 				end
 
@@ -138,7 +142,7 @@ local objFuncs = {
 
 	load = function(cnvobj,str)
 		if cnvobj then
-			cnvobj.drawing = "STOP"
+			cnvobj.drawing = "LOAD"
 			
 			move = false
 			
