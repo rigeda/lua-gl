@@ -1,0 +1,39 @@
+cnvObj = new()
+
+cnvObj.snapGrid = true/false
+
+-- Group certain shapes
+shapeList = {}
+
+cnvObj:addHook("MOUSECLICKPOST",function(x,y,button)
+									shapeID = cnvObj.whichShape(x,y)
+									shapeList[#shapeList + 1] = shapeID
+								end)
+								
+--- Current API has 2 hooks we should make initially
+--MOUSECLICKPRE  -- will run just when button_cb starts before doing anything
+--MOUSECLICKPOST	-- will run in the end of button_cb
+--- cnvObj has another data structure called hooks
+--[[ 
+hooks = {
+	{"MOUSECLICKPOST",function1}
+	{"MOUSECLICKPOST",function2}
+}
+]]
+								
+-- After clicking some shapes I can do
+cnvObj:addHook("MOUSECLICKPOST")
+cnvObj:groupShapes(shapeList)
+
+drawnEle = {
+				GROUP1 = {
+						{},
+						{}
+				}	
+			}
+			
+-- Adding a port
+cnvObj:addPort(x,y)
+shapeID1 = cnvObj:whichShape(x,y)
+shapeID = cnvObj:drawShape("RECT",x-2,y-2,x+2,y+2)
+cnvObj:groupShapes({shapeID1,shapeID})
