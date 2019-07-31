@@ -73,9 +73,10 @@ function  render(cnvobj)
   end
   
   if #cnvobj.activeEle > 0 then
-    DrawShape(cd_bcanvas, cnvobj.activeEle[1].start_x, cnvobj.activeEle[1].start_y, cnvobj.activeEle[1].end_x, cnvobj.activeEle[1].end_y, cnvobj.activeEle[1].shape)
+    for i=1, #cnvobj.activeEle do
+      DrawShape(cd_bcanvas, cnvobj.activeEle[i].start_x, cnvobj.activeEle[i].start_y, cnvobj.activeEle[i].end_x, cnvobj.activeEle[i].end_y, cnvobj.activeEle[i].shape)
+    end
   end
-
   if cnvobj.drawing == "START" then
     if cnvobj.motion then
       local start_x = canvas.start_x
@@ -118,6 +119,7 @@ function buttonCB(cnvobj,button, pressed, x, y)
           
         local index = #cnvobj.drawnEle
         cnvobj.drawnEle[index+1] = {}
+        cnvobj.drawnEle[index+1].shapeID = index + 1
         cnvobj.drawnEle[index+1].shape = cnvobj.shape
         cnvobj.drawnEle[index+1].start_x = start_x
         cnvobj.drawnEle[index+1].start_y = start_y

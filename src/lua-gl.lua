@@ -17,48 +17,64 @@ package.loaded[...] = M
 _ENV = M		-- Lua 5.2+
 
 
-local function Manipulate_loaded_shape(cnvobj,temp_canvas,x,y,buttonReleased)
-	if #cnvobj.loadedEle > 0 then
-		local center_x , center_y = math.abs((cnvobj.loadedEle[1].end_x - cnvobj.loadedEle[1].start_x)/2+cnvobj.loadedEle[1].start_x), math.abs((cnvobj.loadedEle[1].end_y-cnvobj.loadedEle[1].start_y)/2+cnvobj.loadedEle[1].start_y)
-		y = cnvobj.height - y
-
-    	if buttonReleased == true then
-			x = snap.Sx(x,cnvobj.grid_x)
-			y = snap.Sy(y,cnvobj.grid_y)
-			center_x = snap.Sx(center_x, cnvobj.grid_x)
-			center_y = snap.Sy(center_y, cnvobj.grid_y)
-		end					
+local function Manipulate_loaded_shape(cnvobj, x,y,Table)
+	if #Table > 0 then
+		local center_x , center_y = math.abs((Table[1].end_x - Table[1].start_x)/2+Table[1].start_x), math.abs((Table[1].end_y-Table[1].start_y)/2+Table[1].start_y)
+		y = cnvobj.height - y			
 					
-		for i=1, #cnvobj.loadedEle do	
-			cnvobj.loadedEle[i].start_x = math.floor(cnvobj.loadedEle[i].start_x + x - center_x)
-			cnvobj.loadedEle[i].start_y = math.floor(cnvobj.loadedEle[i].start_y + y - center_y)
-			cnvobj.loadedEle[i].end_x = math.floor(cnvobj.loadedEle[i].end_x + x - center_x)
-			cnvobj.loadedEle[i].end_y = math.floor(cnvobj.loadedEle[i].end_y + y - center_y)
-	
-			if buttonReleased == true then
-				local index = #cnvobj.drawnEle
-	 			cnvobj.drawnEle[index+1] = {}
-	  			cnvobj.drawnEle[index+1].shape = cnvobj.loadedEle[i].shape
-	  			cnvobj.drawnEle[index+1].start_x = cnvobj.loadedEle[i].start_x
-	  			cnvobj.drawnEle[index+1].start_y = cnvobj.loadedEle[i].start_y
-	  			cnvobj.drawnEle[index+1].end_x = cnvobj.loadedEle[i].end_x
-	  			cnvobj.drawnEle[index+1].end_y = cnvobj.loadedEle[i].end_y
+		for i=1, #Table do	
+			Table[i].start_x = math.floor(Table[i].start_x + x - center_x)
+			Table[i].start_y = math.floor(Table[i].start_y + y - center_y)
+			Table[i].end_x = math.floor(Table[i].end_x + x - center_x)
+			Table[i].end_y = math.floor(Table[i].end_y + y - center_y)
+			if cnvobj.snapGrid == true then
+				Table[i].start_x = snap.Sx(Table[i].start_x, cnvobj.grid_x)
+				Table[i].start_y = snap.Sy(Table[i].start_y, cnvobj.grid_y)
+				Table[i].end_x = snap.Sx(Table[i].end_x, cnvobj.grid_x)
+				Table[i].end_y = snap.Sy(Table[i].end_y, cnvobj.grid_y)
 			end
-		end
-		if buttonReleased == true then
-			cnvobj.loadedEle = {}
 		end
 	end
 end
 
-local function Manipulate_activeEle(cnvobj,x,y)
+--[[local function Manipulate_activeEle(cnvobj,x,y)
 	if #cnvobj.activeEle > 0 then
 		local center_x , center_y = math.abs((cnvobj.activeEle[1].end_x - cnvobj.activeEle[1].start_x)/2+cnvobj.activeEle[1].start_x), math.abs((cnvobj.activeEle[1].end_y-cnvobj.activeEle[1].start_y)/2+cnvobj.activeEle[1].start_y)
 		y = cnvobj.height - y
-		cnvobj.activeEle[1].start_x = math.floor(cnvobj.activeEle[1].start_x + x - center_x)
-		cnvobj.activeEle[1].start_y = math.floor(cnvobj.activeEle[1].start_y + y - center_y)
-		cnvobj.activeEle[1].end_x = math.floor(cnvobj.activeEle[1].end_x + x - center_x)
-		cnvobj.activeEle[1].end_y = math.floor(cnvobj.activeEle[1].end_y + y - center_y)
+
+		for i=1, #cnvobj.activeEle do
+			cnvobj.activeEle[i].start_x = math.floor(cnvobj.activeEle[i].start_x + x - center_x)
+			cnvobj.activeEle[i].start_y = math.floor(cnvobj.activeEle[i].start_y + y - center_y)
+			cnvobj.activeEle[i].end_x = math.floor(cnvobj.activeEle[i].end_x + x - center_x)
+			cnvobj.activeEle[i].end_y = math.floor(cnvobj.activeEle[i].end_y + y - center_y)
+        
+			if cnvobj.snapGrid == true then
+				cnvobj.activeEle[i].start_x = snap.Sx(cnvobj.activeEle[i].start_x, cnvobj.grid_x)
+				cnvobj.activeEle[i].start_y = snap.Sy(cnvobj.activeEle[i].start_y, cnvobj.grid_y)
+				cnvobj.activeEle[i].end_x = snap.Sx(cnvobj.activeEle[i].end_x, cnvobj.grid_x)
+				cnvobj.activeEle[i].end_y = snap.Sy(cnvobj.activeEle[i].end_y, cnvobj.grid_y)
+			end
+		end
+	end
+end]]
+
+local function checkIndexInGroups(cnvobj,shape_id)
+	for i=1,#cnvobj.group do
+		for j=1, #cnvobj.group[i] do
+			if shape_id == cnvobj.drawnEle[cnvobj.group[i][j]].shapeID then
+				return true, i 
+			end
+		end
+	end
+end
+
+local function findIndexAccordingToGroupId(cnvobj,groupID)
+	for i = 1, #cnvobj.drawnEle do
+		for j = 1, #cnvobj.group[groupID] do
+			if cnvobj.group[groupID][j] == cnvobj.drawnEle[i].shapeID then
+				return i
+			end
+		end
 	end
 end
 
@@ -84,14 +100,39 @@ local objFuncs = {
 				end
 				--click function
 				if #cnvobj.drawnEle > 0 and cnvobj.drawing == "STOP" and pressed == 1 then
+					y = cnvobj.height - y
 					local index = check.main(cnvobj,x,y)
+					
 					if index ~= 0 and index then --index should not nill
 						cnvobj.drawing = "CLICKED"
+						local indexBelongToAnyGroup, groupID = checkIndexInGroups(cnvobj,cnvobj.drawnEle[index].shapeID)
+						--print(indexBelongToAnyGroup, groupID.." INDEX = "..index)
+						if indexBelongToAnyGroup then
+							for j=1, #cnvobj.group[groupID] do
+								local i = 1
+								while #cnvobj.drawnEle >= i do
+									--print(#cnvobj.group[groupID],j,groupID,i)
+									if cnvobj.group[groupID][j] == cnvobj.drawnEle[i].shapeID then
+										local ActiveEleLen = #cnvobj.activeEle
+										cnvobj.activeEle[ActiveEleLen+1] = {}
+										cnvobj.activeEle[ActiveEleLen+1] = cnvobj.drawnEle[i]
+										--print(#cnvobj.activeEle,cnvobj.activeEle[#cnvobj.activeEle].start_x)
+										table.remove(cnvobj.drawnEle,i)
+									else
+										i = i + 1
+									end
+								end	
+							end
+						else
+							cnvobj.activeEle[1] = cnvobj.drawnEle[index]
+							table.remove(cnvobj.drawnEle, index)
+						end
 					end
 				elseif #cnvobj.activeEle > 0 and cnvobj.drawing == "CLICKED" and pressed == 0 then
 					cnvobj.drawing = "STOP"
-					
-					cnvobj.drawnEle[#cnvobj.drawnEle + 1] = cnvobj.activeEle[1]
+					for i=1, #cnvobj.activeEle do
+						table.insert(cnvobj.drawnEle, cnvobj.activeEle[i].shapeID, cnvobj.activeEle[i])
+					end
 					cnvobj.activeEle = {}
 				end
 
@@ -102,7 +143,19 @@ local objFuncs = {
 							move = true
 						else
 							move = false
-							Manipulate_loaded_shape(cnvobj,cnvobj.cdbCanvas,x,y,true)
+							Manipulate_loaded_shape(cnvobj, x,y,cnvobj.loadedEle)
+							for i=1, #cnvobj.loadedEle do
+								local index = #cnvobj.drawnEle
+								cnvobj.drawnEle[index+1] = {}
+								cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
+								cnvobj.drawnEle[index+1].shapeID = index + 1 
+								--[[cnvobj.drawnEle[index+1].shape = cnvobj.loadedEle[i].shape
+								cnvobj.drawnEle[index+1].start_x = cnvobj.loadedEle[i].start_x
+								cnvobj.drawnEle[index+1].start_y = cnvobj.loadedEle[i].start_y
+								cnvobj.drawnEle[index+1].end_x = cnvobj.loadedEle[i].end_x
+								cnvobj.drawnEle[index+1].end_y = cnvobj.loadedEle[i].end_y]]
+							end
+								cnvobj.loadedEle = {}
 							cnvobj.drawing = "STOP"
 						end
 					end
@@ -117,13 +170,13 @@ local objFuncs = {
 				
 				-- click fun.
 				if iup.isbutton1(status) and cnvobj.drawing == "CLICKED" and #cnvobj.activeEle > 0 then
-					Manipulate_activeEle(cnvobj,x,y)
+					Manipulate_loaded_shape(cnvobj,x,y,cnvobj.activeEle)
 					iup.Update(cnvobj.cnv)
 				end
 				
 				-- if load function is called then 
 				if iup.isbutton1(status) and cnvobj.drawing == "LOAD" and move then
-					Manipulate_loaded_shape(cnvobj,cnvobj.cdbCanvas,x,y,false)
+					Manipulate_loaded_shape(cnvobj, x, y, cnvobj.loadedEle)
 					iup.Update(cnvobj.cnv)
 				end
 
@@ -149,6 +202,20 @@ local objFuncs = {
 				return msg
 			end
 		end	
+	end,
+
+	whichShape = function(cnvobj,posX,posY)
+		local ind = check.main(cnvobj,posX,posY)
+		--print(ind)
+		if ind ~= 0 and ind then --index should not nill
+			return cnvobj.drawnEle[ind].shapeID
+		end
+	end,
+
+	groupShapes = function(cnvobj,shapeList)
+		if #cnvobj.drawnEle > 0 then
+			cnvobj.group[#cnvobj.group+1] = shapeList
+		end
 	end,
 
 }
@@ -204,6 +271,7 @@ new = function(para)
 	end
   	
 	cnvobj.drawnEle = {}
+	cnvobj.group = {}
   	cnvobj.loadedEle = {}
 	cnvobj.activeEle = {}
 	cnvobj.clickFlag = false

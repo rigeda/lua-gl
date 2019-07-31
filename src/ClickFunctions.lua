@@ -57,28 +57,10 @@ local function findRemainingCoor(x1,y1,x3,y3)
     local x2, y2, x4, y4
     --print(x1,y1,x3,y3)
     --print("("..type(x1)..","..type(y1)..") ("..type(x3)..","..type(y3)..")")
-
-    if x1 < x3 and y1 < y3 then
-        x2 = x1 
-        y2 = y3
-        x4 = x3
-        y4 = y1
-    elseif x1 < x3 and y1 > y3 then
-        x2 = x1
-        y2 = y3
-        x4 = x3
-        y4 = y1
-    elseif x1 > x3 and y1 < y3 then
-        x2 = x1 
-        y2 = y3
-        x4 = x3
-        y4 = y1
-    elseif x1 > x3 and y1 > y3 then
-        x2 = x1
-        y2 = y3 
-        x4 = x3
-        y4 = y1
-    end
+    x2 = x1
+    y2 = y3 
+    x4 = x3
+    y4 = y1
     return x2, y2, x4, y4
 end
 
@@ -86,7 +68,6 @@ end
 function main(cnvobj, x, y)
     local index = 0
     if #cnvobj.drawnEle > 0 then
-        y = cnvobj.height - y
         for i=#cnvobj.drawnEle, 1, -1 do
 
             -- for line
@@ -100,9 +81,7 @@ function main(cnvobj, x, y)
                 index = RectAroundLine(x1, y1, x2, y2, x, y, cnvobj.grid_x)
                 
                 if index == 1 then
-                    cnvobj.activeEle[1] = cnvobj.drawnEle[i]
-                    table.remove(cnvobj.drawnEle, i)
-                    return index
+                    return i
                 end
                
             end
@@ -121,18 +100,16 @@ function main(cnvobj, x, y)
                     local i4 = RectAroundLine(x4,y4,x1,y1,x,y,cnvobj.grid_x)
 
                     if i1==1 or i2 == 1 or i3 == 1 or i4 == 1 then
-                        cnvobj.activeEle[1] = cnvobj.drawnEle[i]
-                        table.remove(cnvobj.drawnEle, i)
+                        --print(i)
                         return i
                     end
                 end
 
                 if cnvobj.drawnEle[i].shape == "FILLEDRECT" then
+                    --print(i)
                     local xyLiesInsideRect = check(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
-                   
+                    --print(xyLiesInsideRect)
                     if xyLiesInsideRect==true then
-                        cnvobj.activeEle[1] = cnvobj.drawnEle[i]
-                        table.remove(cnvobj.drawnEle, i)
                         return i
                     end
                     
@@ -145,7 +122,6 @@ function main(cnvobj, x, y)
                 local x1, y1 = cnvobj.drawnEle[i].start_x, cnvobj.drawnEle[i].start_y
                 local x3, y3 = cnvobj.drawnEle[i].end_x , cnvobj.drawnEle[i].end_y
                 local x2, y2, x4, y4 = findRemainingCoor(x1, y1, x3, y3)
-                
                 midx1 = (x2 + x1)/2
                 midy1 = (y2 + y1)/2
 
@@ -168,14 +144,10 @@ function main(cnvobj, x, y)
                 local eq = math.pow(x-cx,2)/math.pow(a,2) + math.pow(y-cy,2)/math.pow(b,2)
                 --print(eq)
                 if cnvobj.drawnEle[i].shape == "ELLIPSE" and eq > 0.8 and eq < 1.2 then
-                    cnvobj.activeEle[1] = cnvobj.drawnEle[i]
-                    table.remove(cnvobj.drawnEle, i)
                     return i
                 end
 
                 if cnvobj.drawnEle[i].shape == "FILLEDELLIPSE" and eq < 1.2 then
-                    cnvobj.activeEle[1] = cnvobj.drawnEle[i]
-                    table.remove(cnvobj.drawnEle, i)
                     return i
                 end
             end
