@@ -3,6 +3,8 @@ local pairs = pairs
 local print = print
 local iup = iup
 local cd = cd
+local error = error
+local pcall = pcall
 local setmetatable = setmetatable
 local type = type
 local math = math
@@ -16,11 +18,11 @@ local M = {}
 package.loaded[...] = M
 _ENV = M		-- Lua 5.2+
 
-
-local function Manipulate_loaded_shape(cnvobj, x,y,Table)
+-- this function is used to manipulate active Element table data
+local function Manipulate_activeEle(cnvobj, x,y,Table)
 	if #Table > 0 then
 		local center_x , center_y = math.abs((Table[1].end_x - Table[1].start_x)/2+Table[1].start_x), math.abs((Table[1].end_y-Table[1].start_y)/2+Table[1].start_y)
-		y = cnvobj.height - y			
+		--y = cnvobj.height - y			
 					
 		for i=1, #Table do	
 			Table[i].start_x = math.floor(Table[i].start_x + x - center_x)
@@ -37,45 +39,37 @@ local function Manipulate_loaded_shape(cnvobj, x,y,Table)
 	end
 end
 
---[[local function Manipulate_activeEle(cnvobj,x,y)
-	if #cnvobj.activeEle > 0 then
-		local center_x , center_y = math.abs((cnvobj.activeEle[1].end_x - cnvobj.activeEle[1].start_x)/2+cnvobj.activeEle[1].start_x), math.abs((cnvobj.activeEle[1].end_y-cnvobj.activeEle[1].start_y)/2+cnvobj.activeEle[1].start_y)
-		y = cnvobj.height - y
-
-		for i=1, #cnvobj.activeEle do
-			cnvobj.activeEle[i].start_x = math.floor(cnvobj.activeEle[i].start_x + x - center_x)
-			cnvobj.activeEle[i].start_y = math.floor(cnvobj.activeEle[i].start_y + y - center_y)
-			cnvobj.activeEle[i].end_x = math.floor(cnvobj.activeEle[i].end_x + x - center_x)
-			cnvobj.activeEle[i].end_y = math.floor(cnvobj.activeEle[i].end_y + y - center_y)
-        
-			if cnvobj.snapGrid == true then
-				cnvobj.activeEle[i].start_x = snap.Sx(cnvobj.activeEle[i].start_x, cnvobj.grid_x)
-				cnvobj.activeEle[i].start_y = snap.Sy(cnvobj.activeEle[i].start_y, cnvobj.grid_y)
-				cnvobj.activeEle[i].end_x = snap.Sx(cnvobj.activeEle[i].end_x, cnvobj.grid_x)
-				cnvobj.activeEle[i].end_y = snap.Sy(cnvobj.activeEle[i].end_y, cnvobj.grid_y)
-			end
-		end
-	end
-end]]
-
+-- this function take a index and groupId as input if index and shapeID  of any element of group is same then 
+-- it will return groupID(or a group index) 
 local function checkIndexInGroups(cnvobj,shape_id)
-	for i=1,#cnvobj.group do
-		for j=1, #cnvobj.group[i] do
-			if shape_id == cnvobj.drawnEle[cnvobj.group[i][j]].shapeID then
-				return true, i 
+	if #cnvobj.group > 0 then
+		for i=1,#cnvobj.group do
+			for j=1, #cnvobj.group[i] do
+				if shape_id == cnvobj.drawnEle[cnvobj.group[i][j]].shapeID then
+					return true, i 
+				end
 			end
 		end
 	end
+	return false
 end
 
-local function findIndexAccordingToGroupId(cnvobj,groupID)
-	for i = 1, #cnvobj.drawnEle do
-		for j = 1, #cnvobj.group[groupID] do
-			if cnvobj.group[groupID][j] == cnvobj.drawnEle[i].shapeID then
-				return i
-			end
+local function addTwoTableAndRemoveDuplicate(table2,table1,table3)
+	res = {}
+	hash = {}
+	for _,v in pairs(table2) do
+		table.insert(table1, v) 
+	end	
+	for _,v in pairs(table3) do
+		table.insert(table1, v) 
+	end	
+	for _,v in pairs(table1) do
+		if (not hash[v]) then
+			res[#res+1] = v 
+			hash[v] = true
 		end
 	end
+	return res
 end
 
 local objFuncs = {
@@ -92,6 +86,22 @@ local objFuncs = {
 			cnvobj.shape = shape
 
 			function cnvobj.cnv:button_cb(button,pressed,x,y)
+				y = cnvobj.height - y
+				if #cnvobj.hook > 0 then
+					--y = cnvobj.height - y
+					for i=#cnvobj.hook, 1, -1 do
+						if cnvobj.hook[i].key == "MOUSECLICKPRE" then
+							local func = cnvobj.hook[i].fun
+							print("pre")
+							local status, val = pcall(func, button, pressed, x, y)
+							if not status then
+								error("error: " .. val)
+							end
+							--func(button, pressed, x, y)
+						end
+					end
+				end
+
 				if cnvobj.drawing == "START" then
 					CC.buttonCB(cnvobj,button, pressed, x, y)
 					if pressed == 0 then
@@ -100,8 +110,8 @@ local objFuncs = {
 				end
 				--click function
 				if #cnvobj.drawnEle > 0 and cnvobj.drawing == "STOP" and pressed == 1 then
-					y = cnvobj.height - y
-					local index = check.main(cnvobj,x,y)
+					--y = cnvobj.height - y
+					local index = check.checkXY(cnvobj,x,y)
 					
 					if index ~= 0 and index then --index should not nill
 						cnvobj.drawing = "CLICKED"
@@ -143,40 +153,51 @@ local objFuncs = {
 							move = true
 						else
 							move = false
-							Manipulate_loaded_shape(cnvobj, x,y,cnvobj.loadedEle)
+							Manipulate_activeEle(cnvobj, x,y,cnvobj.loadedEle)
 							for i=1, #cnvobj.loadedEle do
 								local index = #cnvobj.drawnEle
 								cnvobj.drawnEle[index+1] = {}
 								cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
 								cnvobj.drawnEle[index+1].shapeID = index + 1 
-								--[[cnvobj.drawnEle[index+1].shape = cnvobj.loadedEle[i].shape
-								cnvobj.drawnEle[index+1].start_x = cnvobj.loadedEle[i].start_x
-								cnvobj.drawnEle[index+1].start_y = cnvobj.loadedEle[i].start_y
-								cnvobj.drawnEle[index+1].end_x = cnvobj.loadedEle[i].end_x
-								cnvobj.drawnEle[index+1].end_y = cnvobj.loadedEle[i].end_y]]
 							end
-								cnvobj.loadedEle = {}
+							cnvobj.loadedEle = {}
 							cnvobj.drawing = "STOP"
 						end
 					end
 				end	
+				
+				if #cnvobj.hook > 0 then
+					--y = cnvobj.height - y
+					for i=#cnvobj.hook, 1, -1 do
+						if cnvobj.hook[i].key == "MOUSECLICKPOST" then
+							local func = cnvobj.hook[i].fun
+							print("post")
+							local status, val = pcall(func, button, pressed, x, y)
+							if not status then
+								--error("error: " .. val)
+							end
+						end
+					end
+				end
 			
 			end
 
+
 			function cnvobj.cnv:motion_cb(x, y, status)
+				y = cnvobj.height - y
 				if cnvobj.drawing == "START" then 
 					CC.motionCB(cnvobj, x, y, status)
 				end
 				
 				-- click fun.
 				if iup.isbutton1(status) and cnvobj.drawing == "CLICKED" and #cnvobj.activeEle > 0 then
-					Manipulate_loaded_shape(cnvobj,x,y,cnvobj.activeEle)
+					Manipulate_activeEle(cnvobj,x,y,cnvobj.activeEle)
 					iup.Update(cnvobj.cnv)
 				end
 				
 				-- if load function is called then 
 				if iup.isbutton1(status) and cnvobj.drawing == "LOAD" and move then
-					Manipulate_loaded_shape(cnvobj, x, y, cnvobj.loadedEle)
+					Manipulate_activeEle(cnvobj, x, y, cnvobj.loadedEle)
 					iup.Update(cnvobj.cnv)
 				end
 
@@ -204,19 +225,68 @@ local objFuncs = {
 		end	
 	end,
 
+    -- this function take x & y as input and return shapeID if point (x, y) is near to the shape
 	whichShape = function(cnvobj,posX,posY)
-		local ind = check.main(cnvobj,posX,posY)
-		--print(ind)
+		--print(posX,posY)
+		local ind = check.checkXY(cnvobj,posX,posY)
 		if ind ~= 0 and ind then --index should not nill
 			return cnvobj.drawnEle[ind].shapeID
 		end
 	end,
 
+	-- groupShapes used to group Shape using shapeList
 	groupShapes = function(cnvobj,shapeList)
 		if #cnvobj.drawnEle > 0 then
-			cnvobj.group[#cnvobj.group+1] = shapeList
+			local tempTable = {}
+			
+			local match = false
+			--print(#shapeList)
+			for k=1, #shapeList, 1 do
+			---	print(k)
+				local i = 1
+				while #cnvobj.group >= i do
+					for j=1, #cnvobj.group[i] do
+					--print(k,i,j)
+						if shapeList[k]==cnvobj.group[i][j] then
+							tempTable = addTwoTableAndRemoveDuplicate(cnvobj.group[i],shapeList,tempTable)
+							table.remove(cnvobj.group, i)
+							--print("true")
+							i = i - 1
+							match = true
+							break
+						end
+						
+					end
+					i = i + 1
+				end
+			end
+			if match == true then
+				cnvobj.group[#cnvobj.group+1] = tempTable
+			else
+				cnvobj.group[#cnvobj.group+1] = shapeList
+			end
 		end
 	end,
+	
+	addHook = function(cnvobj,key, fun)
+		local index = #cnvobj.hook
+		cnvobj.hook[index+1] = {}
+		cnvobj.hook[index+1].key = key
+		cnvobj.hook[index+1].fun = fun 	
+	end,
+
+	addPort = function(cnvobj,x,y)
+		local index = #cnvobj.port
+		
+		local ind = check.checkXY(cnvobj,x,y)
+		if ind ~= 0 and ind then --index should not nill
+			cnvobj.port[index + 1] = {}
+			cnvobj.port[index + 1].shapeID = cnvobj.drawnEle[ind].shapeID
+			cnvobj.port[index + 1].x = x 
+			cnvobj.port[index + 1].y = y
+		end
+		
+	end, 
 
 }
 
@@ -274,6 +344,8 @@ new = function(para)
 	cnvobj.group = {}
   	cnvobj.loadedEle = {}
 	cnvobj.activeEle = {}
+	cnvobj.hook = {}
+	cnvobj.port = {}
 	cnvobj.clickFlag = false
 	cnvobj.cnv = iup.canvas{}
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""

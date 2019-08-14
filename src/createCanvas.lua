@@ -99,7 +99,7 @@ function buttonCB(cnvobj,button, pressed, x, y)
   grid_x = cnvobj.grid_x
   grid_y = cnvobj.grid_y 
   local canvas_width, canvas_height = cnvobj.width, cnvobj.height  
-  y = canvas_height - y 
+  --y = canvas_height - y 
   --if button is pressed then simply set start_x and start_y
   if (button) then
     if (pressed == 1) then
@@ -135,7 +135,7 @@ function motionCB(cnvobj, x, y, status)
   canvas = cnvobj.cnv
   local canvas_width, canvas_height = cnvobj.width, cnvobj.height
 
-  y = canvas_height - y 
+  --y = canvas_height - y 
   if (iup.isbutton1(status)) then -- button1 is pressed 
     canvas.end_x = x
     canvas.end_y = y 

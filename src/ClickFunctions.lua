@@ -65,7 +65,7 @@ local function findRemainingCoor(x1,y1,x3,y3)
 end
 
 
-function main(cnvobj, x, y)
+function checkXY(cnvobj, x, y)
     local index = 0
     if #cnvobj.drawnEle > 0 then
         for i=#cnvobj.drawnEle, 1, -1 do
@@ -100,7 +100,6 @@ function main(cnvobj, x, y)
                     local i4 = RectAroundLine(x4,y4,x1,y1,x,y,cnvobj.grid_x)
 
                     if i1==1 or i2 == 1 or i3 == 1 or i4 == 1 then
-                        --print(i)
                         return i
                     end
                 end
