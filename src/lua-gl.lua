@@ -54,6 +54,17 @@ local function checkIndexInGroups(cnvobj,shape_id)
 	return false
 end
 
+local function cursorOnPort(cnvobj, x, y)
+	for i = 1, #cnvobj.port do
+		if math.abs(cnvobj.port[i].x - x) <= 3 then
+			if math.abs(cnvobj.port[i].y - y) <= 3 then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 local function addTwoTableAndRemoveDuplicate(table2,table1,table3)
 	res = {}
 	hash = {}
@@ -85,7 +96,7 @@ local objFuncs = {
 			cnvobj.drawing = "START"
 			cnvobj.shape = shape
 
-			function cnvobj.cnv:button_cb(button,pressed,x,y)
+			function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 				y = cnvobj.height - y
 				if #cnvobj.hook > 0 then
 					--y = cnvobj.height - y
@@ -107,6 +118,27 @@ local objFuncs = {
 					if pressed == 0 then
 						cnvobj.drawing = "STOP"
 					end
+				end
+
+				--connectors
+				if cnvobj.drawing == "CONNECTOR" then
+					cnvobj.shape = "LINE"
+					if pressed == 0 then
+						cnvobj.connectorFlag = true
+						local index = #cnvobj.connector
+						cnvobj.connector[index + 1] = {}
+						cnvobj.connector[index + 1].ID = index + 1
+						cnvobj.connector[index + 1].start_x = x 
+						cnvobj.connector[index + 1].start_y = y
+						cnvobj.connector[index + 1].end_x = x 
+						cnvobj.connector[index + 1].end_y = y	
+					end
+					local isCursorOnPort = cursorOnPort(cnvobj, x, y)
+					if isCursorOnPort == true or iup.isdouble(status) then
+						cnvobj.drawing = "STOP"
+						cnvobj.connectorFlag = false
+					end
+					
 				end
 				--click function
 				if #cnvobj.drawnEle > 0 and cnvobj.drawing == "STOP" and pressed == 1 then
@@ -141,6 +173,7 @@ local objFuncs = {
 				elseif #cnvobj.activeEle > 0 and cnvobj.drawing == "CLICKED" and pressed == 0 then
 					cnvobj.drawing = "STOP"
 					for i=1, #cnvobj.activeEle do
+						print(cnvobj.activeEle[i].shapeID)
 						table.insert(cnvobj.drawnEle, cnvobj.activeEle[i].shapeID, cnvobj.activeEle[i])
 					end
 					cnvobj.activeEle = {}
@@ -157,8 +190,14 @@ local objFuncs = {
 							for i=1, #cnvobj.loadedEle do
 								local index = #cnvobj.drawnEle
 								cnvobj.drawnEle[index+1] = {}
-								cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
-								cnvobj.drawnEle[index+1].shapeID = index + 1 
+								
+								cnvobj.drawnEle[index + 1].start_x = cnvobj.loadedEle[i].start_x
+								cnvobj.drawnEle[index + 1].start_y = cnvobj.loadedEle[i].start_y
+								cnvobj.drawnEle[index + 1].end_x = cnvobj.loadedEle[i].end_x
+								cnvobj.drawnEle[index + 1].end_y = cnvobj.loadedEle[i].end_y
+								cnvobj.drawnEle[index + 1].shape = cnvobj.loadedEle[i].shape
+
+								cnvobj.drawnEle[index+1].shapeID = index + 1
 							end
 							cnvobj.loadedEle = {}
 							cnvobj.drawing = "STOP"
@@ -189,6 +228,13 @@ local objFuncs = {
 					CC.motionCB(cnvobj, x, y, status)
 				end
 				
+				--connectors
+				if cnvobj.drawing == "CONNECTOR" and cnvobj.connectorFlag == true then
+					cnvobj.connector[#cnvobj.connector].end_x = x 
+					cnvobj.connector[#cnvobj.connector].end_y = y
+					iup.Update(cnvobj.cnv)
+				end
+
 				-- click fun.
 				if iup.isbutton1(status) and cnvobj.drawing == "CLICKED" and #cnvobj.activeEle > 0 then
 					Manipulate_activeEle(cnvobj,x,y,cnvobj.activeEle)
@@ -275,13 +321,13 @@ local objFuncs = {
 		cnvobj.hook[index+1].fun = fun 	
 	end,
 
-	addPort = function(cnvobj,x,y)
+	addPort = function(cnvobj,x,y,shapeID)
 		local index = #cnvobj.port
 		
 		local ind = check.checkXY(cnvobj,x,y)
 		if ind ~= 0 and ind then --index should not nill
 			cnvobj.port[index + 1] = {}
-			cnvobj.port[index + 1].shapeID = cnvobj.drawnEle[ind].shapeID
+			cnvobj.port[index + 1].shapeID = shapeID
 			cnvobj.port[index + 1].x = x 
 			cnvobj.port[index + 1].y = y
 		end
@@ -346,7 +392,10 @@ new = function(para)
 	cnvobj.activeEle = {}
 	cnvobj.hook = {}
 	cnvobj.port = {}
+	cnvobj.connector = {}
+	cnvobj.connectorFlag = false
 	cnvobj.clickFlag = false
+	cnvobj.tempflag = false
 	cnvobj.cnv = iup.canvas{}
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	

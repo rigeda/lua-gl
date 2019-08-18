@@ -77,7 +77,14 @@ function  render(cnvobj)
       DrawShape(cd_bcanvas, cnvobj.activeEle[i].start_x, cnvobj.activeEle[i].start_y, cnvobj.activeEle[i].end_x, cnvobj.activeEle[i].end_y, cnvobj.activeEle[i].shape)
     end
   end
-  if cnvobj.drawing == "START" then
+
+  if #cnvobj.connector > 0 then
+    for i = 1, #cnvobj.connector do
+      DrawShape(cd_bcanvas,cnvobj.connector[i].start_x, cnvobj.connector[i].start_y, cnvobj.connector[i].end_x, cnvobj.connector[i].end_y, "LINE")
+    end
+  end
+
+  if cnvobj.drawing == "START" or cnvobj.drawing == "CONNECTOR" then
     if cnvobj.motion then
       local start_x = canvas.start_x
       local start_y = canvas.start_y
@@ -111,7 +118,6 @@ function buttonCB(cnvobj,button, pressed, x, y)
       if cnvobj.motion then         
         local start_x = canvas.start_x
         local start_y = canvas.start_y
-        
         start_x = snap.Sx(start_x, grid_x)
         start_y = snap.Sy(start_y, grid_y)
         x = snap.Sx(x, grid_x)
