@@ -1,8 +1,8 @@
-package ="lua-gl"
-version = "1.15.05.99-01"
+package ="luagl"
+version = "1.15.05.99-4"
 source = {
 	url = "git://github.com/Deepak123bharat/lua-gl.git",
-	tag = "1.15.05.99"
+	tag = "1.15.05"
 }
 description = {
 	summary = "To create a lua-gl using IUP",
@@ -18,6 +18,6 @@ build = {
 	type = "builtin",
 	
 	modules = {
-		lua-gl = {"src/lua-gl.lua", "src/ClickFunctions.lua", "src/createCanvas.lua", "src/snap.lua", "src/tableUtils.lua"},
+		luagl = {"src/lua-gl.lua", "src/ClickFunctions.lua", "src/createCanvas.lua", "src/snap.lua", "src/tableUtils.lua"},
 	}
 }
