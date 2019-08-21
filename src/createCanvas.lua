@@ -90,11 +90,12 @@ function  render(cnvobj)
       local start_y = canvas.start_y
       local end_x = canvas.end_x
       local end_y = canvas.end_y
-        
-      start_x =snap.Sx(start_x, grid_x)
-      start_y = snap.Sy(start_y, grid_y)
-      end_x = snap.Sx(end_x, grid_x)
-      end_y = snap.Sy(end_y, grid_y)
+      if cnvobj.snapGrid == true then  
+        start_x =snap.Sx(start_x, grid_x)
+        start_y = snap.Sy(start_y, grid_y)
+        end_x = snap.Sx(end_x, grid_x)
+        end_y = snap.Sy(end_y, grid_y)
+      end
       DrawShape(cd_bcanvas, start_x, start_y, end_x, end_y, cnvobj.shape)
     end
   end
@@ -118,10 +119,12 @@ function buttonCB(cnvobj,button, pressed, x, y)
       if cnvobj.motion then         
         local start_x = canvas.start_x
         local start_y = canvas.start_y
-        start_x = snap.Sx(start_x, grid_x)
-        start_y = snap.Sy(start_y, grid_y)
-        x = snap.Sx(x, grid_x)
-        y = snap.Sy(y, grid_y)
+        if cnvobj.snapGrid == true then
+          start_x = snap.Sx(start_x, grid_x)
+          start_y = snap.Sy(start_y, grid_y)
+          x = snap.Sx(x, grid_x)
+          y = snap.Sy(y, grid_y)
+        end
           
         local index = #cnvobj.drawnEle
         cnvobj.drawnEle[index+1] = {}

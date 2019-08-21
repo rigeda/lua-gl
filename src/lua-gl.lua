@@ -190,14 +190,8 @@ local objFuncs = {
 							for i=1, #cnvobj.loadedEle do
 								local index = #cnvobj.drawnEle
 								cnvobj.drawnEle[index+1] = {}
-								
-								cnvobj.drawnEle[index + 1].start_x = cnvobj.loadedEle[i].start_x
-								cnvobj.drawnEle[index + 1].start_y = cnvobj.loadedEle[i].start_y
-								cnvobj.drawnEle[index + 1].end_x = cnvobj.loadedEle[i].end_x
-								cnvobj.drawnEle[index + 1].end_y = cnvobj.loadedEle[i].end_y
-								cnvobj.drawnEle[index + 1].shape = cnvobj.loadedEle[i].shape
-
-								cnvobj.drawnEle[index+1].shapeID = index + 1
+								cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
+								cnvobj.drawnEle[index+1].shapeID = index + 1 
 							end
 							cnvobj.loadedEle = {}
 							cnvobj.drawing = "STOP"
@@ -311,6 +305,7 @@ local objFuncs = {
 			else
 				cnvobj.group[#cnvobj.group+1] = shapeList
 			end
+			table.sort(cnvobj.group[#cnvobj.group])
 		end
 	end,
 	
