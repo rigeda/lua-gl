@@ -1,5 +1,5 @@
-package ="luagl"
-version = "1.15.05.99-4"
+package ="lua-gl"
+version = "1.15.05.99-01"
 source = {
 	url = "git://github.com/Deepak123bharat/lua-gl.git",
 	tag = "1.15.05"
@@ -18,6 +18,6 @@ build = {
 	type = "builtin",
 	
 	modules = {
-		luagl = {"src/lua-gl.lua", "src/ClickFunctions.lua", "src/createCanvas.lua", "src/snap.lua", "src/tableUtils.lua"},
+		["lua-gl"] = {"src/lua-gl.lua", "src/ClickFunctions.lua", "src/createCanvas.lua", "src/snap.lua", "src/tableUtils.lua"},
 	}
 }
