@@ -325,8 +325,9 @@ local objFuncs = {
 			cnvobj.port[index + 1].shapeID = shapeID
 			cnvobj.port[index + 1].x = x 
 			cnvobj.port[index + 1].y = y
+			return true 
 		end
-		
+		return false
 	end, 
 
 }
