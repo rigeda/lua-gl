@@ -8,4 +8,4 @@ lua-gl is a graphical library using IUP extensible by Lua to allow easy creation
 
 [Commits link](https://github.com/Deepak123bharat/lua-gl/commits/master)
 
-[Documentation](https://github.com/Deepak123bharat/lua-gl/wiki/Documentation)
+[Documentation](https://github.com/Deepak123bharat/lua-gl/wiki)
