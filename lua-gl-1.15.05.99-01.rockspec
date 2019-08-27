@@ -9,7 +9,7 @@ description = {
 	detailed = [[
 		lua-gl is graphical library which allow easy creation of software like a schematic editor/flowchart creator/mind maps/block diagrams in Lua. library create basic mechanisms and graphic checks to create custom blocks and interconnections and provide an API to use these to create complex interactions.
 	]],
-	homepage = "#", 
+	homepage = "https://github.com/Deepak123bharat/lua-gl/wiki", 
 }
 dependencies = {
 	"lua >= 5.2",
@@ -18,6 +18,10 @@ build = {
 	type = "builtin",
 	
 	modules = {
-		["lua-gl"] = {"src/lua-gl.lua", "src/ClickFunctions.lua", "src/createCanvas.lua", "src/snap.lua", "src/tableUtils.lua"},
+		["lua-gl"] = "src/lua-gl.lua", 
+		ClickFunctions = "src/ClickFunctions.lua", 
+		createCanvas = "src/createCanvas.lua", 
+		snap = "src/snap.lua", 
+		tableUtils = "src/tableUtils.lua",
 	}
 }

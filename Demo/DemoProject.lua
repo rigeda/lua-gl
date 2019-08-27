@@ -100,8 +100,7 @@ function addPort()
   cnvobj:addHook("MOUSECLICKPOST",function(button, pressed, x, y)
     shapeID = cnvobj:whichShape(x,y)
     if pressed == 0 then
-      local flag =  cnvobj:addPort(x,y,shapeID)
-      print(flag)
+      cnvobj:addPort(x,y,shapeID)
       cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
       cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = x + 3, start_y = y + 3, end_x = x-3, end_y =y-3, shape="ELLIPSE", shapeID = #cnvobj.drawnEle}
                       
