@@ -19,21 +19,29 @@ package.loaded[...] = M
 _ENV = M		-- Lua 5.2+
 
 -- this function is used to manipulate active Element table data
-local function Manipulate_activeEle(cnvobj, x,y,Table)
+local function Manipulate_activeEle(cnvobj, x, y, Table)
 	if #Table > 0 then
-		local center_x , center_y = math.abs((Table[1].end_x - Table[1].start_x)/2+Table[1].start_x), math.abs((Table[1].end_y-Table[1].start_y)/2+Table[1].start_y)
+		local center_x , center_y = (Table[1].end_x - Table[1].start_x)/2+Table[1].start_x, (Table[1].end_y-Table[1].start_y)/2+Table[1].start_y
 		--y = cnvobj.height - y			
 					
 		for i=1, #Table do	
+			if cnvobj.snapGrid == true then
+				x = snap.Sx(x, cnvobj.grid_x)
+				y = snap.Sy(y, cnvobj.grid_y)
+			end
 			Table[i].start_x = math.floor(Table[i].start_x + x - center_x)
 			Table[i].start_y = math.floor(Table[i].start_y + y - center_y)
 			Table[i].end_x = math.floor(Table[i].end_x + x - center_x)
 			Table[i].end_y = math.floor(Table[i].end_y + y - center_y)
-			if cnvobj.snapGrid == true then
-				Table[i].start_x = snap.Sx(Table[i].start_x, cnvobj.grid_x)
-				Table[i].start_y = snap.Sy(Table[i].start_y, cnvobj.grid_y)
-				Table[i].end_x = snap.Sx(Table[i].end_x, cnvobj.grid_x)
-				Table[i].end_y = snap.Sy(Table[i].end_y, cnvobj.grid_y)
+			if #Table[i].portTable >= 0 then
+				for k, v in pairs(Table[i].portTable) do
+					for j = 1, #cnvobj.port do
+						if cnvobj.port[j].portID == v then
+							cnvobj.port[j].x = math.floor(cnvobj.port[j].x + x - center_x)
+							cnvobj.port[j].y = math.floor(cnvobj.port[j].y + y - center_y)
+						end
+					end
+				end
 			end
 		end
 	end
@@ -56,8 +64,8 @@ end
 
 local function cursorOnPort(cnvobj, x, y)
 	for i = 1, #cnvobj.port do
-		if math.abs(cnvobj.port[i].x - x) <= 3 then
-			if math.abs(cnvobj.port[i].y - y) <= 3 then
+		if math.abs(cnvobj.port[i].x - x) <= cnvobj.grid_x/2 then
+			if math.abs(cnvobj.port[i].y - y) <= cnvobj.grid_y/2 then
 				return true
 			end
 		end
@@ -103,7 +111,6 @@ local objFuncs = {
 					for i=#cnvobj.hook, 1, -1 do
 						if cnvobj.hook[i].key == "MOUSECLICKPRE" then
 							local func = cnvobj.hook[i].fun
-							print("pre")
 							local status, val = pcall(func, button, pressed, x, y)
 							if not status then
 								error("error: " .. val)
@@ -134,6 +141,7 @@ local objFuncs = {
 						cnvobj.connector[index + 1].end_y = y	
 					end
 					local isCursorOnPort = cursorOnPort(cnvobj, x, y)
+					print(isCursorOnPort)
 					if isCursorOnPort == true or iup.isdouble(status) then
 						cnvobj.drawing = "STOP"
 						cnvobj.connectorFlag = false
@@ -144,11 +152,10 @@ local objFuncs = {
 				if #cnvobj.drawnEle > 0 and cnvobj.drawing == "STOP" and pressed == 1 then
 					--y = cnvobj.height - y
 					local index = check.checkXY(cnvobj,x,y)
-					
 					if index ~= 0 and index then --index should not nill
 						cnvobj.drawing = "CLICKED"
 						local indexBelongToAnyGroup, groupID = checkIndexInGroups(cnvobj,cnvobj.drawnEle[index].shapeID)
-						--print(indexBelongToAnyGroup, groupID.." INDEX = "..index)
+
 						if indexBelongToAnyGroup then
 							for j=1, #cnvobj.group[groupID] do
 								local i = 1
@@ -173,7 +180,6 @@ local objFuncs = {
 				elseif #cnvobj.activeEle > 0 and cnvobj.drawing == "CLICKED" and pressed == 0 then
 					cnvobj.drawing = "STOP"
 					for i=1, #cnvobj.activeEle do
-						print(cnvobj.activeEle[i].shapeID)
 						table.insert(cnvobj.drawnEle, cnvobj.activeEle[i].shapeID, cnvobj.activeEle[i])
 					end
 					cnvobj.activeEle = {}
@@ -204,7 +210,6 @@ local objFuncs = {
 					for i=#cnvobj.hook, 1, -1 do
 						if cnvobj.hook[i].key == "MOUSECLICKPOST" then
 							local func = cnvobj.hook[i].fun
-							print("post")
 							local status, val = pcall(func, button, pressed, x, y)
 							if not status then
 								--error("error: " .. val)
@@ -318,14 +323,26 @@ local objFuncs = {
 
 	addPort = function(cnvobj,x,y,shapeID)
 		local index = #cnvobj.port
+		local portID = index + 1
+		--print(shapeID)
+		cnvobj.port[index + 1] = {}
+		cnvobj.port[index + 1].shapeID = shapeID
+		cnvobj.port[index + 1].portID = portID
+		cnvobj.port[index + 1].x = x 
+		cnvobj.port[index + 1].y = y
+
+        cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
+      	cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = x + 3, start_y = y + 3, end_x = x-3, end_y =y-3, shape="FILLEDELLIPSE", shapeID = #cnvobj.drawnEle}
+		cnvobj.drawnEle[#cnvobj.drawnEle].portTable = {cnvobj.port[#cnvobj.port].portID}
 		
-		local ind = check.checkXY(cnvobj,x,y)
-		if ind ~= 0 and ind then --index should not nill
-			cnvobj.port[index + 1] = {}
-			cnvobj.port[index + 1].shapeID = shapeID
-			cnvobj.port[index + 1].x = x 
-			cnvobj.port[index + 1].y = y
+		if shapeID then
+			local shapeTable = {}
+      		table.insert(shapeTable,shapeID)
+      		table.insert(shapeTable,#cnvobj.drawnEle)
+      		cnvobj:groupShapes(shapeTable)
 		end
+		
+		iup.Update(cnvobj.cnv)
 	end, 
 
 }

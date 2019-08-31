@@ -134,6 +134,7 @@ function buttonCB(cnvobj,button, pressed, x, y)
         cnvobj.drawnEle[index+1].start_y = start_y
         cnvobj.drawnEle[index+1].end_x = x
         cnvobj.drawnEle[index+1].end_y = y 
+        cnvobj.drawnEle[index+1].portTable = {}
         cnvobj.motion = false
       end
     end
