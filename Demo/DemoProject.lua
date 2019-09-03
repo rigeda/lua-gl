@@ -98,9 +98,17 @@ end
 function addPort()
   label.value = "select coordinate on the shape where you want to add port"
   cnvobj:addHook("MOUSECLICKPOST",function(button, pressed, x, y)
-    local shapeID = cnvobj:whichShape(x,y)
+    shapeID = cnvobj:whichShape(x,y)
     if pressed == 0 then
       cnvobj:addPort(x,y,shapeID)
+      cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
+      cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = x + 3, start_y = y + 3, end_x = x-3, end_y =y-3, shape="ELLIPSE", shapeID = #cnvobj.drawnEle}
+                      
+      local shapeTable = {}
+      table.insert(shapeTable,shapeID)
+      table.insert(shapeTable,#cnvobj.drawnEle)
+      cnvobj:groupShapes(shapeTable)
+      iup.Update(cnvobj.cnv)
     end
   end)
 end
@@ -175,6 +183,4 @@ if iup.MainLoopLevel()==0 then
     iup.MainLoop()
     iup.Close()
 end
-
-
 
