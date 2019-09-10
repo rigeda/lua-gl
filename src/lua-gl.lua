@@ -21,34 +21,86 @@ _ENV = M		-- Lua 5.2+
 -- this function is used to manipulate active Element table data
 local function Manipulate_activeEle(cnvobj, x, y, Table)
 	if #Table > 0 then
-		local center_x , center_y = (Table[1].end_x - Table[1].start_x)/2+Table[1].start_x, (Table[1].end_y-Table[1].start_y)/2+Table[1].start_y
-		--y = cnvobj.height - y			
-					
-		for i=1, #Table do	
-			if cnvobj.snapGrid == true then
-				x = snap.Sx(x, cnvobj.grid_x)
-				y = snap.Sy(y, cnvobj.grid_y)
-			end
-			Table[i].start_x = math.floor(Table[i].start_x + x - center_x)
-			Table[i].start_y = math.floor(Table[i].start_y + y - center_y)
-			Table[i].end_x = math.floor(Table[i].end_x + x - center_x)
-			Table[i].end_y = math.floor(Table[i].end_y + y - center_y)
-			if #Table[i].portTable >= 0 then
-				for k, v in pairs(Table[i].portTable) do
-					for j = 1, #cnvobj.port do
-						if cnvobj.port[j].portID == v then
-							cnvobj.port[j].x = math.floor(cnvobj.port[j].x + x - center_x)
-							cnvobj.port[j].y = math.floor(cnvobj.port[j].y + y - center_y)
-						end
+		for i=1, #Table do
+			if Table[i].portTable then
+				if #Table[i].portTable >= 0 then
+					for ite=1 , #Table[i].portTable do   --offsetx is distance between ports x coordinate and start_x
+						Table[i].portTable[ite].offsetx = Table[i].start_x - Table[i].portTable[ite].x
+						Table[i].portTable[ite].offsety = Table[i].start_y - Table[i].portTable[ite].y
 					end
 				end
 			end
 		end
+		
+		for i=1, #Table do	
+			
+			if i==1 then 
+				Table[i].start_x = math.floor(x - Table[i].offs_x )
+				Table[i].start_y = math.floor(y - Table[i].offs_y )
+				if cnvobj.snapGrid == true then
+					Table[1].start_x = snap.Sx(Table[1].start_x, cnvobj.grid_x)
+					Table[1].start_y = snap.Sy(Table[1].start_y, cnvobj.grid_y)
+				end
+				Table[i].end_x = math.floor(Table[i].start_x - Table[i].distX)
+				Table[i].end_y = math.floor(Table[i].start_y - Table[i].distY)
+			else
+				Table[i].start_x = math.floor(Table[1].start_x - Table[i].offs_x )
+				Table[i].start_y = math.floor(Table[1].start_y - Table[i].offs_y )
+				Table[i].end_x = math.floor(Table[i].start_x - Table[i].distX)
+				Table[i].end_y = math.floor(Table[i].start_y - Table[i].distY)
+			end
+
+			if Table[i].portTable then
+				if #Table[i].portTable >= 0 then
+					for ite=1 , #Table[i].portTable do
+					
+						Table[i].portTable[ite].x = math.floor(Table[i].start_x - Table[i].portTable[ite].offsetx)
+						Table[i].portTable[ite].y = math.floor(Table[i].start_y - Table[i].portTable[ite].offsety)
+					end
+				end
+			end
+			
+		end
 	end
 end
 
--- this function take a index and groupId as input if index and shapeID  of any element of group is same then 
--- it will return groupID(or a group index) 
+local function Manipulate_LoadedEle(cnvobj, x, y, Table)
+	if #Table > 0 then
+		local center_x , center_y = (Table[1].end_x - Table[1].start_x)/2+Table[1].start_x, (Table[1].end_y-Table[1].start_y)/2+Table[1].start_y
+			
+		for i=1, #Table do
+			if Table[i].portTable then
+				if #Table[i].portTable >= 0 then
+					for ite=1 , #Table[i].portTable do   --offsetx is distance between ports x coordinate and start_x
+						Table[i].portTable[ite].offsetx = Table[i].start_x - Table[i].portTable[ite].x
+						Table[i].portTable[ite].offsety = Table[i].start_y - Table[i].portTable[ite].y
+					end
+				end
+			end
+		end
+		for i=1, #Table do	
+			
+			Table[i].start_x = math.floor(Table[i].start_x + x - center_x)
+			Table[i].start_y = math.floor(Table[i].start_y + y - center_y)
+			
+			Table[i].end_x = math.floor(Table[i].end_x + x - center_x)
+			Table[i].end_y = math.floor(Table[i].end_y + y - center_y)
+			if Table[i].portTable then
+				if #Table[i].portTable >= 0 then
+					for ite=1 , #Table[i].portTable do
+					
+						Table[i].portTable[ite].x = math.floor(Table[i].start_x - Table[i].portTable[ite].offsetx)
+						Table[i].portTable[ite].y = math.floor(Table[i].start_y - Table[i].portTable[ite].offsety)
+					end
+				end
+			end
+			
+			
+		end
+		
+	end
+end
+
 local function checkIndexInGroups(cnvobj,shape_id)
 	if #cnvobj.group > 0 then
 		for i=1,#cnvobj.group do
@@ -96,6 +148,7 @@ local objFuncs = {
 	erase = function(cnvobj)
 		cnvobj.drawnEle = {}
 		cnvobj.loadedEle = {}
+		cnvobj.port = {}
 		iup.Update(cnvobj.cnv)
 	end,
 
@@ -141,7 +194,6 @@ local objFuncs = {
 						cnvobj.connector[index + 1].end_y = y	
 					end
 					local isCursorOnPort = cursorOnPort(cnvobj, x, y)
-					print(isCursorOnPort)
 					if isCursorOnPort == true or iup.isdouble(status) then
 						cnvobj.drawing = "STOP"
 						cnvobj.connectorFlag = false
@@ -165,7 +217,20 @@ local objFuncs = {
 										local ActiveEleLen = #cnvobj.activeEle
 										cnvobj.activeEle[ActiveEleLen+1] = {}
 										cnvobj.activeEle[ActiveEleLen+1] = cnvobj.drawnEle[i]
-										--print(#cnvobj.activeEle,cnvobj.activeEle[#cnvobj.activeEle].start_x)
+										if ActiveEleLen == 1 then 
+											cnvobj.activeEle[1].offs_x = x - cnvobj.activeEle[1].start_x
+											cnvobj.activeEle[1].offs_y = y - cnvobj.activeEle[1].start_y
+											cnvobj.activeEle[1].distX = cnvobj.activeEle[1].start_x - cnvobj.activeEle[1].end_x
+											cnvobj.activeEle[1].distY = cnvobj.activeEle[1].start_y - cnvobj.activeEle[1].end_y
+										end
+										--cnvobj.activeEle[ActiveEleLen+1].offe_x = x - cnvobj.activeEle[ActiveEleLen+1].end_x
+										--cnvobj.activeEle[ActiveEleLen+1].offe_y = y - cnvobj.activeEle[ActiveEleLen+1].end_y
+										cnvobj.activeEle[ActiveEleLen+1].offs_x = cnvobj.activeEle[1].start_x - cnvobj.activeEle[ActiveEleLen+1].start_x
+										cnvobj.activeEle[ActiveEleLen+1].offs_y = cnvobj.activeEle[1].start_y - cnvobj.activeEle[ActiveEleLen+1].start_y
+
+										cnvobj.activeEle[ActiveEleLen+1].distX = cnvobj.activeEle[ActiveEleLen+1].start_x - cnvobj.activeEle[ActiveEleLen+1].end_x
+										cnvobj.activeEle[ActiveEleLen+1].distY = cnvobj.activeEle[ActiveEleLen+1].start_y - cnvobj.activeEle[ActiveEleLen+1].end_y
+
 										table.remove(cnvobj.drawnEle,i)
 									else
 										i = i + 1
@@ -174,6 +239,12 @@ local objFuncs = {
 							end
 						else
 							cnvobj.activeEle[1] = cnvobj.drawnEle[index]
+							cnvobj.activeEle[1].offs_x = x - cnvobj.activeEle[1].start_x
+							cnvobj.activeEle[1].offs_y = y - cnvobj.activeEle[1].start_y
+							--cnvobj.activeEle[1].offe_x = x - cnvobj.activeEle[1].end_x
+							--cnvobj.activeEle[1].offe_y = y - cnvobj.activeEle[1].end_y
+							cnvobj.activeEle[1].distX = cnvobj.activeEle[1].start_x - cnvobj.activeEle[1].end_x
+							cnvobj.activeEle[1].distY = cnvobj.activeEle[1].start_y - cnvobj.activeEle[1].end_y
 							table.remove(cnvobj.drawnEle, index)
 						end
 					end
@@ -192,13 +263,25 @@ local objFuncs = {
 							move = true
 						else
 							move = false
-							Manipulate_activeEle(cnvobj, x,y,cnvobj.loadedEle)
+							--Manipulate_LoadedEle(cnvobj, x,y,cnvobj.loadedEle)
+							local tempTable = {}
+
 							for i=1, #cnvobj.loadedEle do
 								local index = #cnvobj.drawnEle
 								cnvobj.drawnEle[index+1] = {}
-								cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
-								cnvobj.drawnEle[index+1].shapeID = index + 1 
+                                
+	                            cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
+								cnvobj.drawnEle[index+1].shapeID = index + 1
+
+								table.insert(tempTable, index+1)
+
+								if cnvobj.drawnEle[index+1].portTable then
+									for ite = 1, #cnvobj.drawnEle[index+1].portTable do
+										cnvobj.port[#cnvobj.port+1] = cnvobj.drawnEle[index+1].portTable[ite]
+									end
+								end
 							end
+							cnvobj:groupShapes(tempTable)
 							cnvobj.loadedEle = {}
 							cnvobj.drawing = "STOP"
 						end
@@ -242,7 +325,7 @@ local objFuncs = {
 				
 				-- if load function is called then 
 				if iup.isbutton1(status) and cnvobj.drawing == "LOAD" and move then
-					Manipulate_activeEle(cnvobj, x, y, cnvobj.loadedEle)
+					Manipulate_LoadedEle(cnvobj, x, y, cnvobj.loadedEle)
 					iup.Update(cnvobj.cnv)
 				end
 
@@ -251,7 +334,7 @@ local objFuncs = {
 	end,
 
 	save = function(cnvobj)
-		local str = tableUtils.t2s(cnvobj.drawnEle)
+		local str = tableUtils.t2sr(cnvobj.drawnEle)
 		return str
 	end,
 
@@ -261,7 +344,7 @@ local objFuncs = {
 			
 			move = false
 			
-			cnvobj.loadedEle = tableUtils.s2t(str)
+			cnvobj.loadedEle = tableUtils.s2tr(str)
 
 			if #cnvobj.loadedEle == 0 then
 				local msg = "length of string is zero"
@@ -283,19 +366,15 @@ local objFuncs = {
 	groupShapes = function(cnvobj,shapeList)
 		if #cnvobj.drawnEle > 0 then
 			local tempTable = {}
-			
+			--print("you ar in gorup ing with len"..#shapeList)
 			local match = false
-			--print(#shapeList)
 			for k=1, #shapeList, 1 do
-			---	print(k)
 				local i = 1
 				while #cnvobj.group >= i do
 					for j=1, #cnvobj.group[i] do
-					--print(k,i,j)
 						if shapeList[k]==cnvobj.group[i][j] then
 							tempTable = addTwoTableAndRemoveDuplicate(cnvobj.group[i],shapeList,tempTable)
 							table.remove(cnvobj.group, i)
-							--print("true")
 							i = i - 1
 							match = true
 							break
@@ -324,25 +403,22 @@ local objFuncs = {
 	addPort = function(cnvobj,x,y,shapeID)
 		local index = #cnvobj.port
 		local portID = index + 1
-		--print(shapeID)
+
 		cnvobj.port[index + 1] = {}
-		cnvobj.port[index + 1].shapeID = shapeID
 		cnvobj.port[index + 1].portID = portID
 		cnvobj.port[index + 1].x = x 
 		cnvobj.port[index + 1].y = y
-
-        cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
-      	cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = x + 3, start_y = y + 3, end_x = x-3, end_y =y-3, shape="FILLEDELLIPSE", shapeID = #cnvobj.drawnEle}
-		cnvobj.drawnEle[#cnvobj.drawnEle].portTable = {cnvobj.port[#cnvobj.port].portID}
-		
+	
 		if shapeID then
-			local shapeTable = {}
-      		table.insert(shapeTable,shapeID)
-      		table.insert(shapeTable,#cnvobj.drawnEle)
-      		cnvobj:groupShapes(shapeTable)
+			if shapeID > 0 then
+				cnvobj.port[index + 1].shape = {}
+				cnvobj.port[index + 1].shape = cnvobj.drawnEle[shapeID]
+			
+				local lenOfPortTable = #cnvobj.drawnEle[shapeID].portTable
+      			cnvobj.drawnEle[shapeID].portTable[lenOfPortTable + 1] = {}
+      			cnvobj.drawnEle[shapeID].portTable[lenOfPortTable + 1] = cnvobj.port[#cnvobj.port]
+			end
 		end
-		
-		iup.Update(cnvobj.cnv)
 	end, 
 
 }

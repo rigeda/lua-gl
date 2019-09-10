@@ -3,9 +3,26 @@ require("iupluaimglib")
 require("cdlua")
 require("iupluacd")
 
-LGL = require("lua-gl")
+LGL = require("TESTlua-gl")
 
 TableUtils = require("tableUtils")
+
+
+-------------<<<<<<<<<<< ##### LuaTerminal ##### >>>>>>>>>>>>>-------------
+require("iuplua_scintilla")
+LT = require("LuaTerminal")
+LT.USESCINTILLA = true
+
+-- Create terminal
+newterm = LT.newTerm(_ENV,true,"testlog.txt")
+
+--print("newterm: ", newterm)
+LTbox = iup.vbox{newterm}
+
+LTdlg = iup.dialog{LTbox; title="LuaTerminal", size="QUARTERxQUARTER"}
+LTdlg:showxy(iup.RIGHT, iup.LEFT)
+-------------<<<<<<<<<<< ##### LuaTerminal End ##### >>>>>>>>>>>>>-------------
+
 
 --*************** Main (Part 1/2) ******************************
 
@@ -101,17 +118,23 @@ function addPort()
     shapeID = cnvobj:whichShape(x,y)
     if pressed == 0 then
       cnvobj:addPort(x,y,shapeID)
-        
+
       cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
+
       cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = x + 3, start_y = y + 3, end_x = x-3, end_y =y-3, shape="FILLEDELLIPSE", shapeID = #cnvobj.drawnEle}
-		  cnvobj.drawnEle[#cnvobj.drawnEle].Asso_port = portID
-		
+      
+      cnvobj.drawnEle[#cnvobj.drawnEle].portTable = {}
+      cnvobj.drawnEle[#cnvobj.drawnEle].portTable[1] = {}
+      
+      cnvobj.drawnEle[#cnvobj.drawnEle].portTable[1] = cnvobj.port[#cnvobj.port]
+      
 		  if shapeID then
 			    local shapeTable = {}
       		table.insert(shapeTable,shapeID)
       		table.insert(shapeTable,#cnvobj.drawnEle)
       		cnvobj:groupShapes(shapeTable)
-		  end
+      end
+      
       iup.Update(cnvobj.cnv)
     end
   end)
