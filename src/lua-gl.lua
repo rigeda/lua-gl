@@ -193,10 +193,12 @@ local objFuncs = {
 						cnvobj.connector[index + 1].end_x = x 
 						cnvobj.connector[index + 1].end_y = y	
 					end
-					local isCursorOnPort = cursorOnPort(cnvobj, x, y)
-					if isCursorOnPort == true or iup.isdouble(status) then
-						cnvobj.drawing = "STOP"
-						cnvobj.connectorFlag = false
+					if pressed == 1 and cnvobj.connectorFlag == true then
+						local isCursorOnPort = cursorOnPort(cnvobj, x, y)
+						if isCursorOnPort == true or iup.isdouble(status) then
+							cnvobj.drawing = "STOP"
+							cnvobj.connectorFlag = false
+						end
 					end
 					
 				end
