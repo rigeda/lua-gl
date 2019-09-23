@@ -80,7 +80,11 @@ function  render(cnvobj)
 
   if #cnvobj.connector > 0 then
     for i = 1, #cnvobj.connector do
-      DrawShape(cd_bcanvas,cnvobj.connector[i].start_x, cnvobj.connector[i].start_y, cnvobj.connector[i].end_x, cnvobj.connector[i].end_y, "LINE")
+      if #cnvobj.connector[i].segments > 0 then
+        for j = 1, #cnvobj.connector[i].segments do 
+          DrawShape(cd_bcanvas,cnvobj.connector[i].segments[j].start_x, cnvobj.connector[i].segments[j].start_y, cnvobj.connector[i].segments[j].end_x, cnvobj.connector[i].segments[j].end_y, "LINE")
+        end
+      end
     end
   end
 

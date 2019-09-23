@@ -21,6 +21,7 @@ _ENV = M		-- Lua 5.2+
 -- this function is used to manipulate active Element table data
 local function Manipulate_activeEle(cnvobj, x, y, Table)
 	if #Table > 0 then
+
 		for i=1, #Table do
 			if Table[i].portTable then
 				if #Table[i].portTable >= 0 then
@@ -35,14 +36,23 @@ local function Manipulate_activeEle(cnvobj, x, y, Table)
 		for i=1, #Table do	
 			
 			if i==1 then 
-				Table[i].start_x = math.floor(x - Table[i].offs_x )
-				Table[i].start_y = math.floor(y - Table[i].offs_y )
+				
+				
 				if cnvobj.snapGrid == true then
+					Table[1].start_x = math.floor(x - Table[1].offs_x)
+					Table[1].start_y = math.floor(y - Table[1].offs_y)	
 					Table[1].start_x = snap.Sx(Table[1].start_x, cnvobj.grid_x)
 					Table[1].start_y = snap.Sy(Table[1].start_y, cnvobj.grid_y)
+					Table[1].start_x = math.floor(Table[1].start_x + Table[1].offsetXfromGrid)
+					Table[1].start_y = math.floor(Table[1].start_y + Table[1].offsetYfromGrid)
+				else
+					Table[1].start_x = math.floor(x - Table[1].offs_x)
+					Table[1].start_y = math.floor(y - Table[1].offs_y)	
 				end
-				Table[i].end_x = math.floor(Table[i].start_x - Table[i].distX)
-				Table[i].end_y = math.floor(Table[i].start_y - Table[i].distY)
+				
+				
+				Table[1].end_x = math.floor(Table[1].start_x - Table[1].distX)
+				Table[1].end_y = math.floor(Table[1].start_y - Table[1].distY)
 			else
 				Table[i].start_x = math.floor(Table[1].start_x - Table[i].offs_x )
 				Table[i].start_y = math.floor(Table[1].start_y - Table[i].offs_y )
@@ -56,6 +66,22 @@ local function Manipulate_activeEle(cnvobj, x, y, Table)
 					
 						Table[i].portTable[ite].x = math.floor(Table[i].start_x - Table[i].portTable[ite].offsetx)
 						Table[i].portTable[ite].y = math.floor(Table[i].start_y - Table[i].portTable[ite].offsety)
+						
+						if Table[i].portTable[ite].segmentTable then
+							for segIte = 1, #Table[i].portTable[ite].segmentTable do
+								local segmentID = Table[i].portTable[ite].segmentTable[segIte].segmentID
+								local connectorID = Table[i].portTable[ite].segmentTable[segIte].connectorID
+								local status = Table[i].portTable[ite].segmentTable[segIte].segmentStatus
+								if segmentID and status=="ending" then
+									cnvobj.connector[connectorID].segments[segmentID].end_x = Table[i].portTable[ite].x
+									cnvobj.connector[connectorID].segments[segmentID].end_y = Table[i].portTable[ite].y
+								end
+								if segmentID and status=="starting" then
+									cnvobj.connector[connectorID].segments[segmentID].start_x = Table[i].portTable[ite].x
+									cnvobj.connector[connectorID].segments[segmentID].start_y = Table[i].portTable[ite].y
+								end
+							end
+						end
 					end
 				end
 			end
@@ -118,7 +144,7 @@ local function cursorOnPort(cnvobj, x, y)
 	for i = 1, #cnvobj.port do
 		if math.abs(cnvobj.port[i].x - x) <= cnvobj.grid_x/2 then
 			if math.abs(cnvobj.port[i].y - y) <= cnvobj.grid_y/2 then
-				return true
+				return true,cnvobj.port[i].portID
 			end
 		end
 	end
@@ -147,8 +173,13 @@ local objFuncs = {
 
 	erase = function(cnvobj)
 		cnvobj.drawnEle = {}
-		cnvobj.loadedEle = {}
+		cnvobj.group = {}
 		cnvobj.port = {}
+		cnvobj.connector = {}
+		cnvobj.connectorFlag = false
+		cnvobj.clickFlag = false
+		cnvobj.tempflag = false
+
 		iup.Update(cnvobj.cnv)
 	end,
 
@@ -183,21 +214,68 @@ local objFuncs = {
 				--connectors
 				if cnvobj.drawing == "CONNECTOR" then
 					cnvobj.shape = "LINE"
+					
 					if pressed == 0 then
 						cnvobj.connectorFlag = true
 						local index = #cnvobj.connector
-						cnvobj.connector[index + 1] = {}
-						cnvobj.connector[index + 1].ID = index + 1
-						cnvobj.connector[index + 1].start_x = x 
-						cnvobj.connector[index + 1].start_y = y
-						cnvobj.connector[index + 1].end_x = x 
-						cnvobj.connector[index + 1].end_y = y	
+						cnvobj.connector[index].ID = index
+
+						local segLen = #cnvobj.connector[index].segments
+						cnvobj.connector[index].segments[segLen+1] = {}
+						cnvobj.connector[index].segments[segLen+1].ID = segLen + 1
+						cnvobj.connector[index].segments[segLen+1].start_x = x 
+						cnvobj.connector[index].segments[segLen+1].start_y = y
+						cnvobj.connector[index].segments[segLen+1].end_x = x 
+						cnvobj.connector[index].segments[segLen+1].end_y = y
+							
 					end
-					if pressed == 1 and cnvobj.connectorFlag == true then
-						local isCursorOnPort = cursorOnPort(cnvobj, x, y)
-						if isCursorOnPort == true or iup.isdouble(status) then
+					local isCursorOnPort, p_ID = cursorOnPort(cnvobj, x, y)
+
+					if pressed == 1 and cnvobj.connectorFlag == false and isCursorOnPort then
+						
+						if not cnvobj.port[p_ID].segmentTable then
+							cnvobj.port[p_ID].segmentTable = {}
+						end
+						local portSegTableLen = #cnvobj.port[p_ID].segmentTable
+						cnvobj.port[p_ID].segmentTable[portSegTableLen+1] = {}
+						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentID = 1 
+						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].connectorID = #cnvobj.connector
+						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentStatus = "starting"
+						
+						--[[cnvobj.port[p_ID].segmentID = 1
+						cnvobj.port[p_ID].connectorID = #cnvobj.connector
+						cnvobj.port[p_ID].segmentStatus = "starting"]]
+					end
+
+					if (pressed == 1 and cnvobj.connectorFlag == true) or iup.isdouble(status) then
+						
+						if isCursorOnPort == true then
+							local index = #cnvobj.connector
+							local segLen = #cnvobj.connector[index].segments
+
+							if not cnvobj.port[p_ID].segmentTable then
+								cnvobj.port[p_ID].segmentTable = {}
+							end
+
+							local portSegTableLen = #cnvobj.port[p_ID].segmentTable
+							cnvobj.port[p_ID].segmentTable[portSegTableLen+1] = {}
+
+							cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentID = segLen
+							cnvobj.port[p_ID].segmentTable[portSegTableLen+1].connectorID = index
+							cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentStatus = "ending"
+							
+							--cnvobj.port[p_ID].segmentID = segLen
+							--cnvobj.port[p_ID].connectorID = index
+							--cnvobj.port[p_ID].segmentStatus = "ending"
+							
 							cnvobj.drawing = "STOP"
 							cnvobj.connectorFlag = false
+						end
+						if iup.isdouble(status) then
+							cnvobj.drawing = "STOP"
+							cnvobj.connectorFlag = false
+							table.remove(cnvobj.connector[#cnvobj.connector].segments,#cnvobj.connector[#cnvobj.connector].segments)
+							table.remove(cnvobj.connector[#cnvobj.connector].segments,#cnvobj.connector[#cnvobj.connector].segments)
 						end
 					end
 					
@@ -217,16 +295,20 @@ local objFuncs = {
 									--print(#cnvobj.group[groupID],j,groupID,i)
 									if cnvobj.group[groupID][j] == cnvobj.drawnEle[i].shapeID then
 										local ActiveEleLen = #cnvobj.activeEle
-										cnvobj.activeEle[ActiveEleLen+1] = {}
+										--cnvobj.activeEle[ActiveEleLen+1] = {}
 										cnvobj.activeEle[ActiveEleLen+1] = cnvobj.drawnEle[i]
 										if ActiveEleLen == 1 then 
 											cnvobj.activeEle[1].offs_x = x - cnvobj.activeEle[1].start_x
 											cnvobj.activeEle[1].offs_y = y - cnvobj.activeEle[1].start_y
 											cnvobj.activeEle[1].distX = cnvobj.activeEle[1].start_x - cnvobj.activeEle[1].end_x
 											cnvobj.activeEle[1].distY = cnvobj.activeEle[1].start_y - cnvobj.activeEle[1].end_y
+
+											local GridXpos = snap.Sx(cnvobj.activeEle[1].start_x, cnvobj.grid_x)
+											local GridYpos = snap.Sy(cnvobj.activeEle[1].start_y, cnvobj.grid_y)
+											cnvobj.activeEle[1].offsetXfromGrid = cnvobj.activeEle[1].start_x - GridXpos
+											cnvobj.activeEle[1].offsetYfromGrid = cnvobj.activeEle[1].start_y - GridYpos
 										end
-										--cnvobj.activeEle[ActiveEleLen+1].offe_x = x - cnvobj.activeEle[ActiveEleLen+1].end_x
-										--cnvobj.activeEle[ActiveEleLen+1].offe_y = y - cnvobj.activeEle[ActiveEleLen+1].end_y
+
 										cnvobj.activeEle[ActiveEleLen+1].offs_x = cnvobj.activeEle[1].start_x - cnvobj.activeEle[ActiveEleLen+1].start_x
 										cnvobj.activeEle[ActiveEleLen+1].offs_y = cnvobj.activeEle[1].start_y - cnvobj.activeEle[ActiveEleLen+1].start_y
 
@@ -243,10 +325,14 @@ local objFuncs = {
 							cnvobj.activeEle[1] = cnvobj.drawnEle[index]
 							cnvobj.activeEle[1].offs_x = x - cnvobj.activeEle[1].start_x
 							cnvobj.activeEle[1].offs_y = y - cnvobj.activeEle[1].start_y
-							--cnvobj.activeEle[1].offe_x = x - cnvobj.activeEle[1].end_x
-							--cnvobj.activeEle[1].offe_y = y - cnvobj.activeEle[1].end_y
 							cnvobj.activeEle[1].distX = cnvobj.activeEle[1].start_x - cnvobj.activeEle[1].end_x
 							cnvobj.activeEle[1].distY = cnvobj.activeEle[1].start_y - cnvobj.activeEle[1].end_y
+
+							local GridXpos = snap.Sx(cnvobj.activeEle[1].start_x, cnvobj.grid_x)
+							local GridYpos = snap.Sy(cnvobj.activeEle[1].start_y, cnvobj.grid_y)
+							cnvobj.activeEle[1].offsetXfromGrid = cnvobj.activeEle[1].start_x - GridXpos
+							cnvobj.activeEle[1].offsetYfromGrid = cnvobj.activeEle[1].start_y - GridYpos
+
 							table.remove(cnvobj.drawnEle, index)
 						end
 					end
@@ -266,24 +352,33 @@ local objFuncs = {
 						else
 							move = false
 							--Manipulate_LoadedEle(cnvobj, x,y,cnvobj.loadedEle)
-							local tempTable = {}
-
+							--local tempTable = {}
+							local total_shapes = #cnvobj.loadedEle
+							for g_i = 1, #cnvobj.group do
+								cnvobj.group[#cnvobj.group + 1] = {}
+								for g_j = 1, #cnvobj.group[g_i] do 
+									cnvobj.group[#cnvobj.group][g_j] = total_shapes + cnvobj.group[g_i][g_j]
+								end
+							end
+							
 							for i=1, #cnvobj.loadedEle do
 								local index = #cnvobj.drawnEle
-								cnvobj.drawnEle[index+1] = {}
+								
                                 
-	                            cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
+								cnvobj.drawnEle[index+1] = cnvobj.loadedEle[i]
 								cnvobj.drawnEle[index+1].shapeID = index + 1
 
-								table.insert(tempTable, index+1)
+								--table.insert(tempTable, index+1)
 
 								if cnvobj.drawnEle[index+1].portTable then
 									for ite = 1, #cnvobj.drawnEle[index+1].portTable do
 										cnvobj.port[#cnvobj.port+1] = cnvobj.drawnEle[index+1].portTable[ite]
+										cnvobj.port[#cnvobj.port].portID = #cnvobj.port
+										cnvobj.port[#cnvobj.port].segmentTable = {}
 									end
 								end
 							end
-							cnvobj:groupShapes(tempTable)
+							--cnvobj:groupShapes(tempTable)
 							cnvobj.loadedEle = {}
 							cnvobj.drawing = "STOP"
 						end
@@ -314,8 +409,12 @@ local objFuncs = {
 				
 				--connectors
 				if cnvobj.drawing == "CONNECTOR" and cnvobj.connectorFlag == true then
-					cnvobj.connector[#cnvobj.connector].end_x = x 
-					cnvobj.connector[#cnvobj.connector].end_y = y
+					local index = #cnvobj.connector
+					local segLen = #cnvobj.connector[index].segments
+					if segLen and index then
+						cnvobj.connector[index].segments[segLen].end_x = x 
+						cnvobj.connector[index].segments[segLen].end_y = y	
+					end
 					iup.Update(cnvobj.cnv)
 				end
 
@@ -368,7 +467,7 @@ local objFuncs = {
 	groupShapes = function(cnvobj,shapeList)
 		if #cnvobj.drawnEle > 0 then
 			local tempTable = {}
-			--print("you ar in gorup ing with len"..#shapeList)
+			--print("you ar in group ing with len"..#shapeList)
 			local match = false
 			for k=1, #shapeList, 1 do
 				local i = 1
@@ -408,20 +507,32 @@ local objFuncs = {
 
 		cnvobj.port[index + 1] = {}
 		cnvobj.port[index + 1].portID = portID
+
+		if cnvobj.snapGrid == true then
+			x = snap.Sx(x, cnvobj.grid_x)
+			y = snap.Sy(y, cnvobj.grid_y)
+			
+		end
 		cnvobj.port[index + 1].x = x 
 		cnvobj.port[index + 1].y = y
 	
 		if shapeID then
 			if shapeID > 0 then
-				cnvobj.port[index + 1].shape = {}
+				--cnvobj.port[index + 1].shape = {}
 				cnvobj.port[index + 1].shape = cnvobj.drawnEle[shapeID]
 			
 				local lenOfPortTable = #cnvobj.drawnEle[shapeID].portTable
-      			cnvobj.drawnEle[shapeID].portTable[lenOfPortTable + 1] = {}
+      			--cnvobj.drawnEle[shapeID].portTable[lenOfPortTable + 1] = {}
       			cnvobj.drawnEle[shapeID].portTable[lenOfPortTable + 1] = cnvobj.port[#cnvobj.port]
 			end
 		end
 	end, 
+
+	drawConnector  = function(cnvobj)
+		cnvobj.connector[#cnvobj.connector + 1] = {}
+		cnvobj.connector[#cnvobj.connector].segments = {}
+		cnvobj.drawing = "CONNECTOR"
+	end,
 
 }
 

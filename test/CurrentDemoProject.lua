@@ -3,10 +3,10 @@ require("iupluaimglib")
 require("cdlua")
 require("iupluacd")
 
-LGL = require("TESTlua-gl")
+LGL = require("lua-gl")
 
 TableUtils = require("tableUtils")
-
+snap = require("snap")
 
 -------------<<<<<<<<<<< ##### LuaTerminal ##### >>>>>>>>>>>>>-------------
 require("iuplua_scintilla")
@@ -91,7 +91,7 @@ function valuechanged_cb_grid_y(self)
 end
 
 function connectorAction()
-  cnvobj.drawing = "CONNECTOR"
+  cnvobj:drawConnector()
 end
 
 local shapeList = {}
@@ -117,11 +117,13 @@ function addPort()
   cnvobj:addHook("MOUSECLICKPOST",function(button, pressed, x, y)
     shapeID = cnvobj:whichShape(x,y)
     if pressed == 0 then
+     
+
       cnvobj:addPort(x,y,shapeID)
 
       cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
 
-      cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = x + 3, start_y = y + 3, end_x = x-3, end_y =y-3, shape="FILLEDELLIPSE", shapeID = #cnvobj.drawnEle}
+      cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = cnvobj.port[#cnvobj.port].x + 3, start_y = cnvobj.port[#cnvobj.port].y + 3, end_x = cnvobj.port[#cnvobj.port].x-3, end_y =cnvobj.port[#cnvobj.port].y-3, shape="FILLEDELLIPSE", shapeID = #cnvobj.drawnEle}
       
       cnvobj.drawnEle[#cnvobj.drawnEle].portTable = {}
       cnvobj.drawnEle[#cnvobj.drawnEle].portTable[1] = {}
