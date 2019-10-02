@@ -66,9 +66,23 @@ function  render(cnvobj)
     end
   end
     
-  if #cnvobj.loadedEle > 0 then
-    for i=1, #cnvobj.loadedEle do
-      DrawShape(cd_bcanvas, cnvobj.loadedEle[i].start_x, cnvobj.loadedEle[i].start_y, cnvobj.loadedEle[i].end_x, cnvobj.loadedEle[i].end_y, cnvobj.loadedEle[i].shape)
+  if cnvobj.loadedEle.drawnEle then
+    if #cnvobj.loadedEle.drawnEle > 0 then
+      for i=1, #cnvobj.loadedEle.drawnEle do
+        DrawShape(cd_bcanvas, cnvobj.loadedEle.drawnEle[i].start_x, cnvobj.loadedEle.drawnEle[i].start_y, cnvobj.loadedEle.drawnEle[i].end_x, cnvobj.loadedEle.drawnEle[i].end_y, cnvobj.loadedEle.drawnEle[i].shape)
+      end
+    end
+  end
+  
+  if cnvobj.loadedEle.connector then
+    if #cnvobj.loadedEle.connector > 0 then
+      for i = 1, #cnvobj.loadedEle.connector do
+        if #cnvobj.loadedEle.connector[i].segments > 0 then
+          for j = 1, #cnvobj.loadedEle.connector[i].segments do 
+            DrawShape(cd_bcanvas,cnvobj.loadedEle.connector[i].segments[j].start_x, cnvobj.loadedEle.connector[i].segments[j].start_y, cnvobj.loadedEle.connector[i].segments[j].end_x, cnvobj.loadedEle.connector[i].segments[j].end_y, "LINE")
+          end
+        end
+      end
     end
   end
   

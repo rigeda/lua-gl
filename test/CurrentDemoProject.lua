@@ -119,16 +119,17 @@ function addPort()
     if pressed == 0 then
      
 
-      cnvobj:addPort(x,y,shapeID)
+      PortAddedToShape = cnvobj:addPort(x,y,shapeID)
 
       cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
 
       cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = cnvobj.port[#cnvobj.port].x + 3, start_y = cnvobj.port[#cnvobj.port].y + 3, end_x = cnvobj.port[#cnvobj.port].x-3, end_y =cnvobj.port[#cnvobj.port].y-3, shape="FILLEDELLIPSE", shapeID = #cnvobj.drawnEle}
       
-      cnvobj.drawnEle[#cnvobj.drawnEle].portTable = {}
-      cnvobj.drawnEle[#cnvobj.drawnEle].portTable[1] = {}
-      
-      cnvobj.drawnEle[#cnvobj.drawnEle].portTable[1] = cnvobj.port[#cnvobj.port]
+      if PortAddedToShape==false then
+        cnvobj.drawnEle[#cnvobj.drawnEle].portTable = {}
+        cnvobj.drawnEle[#cnvobj.drawnEle].portTable[1] = {}
+        cnvobj.drawnEle[#cnvobj.drawnEle].portTable[1] = cnvobj.port[#cnvobj.port]
+      end
       
 		  if shapeID then
 			    local shapeTable = {}
