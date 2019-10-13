@@ -87,7 +87,7 @@ function checkXY(cnvobj, x, y)
             end
 
             -- for rect and filled rect
-            if cnvobj.drawnEle[i].shape == "RECT" or cnvobj.drawnEle[i].shape == "FILLEDRECT" then
+            if cnvobj.drawnEle[i].shape == "RECT" or cnvobj.drawnEle[i].shape == "BLOCKINGRECT" or cnvobj.drawnEle[i].shape == "FILLEDRECT" then
                 
                 local x1, y1 = cnvobj.drawnEle[i].start_x, cnvobj.drawnEle[i].start_y
                 local x3, y3 = cnvobj.drawnEle[i].end_x , cnvobj.drawnEle[i].end_y
@@ -104,7 +104,7 @@ function checkXY(cnvobj, x, y)
                     end
                 end
 
-                if cnvobj.drawnEle[i].shape == "FILLEDRECT" then
+                if cnvobj.drawnEle[i].shape == "FILLEDRECT" or cnvobj.drawnEle[i].shape == "BLOCKINGRECT" then
                     --print(i)
                     local xyLiesInsideRect = check(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
                     --print(xyLiesInsideRect)
@@ -132,6 +132,7 @@ function checkXY(cnvobj, x, y)
 
                 midx4 = (x1 + x4)/2
                 midy4 = (y1 + y4)/2
+                
                 --print("("..x1, y1..") ("..x2, y2..") ("..x3, y3..") ("..x4, y4..")")
                 --print(midx1,midy1, midx2, midy2, midx3, midy3, midx4, midy4)
                 local a = (math.abs(midx1 - midx3))/2

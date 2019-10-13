@@ -9,7 +9,7 @@ local setmetatable = setmetatable
 local type = type
 local math = math
 local snap = require("snap")
-
+local segmentGenerator = require("segmentGenerator")
 local check = require("ClickFunctions")
 local tableUtils = require("tableUtils")
 local CC = require("createCanvas")
@@ -103,6 +103,16 @@ local function Manipulate_LoadedEle(cnvobj, x, y, LoadedData)
 				end
 			end
 		end
+		--manipulating connector
+		for i=1, #cnvobj.connector do
+			for j=1, #cnvobj.connector[i].segments do
+				LoadedData.connector[i].segments[j].start_x = math.floor(LoadedData.connector[i].segments[j].start_x + x - center_x)
+				LoadedData.connector[i].segments[j].start_y = math.floor(LoadedData.connector[i].segments[j].start_y + y - center_y)
+				LoadedData.connector[i].segments[j].end_x = math.floor(LoadedData.connector[i].segments[j].end_x + x - center_x)
+				LoadedData.connector[i].segments[j].end_y = math.floor(LoadedData.connector[i].segments[j].end_y + y - center_y)
+			end
+		end
+		
 		for i=1, #Table do	
 			
 			Table[i].start_x = math.floor(Table[i].start_x + x - center_x)
@@ -110,6 +120,7 @@ local function Manipulate_LoadedEle(cnvobj, x, y, LoadedData)
 			
 			Table[i].end_x = math.floor(Table[i].end_x + x - center_x)
 			Table[i].end_y = math.floor(Table[i].end_y + y - center_y)
+			
 			if Table[i].portTable then
 				if #Table[i].portTable >= 0 then
 					for ite=1 , #Table[i].portTable do
@@ -117,23 +128,6 @@ local function Manipulate_LoadedEle(cnvobj, x, y, LoadedData)
 						Table[i].portTable[ite].x = math.floor(Table[i].start_x - Table[i].portTable[ite].offsetx)
 						Table[i].portTable[ite].y = math.floor(Table[i].start_y - Table[i].portTable[ite].offsety)
 
-						if Table[i].portTable[ite].segmentTable then
-							for segIte = 1, #Table[i].portTable[ite].segmentTable do
-								local segmentID = Table[i].portTable[ite].segmentTable[segIte].segmentID
-								local connectorID = Table[i].portTable[ite].segmentTable[segIte].connectorID
-								--print("connectorID = "..connectorID)
-								local status = Table[i].portTable[ite].segmentTable[segIte].segmentStatus
-								--connectorID = connectorID + #cnvobj.connector
-								if segmentID and status=="ending" then
-									LoadedData.connector[connectorID].segments[segmentID].end_x = Table[i].portTable[ite].x
-									LoadedData.connector[connectorID].segments[segmentID].end_y = Table[i].portTable[ite].y
-								end
-								if segmentID and status=="starting" then
-									LoadedData.connector[connectorID].segments[segmentID].start_x = Table[i].portTable[ite].x
-									LoadedData.connector[connectorID].segments[segmentID].start_y = Table[i].portTable[ite].y
-								end
-							end
-						end
 					end
 				end
 			end
@@ -231,11 +225,23 @@ local objFuncs = {
 				--connectors
 				if cnvobj.drawing == "CONNECTOR" then
 					cnvobj.shape = "LINE"
-					
+					cnvobj.matrix = segmentGenerator.findMatrix(cnvobj)
+					--[[for i=1, #cnvobj.matrix do
+						str = ""
+						for j=1, #cnvobj.matrix[i] do
+							str = str..cnvobj.matrix[i][j].." "
+						end
+						print(str)
+					end]]
 					if pressed == 0 then
 						cnvobj.connectorFlag = true
 						local index = #cnvobj.connector
 						cnvobj.connector[index].ID = index
+
+						
+						x = snap.Sx(x, cnvobj.grid_x)
+						y = snap.Sy(y, cnvobj.grid_y)
+						
 
 						local segLen = #cnvobj.connector[index].segments
 						cnvobj.connector[index].segments[segLen+1] = {}
@@ -244,6 +250,7 @@ local objFuncs = {
 						cnvobj.connector[index].segments[segLen+1].start_y = y
 						cnvobj.connector[index].segments[segLen+1].end_x = x 
 						cnvobj.connector[index].segments[segLen+1].end_y = y
+						
 							
 					end
 					local isCursorOnPort, p_ID = cursorOnPort(cnvobj, x, y)
@@ -258,7 +265,7 @@ local objFuncs = {
 						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentID = 1 
 						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].connectorID = #cnvobj.connector
 						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentStatus = "starting"
-						
+
 					end
 
 					if (pressed == 1 and cnvobj.connectorFlag == true) or iup.isdouble(status) then
@@ -284,6 +291,8 @@ local objFuncs = {
 							
 							cnvobj.drawing = "STOP"
 							cnvobj.connectorFlag = false
+							
+							iup.Update(cnvobj.cnv)
 						end
 						if iup.isdouble(status) then
 							cnvobj.drawing = "STOP"
@@ -365,11 +374,10 @@ local objFuncs = {
 							move = true
 						else
 							move = false
-							--Manipulate_LoadedEle(cnvobj, x,y,cnvobj.loadedEle)
-							--local tempTable = {}
-
+							
 							--group previously grouped shapes
 							local total_shapes = #cnvobj.loadedEle.drawnEle
+							
 							for g_i = 1, #cnvobj.loadedEle.group do
 								cnvobj.group[#cnvobj.group + 1] = {}
 								for g_j = 1, #cnvobj.loadedEle.group[g_i] do 
@@ -386,7 +394,6 @@ local objFuncs = {
 							
 						
 							--load all the drawn shapes and port 
-							print("totoal loaded ele = "..#cnvobj.loadedEle.drawnEle)
 							for i=1, #cnvobj.loadedEle.drawnEle do
 								local index = #cnvobj.drawnEle
 								cnvobj.drawnEle[index+1] = cnvobj.loadedEle.drawnEle[i]
@@ -402,7 +409,6 @@ local objFuncs = {
 
 										for p_j=1, #cnvobj.port[#cnvobj.port].segmentTable do
 											cnvobj.port[#cnvobj.port].segmentTable[p_j].connectorID = no_of_connector + cnvobj.port[#cnvobj.port].segmentTable[p_j].connectorID
-											print("connector id  of each segmentTable = "..#cnvobj.port,cnvobj.port[#cnvobj.port].segmentTable[p_j].connectorID,#cnvobj.port[#cnvobj.port].segmentTable)
 										end
 										--cnvobj.port[p_ID].segmentTable[portSegTableLen+1].connectorID = #cnvobj.connector
 
@@ -444,9 +450,16 @@ local objFuncs = {
 				if cnvobj.drawing == "CONNECTOR" and cnvobj.connectorFlag == true then
 					local index = #cnvobj.connector
 					local segLen = #cnvobj.connector[index].segments
+					
+					while segLen > 1 do
+						table.remove(cnvobj.connector[index].segments, segLen)
+						segLen = segLen - 1
+					end
+					
 					if segLen and index then
-						cnvobj.connector[index].segments[segLen].end_x = x 
-						cnvobj.connector[index].segments[segLen].end_y = y	
+						segmentGenerator.generateSegments(cnvobj, index, segLen, x, y)
+						--cnvobj.connector[index].segments[segLen].end_x = x 
+						--cnvobj.connector[index].segments[segLen].end_y = y	
 					end
 					iup.Update(cnvobj.cnv)
 				end
@@ -483,9 +496,10 @@ local objFuncs = {
 			
 			move = false
 			
+
 			cnvobj.loadedEle = tableUtils.s2tr(str)
 
-			if #cnvobj.loadedEle == 0 then
+			if not cnvobj.loadedEle then
 				local msg = "length of string is zero"
 				return msg
 			end
@@ -637,6 +651,7 @@ new = function(para)
 	cnvobj.connectorFlag = false
 	cnvobj.clickFlag = false
 	cnvobj.tempflag = false
+	cnvobj.showBlockingRect = false
 	cnvobj.cnv = iup.canvas{}
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	
