@@ -34,7 +34,6 @@ function  DrawShape(cnv, start_x, start_y, end_x, end_y, shape, cnvobj)
     if (shape == "LINE") then
       cnv:Line(start_x, start_y, end_x, end_y)
     elseif (shape == "RECT") then
-      cnv:InteriorStyle(1)
       cnv:Rect(start_x, end_x, start_y, end_y)
     elseif (shape == "FILLEDRECT") then
       cnv:Box(start_x, end_x, start_y, end_y)
