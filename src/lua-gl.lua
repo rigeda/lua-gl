@@ -21,7 +21,7 @@ _ENV = M		-- Lua 5.2+
 -- this function is used to manipulate active Element table data
 local function Manipulate_activeEle(cnvobj, x, y, Table)
 	if #Table > 0 then
-
+		cnvobj.matrix = segmentGenerator.findMatrix(cnvobj)
 		for i=1, #Table do
 			if Table[i].portTable then
 				if #Table[i].portTable >= 0 then
@@ -69,15 +69,38 @@ local function Manipulate_activeEle(cnvobj, x, y, Table)
 								local segmentID = Table[i].portTable[ite].segmentTable[segIte].segmentID
 								local connectorID = Table[i].portTable[ite].segmentTable[segIte].connectorID
 								--print("connector Id = "..connectorID)
+								
 								local status = Table[i].portTable[ite].segmentTable[segIte].segmentStatus
-								if segmentID and status=="ending" then
-									cnvobj.connector[connectorID].segments[segmentID].end_x = Table[i].portTable[ite].x
-									cnvobj.connector[connectorID].segments[segmentID].end_y = Table[i].portTable[ite].y
+								if segmentID and status=="ending" and connectorID then
+									
+									local endX = Table[i].portTable[ite].x
+									local endY = Table[i].portTable[ite].y
+									local startX = cnvobj.connector[connectorID].segments[1].start_x
+									local startY = cnvobj.connector[connectorID].segments[1].start_y
+									local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
+									print(totalSegmentInThisConnector,startX, startY)
+									if segmentID and connectorID then
+										segmentGenerator.generateSegments(cnvobj, connectorID, totalSegmentInThisConnector, startX, startY, endX, endY)
+									end
 								end
-								if segmentID and status=="starting" then
-									cnvobj.connector[connectorID].segments[segmentID].start_x = Table[i].portTable[ite].x
-									cnvobj.connector[connectorID].segments[segmentID].start_y = Table[i].portTable[ite].y
+								
+								if segmentID and status=="starting" and connectorID then
+
+ 									local startX = Table[i].portTable[ite].x
+									local startY = Table[i].portTable[ite].y
+									local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
+                       
+									local endX = cnvobj.connector[connectorID].segments[totalSegmentInThisConnector].end_x
+									local endY = cnvobj.connector[connectorID].segments[totalSegmentInThisConnector].end_y
+								   
+									--local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
+									
+									if segmentID and connectorID then
+										segmentGenerator.generateSegments(cnvobj, connectorID, totalSegmentInThisConnector, startX, startY, endX, endY)
+									end
 								end
+								iup.Update(cnvobj.cnv)
+								
 							end
 						end
 					end
@@ -162,23 +185,6 @@ local function cursorOnPort(cnvobj, x, y)
 	return false
 end
 
-local function addTwoTableAndRemoveDuplicate(table2,table1,table3)
-	res = {}
-	hash = {}
-	for _,v in pairs(table2) do
-		table.insert(table1, v) 
-	end	
-	for _,v in pairs(table3) do
-		table.insert(table1, v) 
-	end	
-	for _,v in pairs(table1) do
-		if (not hash[v]) then
-			res[#res+1] = v 
-			hash[v] = true
-		end
-	end
-	return res
-end
 
 local objFuncs = {
 
@@ -250,7 +256,6 @@ local objFuncs = {
 						cnvobj.connector[index].segments[segLen+1].start_y = y
 						cnvobj.connector[index].segments[segLen+1].end_x = x 
 						cnvobj.connector[index].segments[segLen+1].end_y = y
-						
 							
 					end
 					local isCursorOnPort, p_ID = cursorOnPort(cnvobj, x, y)
@@ -297,6 +302,7 @@ local objFuncs = {
 						if iup.isdouble(status) then
 							cnvobj.drawing = "STOP"
 							cnvobj.connectorFlag = false
+							
 							table.remove(cnvobj.connector[#cnvobj.connector].segments,#cnvobj.connector[#cnvobj.connector].segments)
 							table.remove(cnvobj.connector[#cnvobj.connector].segments,#cnvobj.connector[#cnvobj.connector].segments)
 						end
@@ -450,16 +456,12 @@ local objFuncs = {
 				if cnvobj.drawing == "CONNECTOR" and cnvobj.connectorFlag == true then
 					local index = #cnvobj.connector
 					local segLen = #cnvobj.connector[index].segments
-					
-					while segLen > 1 do
-						table.remove(cnvobj.connector[index].segments, segLen)
-						segLen = segLen - 1
-					end
-					
+
+					local startX = cnvobj.connector[index].segments[1].start_x
+					local startY = cnvobj.connector[index].segments[1].start_y
+
 					if segLen and index then
-						segmentGenerator.generateSegments(cnvobj, index, segLen, x, y)
-						--cnvobj.connector[index].segments[segLen].end_x = x 
-						--cnvobj.connector[index].segments[segLen].end_y = y	
+						segmentGenerator.generateSegments(cnvobj, index, segLen, startX, startY, x, y)
 					end
 					iup.Update(cnvobj.cnv)
 				end
@@ -526,7 +528,10 @@ local objFuncs = {
 				while #cnvobj.group >= i do
 					for j=1, #cnvobj.group[i] do
 						if shapeList[k]==cnvobj.group[i][j] then
-							tempTable = addTwoTableAndRemoveDuplicate(cnvobj.group[i],shapeList,tempTable)
+							--tempTable = addTwoTableAndRemoveDuplicate(cnvobj.group[i],shapeList,tempTable)
+							tempTable = tableUtils.mergeTable(cnvobj.group[i],tempTable)
+							tempTable = tableUtils.mergeTable(shapeList,tempTable)
+							
 							table.remove(cnvobj.group, i)
 							i = i - 1
 							match = true

@@ -66,16 +66,22 @@ end
 
 
 
-function generateSegments(cnvobj, connectorID, segLen, x, y)
+function generateSegments(cnvobj, connectorID, segLen, startX, startY, x, y)
+    --print(connectorID)
+    while segLen > 1 do
+        table.remove(cnvobj.connector[connectorID].segments, segLen)
+        segLen = segLen - 1
+    end
+
     local matrix_width = math.floor(cnvobj.width/cnvobj.grid_x) + 1
     local matrix_height = math.floor(cnvobj.height/cnvobj.grid_y) + 1
     
-
-    local srcX  =  snap.Sx(cnvobj.connector[connectorID].segments[segLen].start_x, cnvobj.grid_x)/cnvobj.grid_x + 1
-    local srcY  =  snap.Sy(cnvobj.connector[connectorID].segments[segLen].start_y, cnvobj.grid_y)/cnvobj.grid_y + 1
+    --srcX is sourceX in binary matrix and startX is exact start point of connector on canvas
+    --destX is destinationX in binrary matrix and x is exact end point of connector on canvas
+    local srcX  =  snap.Sx(startX, cnvobj.grid_x)/cnvobj.grid_x + 1
+    local srcY  =  snap.Sy(startY, cnvobj.grid_y)/cnvobj.grid_y + 1
     local destX =  snap.Sx(x, cnvobj.grid_x)/cnvobj.grid_x + 1
     local destY =  snap.Sy(y, cnvobj.grid_y)/cnvobj.grid_y + 1
-    --print(srcX, srcY, destX, destY)
 
     local shortestPathLen, shortestPathString = BreadthFirstSearch.BFS(cnvobj.matrix, srcX, srcY, destX, destY, matrix_width, matrix_height)
     if shortestPathString == 0 or shortestPathLen == -1 then
@@ -90,6 +96,7 @@ function generateSegments(cnvobj, connectorID, segLen, x, y)
 
     rowNum = {-1, 0, 0, 1}; 
     colNum = {0, -1, 1, 0}; 
+
     --[[if shortestPathLen == -1 then
         print("path not found")
     else
@@ -98,22 +105,26 @@ function generateSegments(cnvobj, connectorID, segLen, x, y)
     
     if shortestPathLen ~= -1 and #shortestpathTable>0 then
         
-        cnvobj.connector[connectorID].segments[segLen].end_x = math.floor(cnvobj.connector[connectorID].segments[segLen].start_x + rowNum[shortestpathTable[1]]*cnvobj.grid_x)
-        cnvobj.connector[connectorID].segments[segLen].end_y = math.floor(cnvobj.connector[connectorID].segments[segLen].start_y + colNum[shortestpathTable[1]]*cnvobj.grid_y)
-        --print(cnvobj.connector[connectorID].segments[segLen].start_x,cnvobj.connector[connectorID].segments[segLen].start_y,cnvobj.connector[connectorID].segments[segLen].end_x,cnvobj.connector[connectorID].segments[segLen].end_y)
-
-        for i=2, shortestPathLen do
-            
-            local segLen = #cnvobj.connector[connectorID].segments
-            cnvobj.connector[connectorID].segments[segLen+1] = {}
-            cnvobj.connector[connectorID].segments[segLen+1].ID = segLen + 1
-            cnvobj.connector[connectorID].segments[segLen+1].start_x = cnvobj.connector[connectorID].segments[segLen].end_x 
-            cnvobj.connector[connectorID].segments[segLen+1].start_y = cnvobj.connector[connectorID].segments[segLen].end_y
-            cnvobj.connector[connectorID].segments[segLen+1].end_x =math.floor(cnvobj.connector[connectorID].segments[segLen+1].start_x + (rowNum[shortestpathTable[i]])*cnvobj.grid_x)
-            cnvobj.connector[connectorID].segments[segLen+1].end_y =math.floor(cnvobj.connector[connectorID].segments[segLen+1].start_y + (colNum[shortestpathTable[i]])*cnvobj.grid_y)
-            --print(cnvobj.connector[connectorID].segments[segLen+1].start_x,cnvobj.connector[connectorID].segments[segLen+1].start_y,cnvobj.connector[connectorID].segments[segLen+1].end_x,cnvobj.connector[connectorID].segments[segLen+1].end_y)
         
+        --cnvobj.connector[connectorID].segments[segLen].end_x = math.floor(cnvobj.connector[connectorID].segments[segLen].start_x + rowNum[shortestpathTable[1]]*cnvobj.grid_x)
+        --cnvobj.connector[connectorID].segments[segLen].end_y = math.floor(cnvobj.connector[connectorID].segments[segLen].start_y + colNum[shortestpathTable[1]]*cnvobj.grid_y)
+        --print(cnvobj.connector[connectorID].segments[segLen].start_x,cnvobj.connector[connectorID].segments[segLen].start_y,cnvobj.connector[connectorID].segments[segLen].end_x,cnvobj.connector[connectorID].segments[segLen].end_y)
+    
+        for i=1, shortestPathLen do
+            
+            cnvobj.connector[connectorID].segments[i] = {}
+            cnvobj.connector[connectorID].segments[i].ID = segLen + 1
+            if i==1 then
+                cnvobj.connector[connectorID].segments[i].start_x = (srcX-1)*cnvobj.grid_x
+                cnvobj.connector[connectorID].segments[i].start_y = (srcY-1)*cnvobj.grid_y
+            else
+                cnvobj.connector[connectorID].segments[i].start_x = cnvobj.connector[connectorID].segments[i-1].end_x --if i=1 else condition will not run 
+                cnvobj.connector[connectorID].segments[i].start_y = cnvobj.connector[connectorID].segments[i-1].end_y
+            end
+            cnvobj.connector[connectorID].segments[i].end_x =math.floor(cnvobj.connector[connectorID].segments[i].start_x + (rowNum[shortestpathTable[i]])*cnvobj.grid_x)
+            cnvobj.connector[connectorID].segments[i].end_y =math.floor(cnvobj.connector[connectorID].segments[i].start_y + (colNum[shortestpathTable[i]])*cnvobj.grid_y)   
         end
+        print("total seg in this connector"..#cnvobj.connector[connectorID].segments)
     end
     
 end
