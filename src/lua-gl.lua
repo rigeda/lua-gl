@@ -78,7 +78,7 @@ local function Manipulate_activeEle(cnvobj, x, y, Table)
 									local startX = cnvobj.connector[connectorID].segments[1].start_x
 									local startY = cnvobj.connector[connectorID].segments[1].start_y
 									local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
-									print(totalSegmentInThisConnector,startX, startY)
+									
 									if segmentID and connectorID then
 										segmentGenerator.generateSegments(cnvobj, connectorID, totalSegmentInThisConnector, startX, startY, endX, endY)
 									end
@@ -89,11 +89,10 @@ local function Manipulate_activeEle(cnvobj, x, y, Table)
  									local startX = Table[i].portTable[ite].x
 									local startY = Table[i].portTable[ite].y
 									local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
-                       
+									
 									local endX = cnvobj.connector[connectorID].segments[totalSegmentInThisConnector].end_x
 									local endY = cnvobj.connector[connectorID].segments[totalSegmentInThisConnector].end_y
-								   
-									--local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
+								    
 									
 									if segmentID and connectorID then
 										segmentGenerator.generateSegments(cnvobj, connectorID, totalSegmentInThisConnector, startX, startY, endX, endY)

@@ -1,9 +1,9 @@
-
+--adjust x, or x should be multiple of grid_x
 local M = {}
 package.loaded[...] = M 
-_ENV = M  --Lua 5.2+
+_ENV = M
 
---adjust x, or x should be multiple of grid_x
+
 Sx = function(x, grid_x)
     if x%grid_x ~= 0 then   --if x is not multiple of grid_x then we have to adjust it
       if x%grid_x >= grid_x/2 then   --upper bound 
@@ -24,4 +24,4 @@ Sy = function(y, grid_y)
       end
     end
     return y
-  end
+end

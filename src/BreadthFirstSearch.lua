@@ -39,7 +39,7 @@ function BFS(mat, srcX,srcY,destX, destY, mWidth, mHeight)
     -- check source and destination cell 
     -- of the matrix have value 1 
     matrix_width, matrix_height = mWidth, mHeight
-    if isValid(srcX,srcY) == 0 or isValid(destX, destY)==0 and mat[srcX][srcY]==0 and mat[destX][destY]==0 then 
+    if isValid(srcX,srcY) == 0 or isValid(destX, destY)==0 or mat[srcX][srcY]==0 or mat[destX][destY]==0 then 
         return -1
     end
 

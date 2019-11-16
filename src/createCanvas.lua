@@ -33,7 +33,7 @@ function  DrawShape(cnv, start_x, start_y, end_x, end_y, shape, cnvobj)
 
     if (shape == "LINE") then
       cnv:Line(start_x, start_y, end_x, end_y)
-    elseif (shape == "RECT") then
+    elseif (shape == "RECT") then   
       cnv:Rect(start_x, end_x, start_y, end_y)
     elseif (shape == "FILLEDRECT") then
       cnv:Box(start_x, end_x, start_y, end_y)
@@ -53,7 +53,6 @@ function  render(cnvobj)
   local cd_bcanvas = cnvobj.cdbCanvas
   grid_x = cnvobj.grid_x
   grid_y = cnvobj.grid_y 
-  
   local canvas_width, canvas_height = cnvobj.width, cnvobj.height
     
   cd_bcanvas:Activate()

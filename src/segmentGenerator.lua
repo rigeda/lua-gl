@@ -68,10 +68,7 @@ end
 
 function generateSegments(cnvobj, connectorID, segLen, startX, startY, x, y)
     --print(connectorID)
-    while segLen > 1 do
-        table.remove(cnvobj.connector[connectorID].segments, segLen)
-        segLen = segLen - 1
-    end
+   
 
     local matrix_width = math.floor(cnvobj.width/cnvobj.grid_x) + 1
     local matrix_height = math.floor(cnvobj.height/cnvobj.grid_y) + 1
@@ -82,11 +79,18 @@ function generateSegments(cnvobj, connectorID, segLen, startX, startY, x, y)
     local srcY  =  snap.Sy(startY, cnvobj.grid_y)/cnvobj.grid_y + 1
     local destX =  snap.Sx(x, cnvobj.grid_x)/cnvobj.grid_x + 1
     local destY =  snap.Sy(y, cnvobj.grid_y)/cnvobj.grid_y + 1
-
+   
     local shortestPathLen, shortestPathString = BreadthFirstSearch.BFS(cnvobj.matrix, srcX, srcY, destX, destY, matrix_width, matrix_height)
+    
     if shortestPathString == 0 or shortestPathLen == -1 then
         return 
-    end 
+    end
+
+    while segLen > 1 do
+        table.remove(cnvobj.connector[connectorID].segments, segLen)
+        segLen = segLen - 1
+    end
+
     local shortestpathTable = s2t_Of_1to4(shortestPathString)
     --[[str = ""
     for k,v in pairs(shortestpathTable) do
