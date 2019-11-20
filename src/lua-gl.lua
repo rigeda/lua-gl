@@ -5,7 +5,6 @@ local iup = iup
 local cd = cd
 local error = error
 local pcall = pcall
-local setmetatable = setmetatable
 local type = type
 local math = math
 local snap = require("snap")
@@ -13,6 +12,11 @@ local segmentGenerator = require("segmentGenerator")
 local check = require("ClickFunctions")
 local tableUtils = require("tableUtils")
 local CC = require("createCanvas")
+
+local setmetatable = setmetatable
+local getmetatable = getmetatable
+local objects = require("lua-gl.objects")
+local ports = require("lua-gl.ports")
 
 local M = {}
 package.loaded[...] = M
@@ -222,9 +226,14 @@ local function processHooks(cnvobj, key)
 end
 
 -- This is the metatable that contains the API of the library that can be used by the host program
-local objFuncs = {
+
+local objFuncs
+objFuncs = {
 
 	save = function(cnvobj)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return
+		end
 		cnvobj.drawnData.drawnEle = cnvobj.drawnObj
 		cnvobj.drawnData.group = cnvobj.group
 		cnvobj.drawnData.port = cnvobj.port
@@ -235,6 +244,9 @@ local objFuncs = {
 	end,
 	
 	load = function(cnvobj,str)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return
+		end
 		if cnvobj then
 			cnvobj.drawing = "LOAD"
 			
@@ -251,6 +263,9 @@ local objFuncs = {
 	end,
 
 	erase = function(cnvobj)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return
+		end
 		--[[
 		
 	####**** WHY NOT DO ALL THESE????
@@ -276,54 +291,11 @@ local objFuncs = {
 		CC.update(cnvobj)
 	end,
 
-	drawObj = function(cnvobj,shape)
-		if not cnvobj or type(cnvobj) ~= "table" then
+
+	drawConnector  = function(cnvobj)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return
 		end
-		
-		local oldBCB = cnvobj.cnv.button_cb
-		local oldMCB = cnvobj.cnv.motion_cb
-		local objs = cnvobj.drawn.obj
-		-- button_CB to handle object drawing
-		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-			y = cnvobj.height - y
-			-- Check if any hooks need to be processed here
-			processHooks(cnvobj,"MOUSECLICKPRE")
-			
-			
-			if button == iup.BUTTON1 and pressed == 1 then
-				cnvobj.op.mode = "DRAWOBJ"	-- Set the mode to drawing object
-				cnvobj.op.obj = shape
-				local t = {}
-				t.id = #objs.ids + 1
-				t.shape = shape
-				t.start_x = x
-				t.start_y = y
-				t.end_x = x
-				t.end_y = y 
-				t.port = {}
-				objs[#objs + 1] = t
-			elseif button == iup.BUTTON1 and pressed == 0 then
-				objs[#objs].end_x = x
-				objs[#objs].end_y = y
-				objs.ids = objs.ids + 1
-				tableUtils.emptyTable(cnvobj.op)
-				cnvobj.op.mode = "DISP"	-- Default display mode
-				cnvobj.cnv.button_cb = oldBCB
-				cnvobj.cnv.motion_cb = oldMCB
-			end
-			-- Process any hooks 
-			processHooks(cnvobj,"MOUSECLICKPOST")
-		end
-		
-		function cnvobj.cnv:motion_cb(x, y, status)
-			y = cnvobj.height - y
-			objs[#objs].end_x = x
-			objs[#objs].end_y = y
-		end    
-	end,	-- end drawObj function
-	
-	drawConnector  = function(cnvobj)
 		-- Connector drawing methodology
 		-- Connector drawing starts with Event 1. This event may be a mouse event or a keyboard event
 		-- Connector waypoint is set with Event 2. This event may be a mouse event or a keyboard event. The waypoint freezes the connector route up till that point
@@ -433,7 +405,7 @@ local objFuncs = {
 	end,	-- end drawConnector function
 	
 	moveObj = function(cnvobj)
-		if not cnvobj or type(cnvobj) ~= "table" then
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return
 		end
 		local oldBCB = cnvobj.cnv.button_cb
@@ -589,6 +561,9 @@ local objFuncs = {
 		
 
 	addHook = function(cnvobj,key,fun)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return
+		end
 		if type(fun) ~= "function" then
 			return nil,"Need a function to add as a hook"
 		end
@@ -602,6 +577,9 @@ local objFuncs = {
 	end,
 	
 	removeHook = function(cnvobj,id)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return
+		end
 		for i = 1,#cnvobj.hook do
 			if cnvobj.hook[i].id == id then
 				table.remove(cnvobj.hook,i)
@@ -610,101 +588,14 @@ local objFuncs = {
 		end
 	end,
 
-	-- groupShapes used to group Shape using shapeList
-	groupShapes = function(cnvobj,shapeList)
-		if #cnvobj.drawnObj > 0 then
-			local tempTable = {}
-			--print("you ar in group ing with len"..#shapeList)
-			local match = false
-			for k=1, #shapeList, 1 do
-				local i = 1
-				while #cnvobj.group >= i do
-					for j=1, #cnvobj.group[i] do
-						if shapeList[k]==cnvobj.group[i][j] then
-							--tempTable = addTwoTableAndRemoveDuplicate(cnvobj.group[i],shapeList,tempTable)
-							tempTable = tableUtils.mergeTable(cnvobj.group[i],tempTable)
-							tempTable = tableUtils.mergeTable(shapeList,tempTable)
-							
-							table.remove(cnvobj.group, i)
-							i = i - 1
-							match = true
-							break
-						end
-						
-					end
-					i = i + 1
-				end
-			end
-			if match == true then
-				cnvobj.group[#cnvobj.group+1] = tempTable
-			else
-				cnvobj.group[#cnvobj.group+1] = shapeList
-			end
-			table.sort(cnvobj.group[#cnvobj.group])
-		end
-	end,
-	
-	-- Add a port to a shape
-	-- A port is defined as a stick point for a connector. Any connector that passes over a point occupied by a port will get connected to it.
-	-- Subsequent movement of the port or connector will try to maintain the port connections
-	-- Note ports can only be added to shapes
-	addPort = function(cnvobj,x,y,objID)
-		if not shapeID or type(shapeID) ~= "number" or not cnvobj.drawn.obj[shapeID] then
-			return nil,"Need valid shapeID"
-		end
-		local obj = cnvobj:getObjFromID(objID)
-		if not obj then
-			return nil,"Object not found"
-		end
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
-		x = snap.Sx(x, grdx)
-		y = snap.Sy(y, grdy)
-		local index = #cnvobj.port + 1
-		local portID = cnvobj.drawn.port.ids + 1
-		
-		cnvobj.drawn.port[index] = {
-			id = portID,
-			conn = {},
-			obj = obj,
-			x = x,
-			y = y
-		}
-		
-		-- Link the port table to the object
-		obj.port[#obj.port + 1] = cnvobj.drawn.port[index]		
-		return true
-	end, 
-	
-	removePort = function(cnvobj,portID)
-		
-	end,
-	
-	getObjFromID = function(cnvobj,objID)
-		if not objID or type(objID) ~= "number" then
-			return nil,"Need valid shapeID"
-		end
-		local objs = cnvobj.drawn.obj
-		for i = 1,#objs do
-			if objs[i].id == objID then
-				return objs[i]
-			end
-		end
-		return nil,"No object found"
-	end,
-	
-    -- this function take x & y as input and return shapeID if point (x, y) is near to the shape
-	getObjFromXY = function(cnvobj,x,y)
-		--print(posX,posY)
-		local ind = check.checkXY(cnvobj,posX,posY)
-		if ind ~= 0 and ind then --index should not nill
-			return cnvobj.drawnObj[ind].shapeID
-		end
-	end,
-	
-	
+	---- PORTS--------------
+	addPort = ports.addPort, 	-- Add a port to a shape
+	removePort = ports.removePort,	-- Remove a port given the portID
+	---- OBJECTS------------
+	drawObj = objects.drawObj,
+	groupObjects = objects.groupObjects,
+	getObjFromID = objects.getObjFromID,
+	getObjFromXY = objects.getObjFromXY,
 }
 
 local function checkPara(para)
@@ -770,15 +661,17 @@ new = function(para)
 	}]]
 	cnvobj.drawn = {
 		obj = {ids=0}
-		group = {ids=0}
+		group = {}
 		port = {ids=0}
 		conn = {ids=0}
 	}
+	cnvobj.hook = {ids=0}
+	
+	
 	cnvobj.drawnObj = {}
 	cnvobj.group = {}
   	cnvobj.loadedEle = {}	--####**** Should remove this. Use the op structure
 	cnvobj.activeEle = {}	--####**** Should remove this. Use the op structure
-	cnvobj.hook = {}
 	cnvobj.port = {}
 	cnvobj.connector = {}
 	cnvobj.connectorFlag = false

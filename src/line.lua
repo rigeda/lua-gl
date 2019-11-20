@@ -19,5 +19,5 @@ function checkXY(obj, x, y,res)
 	x2 = obj.end_x
 	y2 = obj.end_y
 
-	return coorc.PointInRect(x1, y1, x2, y2, x, y, res)                
+	return coorc.PointOnLine(x1, y1, x2, y2, x, y, res)                
 end
