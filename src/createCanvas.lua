@@ -1,3 +1,4 @@
+-- Module containing all graphical and user interface manipulation functions for IUP canvas
 
 local snap = require("snap")
 local iup = iup 
@@ -9,7 +10,25 @@ local M = {}
 package.loaded[...] = M 
 local _ENV = M
 
-  -- to draw grid
+function mapCB(cnvobj)
+	local cd_Canvas = cd.CreateCanvas(cd.IUP, cnvobj.cnv)
+	local cd_bCanvas = cd.CreateCanvas(cd.DBUFFER,cd_Canvas)
+	cnvobj.cdCanvas = cd_Canvas
+	cnvobj.cdbCanvas = cd_bCanvas
+end
+
+function unmapCB(cnvobj)
+	local cd_bCanvas = cnvobj.cdbCanvas
+	local cd_Canvas = cnvobj.cdCanvas
+	cd_bCanvas:Kill()
+	cd_Canvas:Kill()
+end
+
+function update(cnvobj)
+	iup.Update(cnvobj.cnv)
+end
+
+-- to draw grid
 function drawGrid(cd_canvas,cnvobj)
     local w,h = cnvobj.width, cnvobj.height
     local x,y
@@ -123,54 +142,3 @@ function  render(cnvobj)
   cd_bcanvas:Flush()
 end
 
-function buttonCB(cnvobj,button, pressed, x, y)
-  canvas = cnvobj.cnv
-  grid_x = cnvobj.grid_x
-  grid_y = cnvobj.grid_y 
-  local canvas_width, canvas_height = cnvobj.width, cnvobj.height  
- 
-  if (button) then
-    if (pressed == 1) then
-      canvas.start_x = x
-      canvas.start_y = y
-        
-      -- when mouse button is release then update co.
-    else
-      if cnvobj.motion then         
-        local start_x = canvas.start_x
-        local start_y = canvas.start_y
-        if cnvobj.snapGrid == true then
-          start_x = snap.Sx(start_x, grid_x)
-          start_y = snap.Sy(start_y, grid_y)
-          x = snap.Sx(x, grid_x)
-          y = snap.Sy(y, grid_y)
-        end
-          
-        local index = #cnvobj.drawnEle
-        cnvobj.drawnEle[index+1] = {}
-        cnvobj.drawnEle[index+1].shapeID = index + 1
-        cnvobj.drawnEle[index+1].shape = cnvobj.shape
-        cnvobj.drawnEle[index+1].start_x = start_x
-        cnvobj.drawnEle[index+1].start_y = start_y
-        cnvobj.drawnEle[index+1].end_x = x
-        cnvobj.drawnEle[index+1].end_y = y 
-        cnvobj.drawnEle[index+1].portTable = {}
-        cnvobj.motion = false
-      end
-    end
-  end
-end
- 
-function motionCB(cnvobj, x, y, status)
-  canvas = cnvobj.cnv
-  local canvas_width, canvas_height = cnvobj.width, cnvobj.height
-
-  --y = canvas_height - y 
-  if (iup.isbutton1(status)) then -- button1 is pressed 
-    canvas.end_x = x
-    canvas.end_y = y 
-    canvas.shape = cnvobj.shape 
-    cnvobj.motion = true
-    iup.Update(canvas)
-  end
-end

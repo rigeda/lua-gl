@@ -26,15 +26,14 @@ local function check(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
     return math.abs(A - (A1 + A2 + A3 + A4)) < 5 
 end
 
-
-local function RectAroundLine(x1, y1, x2, y2, x, y, h)
+-- Checks whether the point x,y lies inside the rectangle bounded by the diagnol points x1,y1 and x2,y2 with the fuzzy resolution of res
+function PointInRect(x1, y1, x2, y2, x, y, res)
     local rect = {}
-    local h = h/2
     local dx = x1- x2
     local dy = y1 - y2
     local d = math.sqrt(dx * dx + dy * dy)
-    dx = h * dx / d
-    dy = h * dy / d
+    dx = res * dx / d
+    dy = res * dy / d
     rect[1] = {}
     rect[1].x, rect[1].y = x1 - dy, y1 + dx
     rect[2] = {}
@@ -44,13 +43,7 @@ local function RectAroundLine(x1, y1, x2, y2, x, y, h)
     rect[4] = {}
     rect[4].x, rect[4].y = x2 + dy, y2 - dx
 
-    local xyLiesInsideRect = check(rect[1].x, rect[1].y, rect[2].x, rect[2].y, rect[4].x, rect[4].y, rect[3].x, rect[3].y, x, y)
-   
-    if xyLiesInsideRect then
-        return 1  
-    else 
-        return 0
-    end
+    return check(rect[1].x, rect[1].y, rect[2].x, rect[2].y, rect[4].x, rect[4].y, rect[3].x, rect[3].y, x, y)
 end
 
 local function findRemainingCoor(x1,y1,x3,y3)
@@ -67,6 +60,7 @@ end
 
 function checkXY(cnvobj, x, y)
     local index = 0
+	objs
     if #cnvobj.drawnEle > 0 then
         for i=#cnvobj.drawnEle, 1, -1 do
 

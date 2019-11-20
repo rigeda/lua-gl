@@ -34,7 +34,7 @@ function s2t_Of_1to4(str)
     return t
 end
 
-function findMatrix(cnvobj)
+local function findMatrix(cnvobj)
     local matrix = {}
     local matrix_width = math.floor(cnvobj.width/cnvobj.grid_x) + 1
     local matrix_height = math.floor(cnvobj.height/cnvobj.grid_y) + 1
@@ -66,7 +66,7 @@ end
 
 
 
-function generateSegments(cnvobj, connectorID, segLen, startX, startY, x, y)
+function generateSegments(cnvobj, connectorID, segStart,startX, startY, x, y)
     --print(connectorID)
    
 
@@ -79,16 +79,21 @@ function generateSegments(cnvobj, connectorID, segLen, startX, startY, x, y)
     local srcY  =  snap.Sy(startY, cnvobj.grid_y)/cnvobj.grid_y + 1
     local destX =  snap.Sx(x, cnvobj.grid_x)/cnvobj.grid_x + 1
     local destY =  snap.Sy(y, cnvobj.grid_y)/cnvobj.grid_y + 1
+	
+	if srcX == destX and srcY == destY then
+		return
+	end
    
-    local shortestPathLen, shortestPathString = BreadthFirstSearch.BFS(cnvobj.matrix, srcX, srcY, destX, destY, matrix_width, matrix_height)
+    local shortestPathLen, shortestPathString = BreadthFirstSearch.BFS(findMatrix(cnvobj), srcX, srcY, destX, destY, matrix_width, matrix_height)
     
     if shortestPathString == 0 or shortestPathLen == -1 then
         return 
     end
 
-    while segLen > 1 do
-        table.remove(cnvobj.connector[connectorID].segments, segLen)
-        segLen = segLen - 1
+	cnvobj.connector[connectorID] = cnvobj.connector[connectorID] or {segments = {}}
+	
+    for i = segStart,#cnvobj.connector[connectorID].segments do
+        table.remove(cnvobj.connector[connectorID].segments, i)
     end
 
     local shortestpathTable = s2t_Of_1to4(shortestPathString)
@@ -117,7 +122,7 @@ function generateSegments(cnvobj, connectorID, segLen, startX, startY, x, y)
         for i=1, shortestPathLen do
             
             cnvobj.connector[connectorID].segments[i] = {}
-            cnvobj.connector[connectorID].segments[i].ID = segLen + 1
+           -- cnvobj.connector[connectorID].segments[i].ID = segLen + 1
             if i==1 then
                 cnvobj.connector[connectorID].segments[i].start_x = (srcX-1)*cnvobj.grid_x
                 cnvobj.connector[connectorID].segments[i].start_y = (srcY-1)*cnvobj.grid_y
