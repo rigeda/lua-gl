@@ -1,18 +1,68 @@
 -- Module to handle the ports structure
+local type = type
+local math = math
+
+local coorc = require("lua-gl.CoordinateCalc")
 
 local M = {}
 package.loaded[...] = M
-_ENV = M
+if setfenv and type(setfenv) == "function" then
+	setfenv(1,M)	-- Lua 5.1
+else
+	_ENV = M		-- Lua 5.2+
+end
+
+-- The port structure looks like this:
+--[[
+{
+	id = <integer>,		-- Unique identification number for the port
+	conn = <array>,		-- Array of connectors connected to the port
+	obj = <Object>,		-- Pointer to the object structure to which the port is associated with
+	x = x,
+	y = y
+}
+]]
+-- The port structure is located at cnvobj.drawn.port
+
+getPortFromXY = function(cnvobj, x, y)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return
+	end
+	local ports = cnvobj.drawn.port
+	if #ports == 0 then
+		return nil, "No port found"
+	end
+	local res = math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	for i = 1, #ports do
+		if math.abs(ports[i].x - x) <= res and math.abs(cnvobj.port[i].y - y) <= res then
+				return ports[i]
+			end
+		end
+	end
+	return nil, "No port found"
+end
+
+getPortFromID = function(cnvobj,portID)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return
+	end
+	local ports = cnvobj.drawn.port
+	for i = 1,#ports do
+		if ports[i].id == portID then
+			return ports[i]
+		end
+	end
+end
 
 -- Add a port to a shape
 -- A port is defined as a stick point for a connector. Any connector that passes over a point occupied by a port will get connected to it.
 -- Subsequent movement of the port or connector will try to maintain the port connections
 -- Note ports can only be added to shapes
 addPort = function(cnvobj,x,y,objID)
-	if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+	if not cnvobj or type(cnvobj) ~= "table" then
 		return
 	end
-	if not shapeID or type(shapeID) ~= "number" or not cnvobj.drawn.obj[shapeID] then
+	if not objID or type(objID) ~= "number" or not cnvobj:getObjectFromID(objID) then
 		return nil,"Need valid shapeID"
 	end
 	local obj = cnvobj:getObjFromID(objID)
@@ -23,10 +73,11 @@ addPort = function(cnvobj,x,y,objID)
 	if not cnvobj.snapGrid then
 		grdx,grdy = 1,1
 	end
-	x = snap.Sx(x, grdx)
-	y = snap.Sy(y, grdy)
+	x = coorc.snapX(x, grdx)
+	y = coorc.snapY(y, grdy)
 	local index = #cnvobj.port + 1
 	local portID = cnvobj.drawn.port.ids + 1
+	cnvobj.drawn.port.ids = cnvobj.drawn.port.ids + 1
 	
 	cnvobj.drawn.port[index] = {
 		id = portID,
@@ -42,8 +93,22 @@ addPort = function(cnvobj,x,y,objID)
 end
 
 removePort = function(cnvobj,portID)
-	if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+	if not cnvobj or type(cnvobj) ~= "table" then
 		return
 	end
-	
+	local ports = cnvobj.drawn.port
+	for i = 1,#ports do
+		if ports[i].id == portID then
+			-- Remove the port from the object
+			local objports = ports[i].obj.port
+			for j = 1,#objports do
+				if objports[j] == ports[i] then
+					table.remove(objports,j)
+					break
+				end
+			end
+			table.remove(ports,i)
+			break
+		end
+	end
 end

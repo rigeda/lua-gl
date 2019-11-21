@@ -15,12 +15,19 @@ local CC = require("createCanvas")
 
 local setmetatable = setmetatable
 local getmetatable = getmetatable
+
 local objects = require("lua-gl.objects")
 local ports = require("lua-gl.ports")
+local hooks = require("lua-gl.hooks")
+local conn = require("lua-gl.connector")
 
 local M = {}
 package.loaded[...] = M
-_ENV = M		-- Lua 5.2+
+if setfenv and type(setfenv) == "function" then
+	setfenv(1,M)	-- Lua 5.1
+else
+	_ENV = M		-- Lua 5.2+
+end
 
 
 -- this function is used to manipulate active Element table data
@@ -200,31 +207,6 @@ local function checkIndexInGroups(cnvobj,shape_id)
 	return false
 end
 
-local function cursorOnPort(cnvobj, x, y)
-	for i = 1, #cnvobj.port do
-		if math.abs(cnvobj.port[i].x - x) <= cnvobj.grid_x/2 then
-			if math.abs(cnvobj.port[i].y - y) <= cnvobj.grid_y/2 then
-				return true,cnvobj.port[i].portID
-			end
-		end
-	end
-	return false
-end
-
-local function processHooks(cnvobj, key)
-	if #cnvobj.hook > 0 then
-		--y = cnvobj.height - y
-		for i=#cnvobj.hook, 1, -1 do
-			if cnvobj.hook[i].key == key then
-				local status, val = pcall(cnvobj.hook[i].fun, button, pressed, x, y)
-				if not status then
-					--error("error: " .. val)
-				end
-			end
-		end
-	end
-end
-
 -- This is the metatable that contains the API of the library that can be used by the host program
 
 local objFuncs
@@ -292,118 +274,6 @@ objFuncs = {
 	end,
 
 
-	drawConnector  = function(cnvobj)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return
-		end
-		-- Connector drawing methodology
-		-- Connector drawing starts with Event 1. This event may be a mouse event or a keyboard event
-		-- Connector waypoint is set with Event 2. This event may be a mouse event or a keyboard event. The waypoint freezes the connector route up till that point
-		-- Connector drawing stops with Event 3. This event may be a mouse event or a keyboard event.
-		-- For now the events are defined as follows:
-		-- Event 1 = Mouse left click
-		-- Event 2 = Mouse left click after connector start
-		-- Event 3 = Mouse right click or reaching a port
-		if not cnvobj or type(cnvobj) ~= "table" then
-			return
-		end
-		
-		local oldBCB = cnvobj.cnv.button_cb
-		local oldMCB = cnvobj.cnv.motion_cb
-		
-		local function startConnector(x,y)
-			-- Check whether this lies on a segment of a existing connector then add this to the connector
-			cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
-			cnvobj.op.start = {x,y}
-			cnvobj.op.startseg = 1
-			cnvobj.op.connID = #cnvobj.connector
-		end
-		
-		local function setWaypoint(x,y)
-			cnvobj.op.startseg = #cnvobj.connector[#cnvobj.connector].segments
-			cnvobj.op.start = {x,y}
-		end
-		
-		local function endConnector(x,y,p_ID)
-			-- Traverse through the segments and check where they overlap with ports and connect to ports
-			-- Note that diagnol segments would not be checked for this
-			--[[
-						local portSegTableLen = #cnvobj.port[p_ID].segmentTable
-						cnvobj.port[p_ID].segmentTable[portSegTableLen+1] = {}
-
-						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentID = segLen
-						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].connectorID = index
-						cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentStatus = "ending"
-			]]
-			local segTable = cnvObj.connector[cnvobj.op.connID].segments
-			for i = 1,#segTable do
-				local start,stop,step,mode
-				if segTable[i].start_x == segTable[i].end_x then
-					start = segTable[i].start_y
-					stop = segTable[i].end_y
-					step = cnvobj.grid_y
-					mode = 1
-				elseif segTable[i].start_y == segTable[i].end_y then
-					start = segTable[i].start_y
-					stop = segTable[i].end_y
-					step = cnvobj.grid_y
-					mode = 2				
-				end	
-				for j = start, stop,step do
-					local cop,pid 
-					if mode == 1 then
-						cop,pid = cursorOnPort(cnvobj,segTable[i].start_x,j)
-					else
-						cop,pid = cursorOnPort(cnvobj,j,segTable[i].start_y)
-					end
-					if cop then
-						local portconn = #cnvobj.port[pid].connector
-						cnvobj.port[p_ID].connector[portconn+1] = {}
-
-						cnvobj.port[p_ID].connector[portconn+1].segment = i
-						cnvobj.port[p_ID].connector[portconn+1].connectorID = cnvobj.op.connID
-					end	
-				end				
-			end
-			-- Check where the segments cross over ports then connect them to the ports here
-			tableUtils.emptyTable(cnvobj.op)
-			cnvobj.op.mode = "DISP"	-- Default display mode
-			cnvobj.cnv.button_cb = oldBCB
-			cnvobj.cnv.motion_cb = oldMCB
-		end
-		
-		-- button_CB to handle connector drawing
-		function cnvobj.cnv:button_cb(button,pressed,x,y,status)
-			y = cnvobj.height - y
-			-- Check if any hooks need to be processed here
-			processHooks(cnvobj,"MOUSECLICKPRE")
-			local CursorOnPort, p_ID = cursorOnPort(cnvobj, x, y)
-			if button == iup.BUTTON1 and pressed == 1 then
-				if cnvobj.op.mode ~= "DRAWCONN" then
-					startConnector(x,y)
-				elseif CursorOnPort then
-					endConnector(x,y,p_ID)
-				else
-					setWaypoint(x,y)
-				end
-			end
-			if button == iup.BUTTON3 and pressed == 1 then
-				endConnector()
-			end
-			-- Process any hooks 
-			processHooks(cnvobj,"MOUSECLICKPOST")
-		end
-		
-		function cnvobj.cnv:motion_cb(x,y,status)
-			--connectors
-			if cnvobj.op.mode == "DRAWCONN" and cnvobj.connectorFlag == true then
-				segmentGenerator.generateSegments(cnvobj, cnvobj.op.connID, cnvobj.op.startseg,cnvobj.op.start.x, cnvobj.op.start.y, x, y)
-				CC.update(cnvobj)
-			end			
-		end
-		
-	end,	-- end drawConnector function
-	
 	moveObj = function(cnvobj)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return
@@ -558,39 +428,17 @@ objFuncs = {
 				end
 			end	
 			
-		
-
-	addHook = function(cnvobj,key,fun)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return
-		end
-		if type(fun) ~= "function" then
-			return nil,"Need a function to add as a hook"
-		end
-		local index = #cnvobj.hook
-		cnvobj.hook[index+1] = {}
-		cnvobj.hook[index+1].key = key
-		cnvobj.hook[index+1].fun = fun 	
-		cnvobj.hook[index+1].id = cnvobj.hook.ids + 1
-		cnvobj.hook.ids = cnvobj.hook.ids + 1
-		return cnvobj.hook.ids
-	end,
-	
-	removeHook = function(cnvobj,id)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return
-		end
-		for i = 1,#cnvobj.hook do
-			if cnvobj.hook[i].id == id then
-				table.remove(cnvobj.hook,i)
-				break
-			end
-		end
-	end,
-
+	---- CONNECTORS---------
+	drawConnector = conn.drawConnector,
+	---- HOOKS--------------
+	addHook = hooks.addHook,
+	removeHook = hooks.removeHook,
+	processHooks = hooks.processHooks,
 	---- PORTS--------------
 	addPort = ports.addPort, 	-- Add a port to a shape
 	removePort = ports.removePort,	-- Remove a port given the portID
+	getPortFromID = ports.getPortFromID,	-- Get the port structure from the port ID
+	getPortFromXY = ports.getPortFromXY,	-- get the port structure close to x,y
 	---- OBJECTS------------
 	drawObj = objects.drawObj,
 	groupObjects = objects.groupObjects,
@@ -612,10 +460,6 @@ local function checkPara(para)
 	if not para.grid_y or type(para.grid_y) ~= "number" then
 		return nil,"grid_y not given or not a number"
 	end
-	if type(para.gridVisibility) ~= "boolean" then
-		return nil, "gridVisibility not given or not a boolean"
-	end
-	
 	return true
 end
 
@@ -627,7 +471,9 @@ end
 	height = <integer>,	--Height of the canvas
 	grid_x = <integer>, --x direction grid distance
 	grid_y = <integer>, --y direction grid distance
-	gridVisibility = <boolean>	-- (OPTIONAL) if true then grid is visible
+	gridVisibility = <boolean>,	-- (OPTIONAL) if true then grid is visible
+	snapGrid = <boolean>,		-- (OPTIONAL) if true then everything works on the grid, otherwise it behaves as if grid is 1px x 1px
+	showBlockingRect = <boolean>,-- (OPTIONAL) if true then blocking rectangles are drawn on screen
 }
 
 ]]
@@ -645,40 +491,14 @@ new = function(para)
 		cnvobj[k] = v
 	end
 	  
-	-- #######******  Implement this data structure
-	-- drawn is all the drawn data 
-	-- obj is the structure containing all the objects on the canvas
-	--[[
-	{
-		id = id,		-- obj ID 
-		shape = shape,	-- object description
-		start_x = x,	-- start x point
-		start_y = y,	-- start y point
-		end_x = x,		-- end x point
-		end_y = y, 		-- end y point
-		port = {		-- ports associated with this object
-		}
-	}]]
 	cnvobj.drawn = {
-		obj = {ids=0}
-		group = {}
-		port = {ids=0}
-		conn = {ids=0}
+		obj = {ids=0},		-- See structure in objects.lua
+		group = {},			-- array of arrays containing objects intended to be grouped together
+		port = {ids=0},		-- array of port structures. See structure of port in ports.lua
+		conn = {ids=0},		-- array of connector structures. See structure of connector in connector.lua
 	}
-	cnvobj.hook = {ids=0}
-	
-	
-	cnvobj.drawnObj = {}
-	cnvobj.group = {}
-  	cnvobj.loadedEle = {}	--####**** Should remove this. Use the op structure
-	cnvobj.activeEle = {}	--####**** Should remove this. Use the op structure
-	cnvobj.port = {}
-	cnvobj.connector = {}
-	cnvobj.connectorFlag = false
-	cnvobj.clickFlag = false
-	cnvobj.tempflag = false
+	cnvobj.hook = {ids=0}	-- Array of hook structure. See structure of hook in hooks.lua
 	cnvobj.op = {mode="DISP"}
-	cnvobj.showBlockingRect = false
 	
 	-- Create the canvas element
 	cnvobj.cnv = iup.canvas{}		-- iup canvas where all drawing will happen
@@ -697,8 +517,8 @@ new = function(para)
 	end
 	
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		processHooks(cnvobj,"MOUSECLICKPRE")
-		processHooks(cnvobj,"MOUSECLICKPOST")
+		hooks.processHooks(cnvobj,"MOUSECLICKPRE")
+		hooks.processHooks(cnvobj,"MOUSECLICKPOST")
 	end
 	
 	function cnvobj.cnv:motion_cb(x, y, status)

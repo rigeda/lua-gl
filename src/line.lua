@@ -4,7 +4,11 @@ local coorc = require("lua-gl.CoordiateCalc")
 
 local M = {}
 package.loaded[...] = M
-_ENV = M
+if setfenv and type(setfenv) == "function" then
+	setfenv(1,M)	-- Lua 5.1
+else
+	_ENV = M		-- Lua 5.2+
+end
 
 
 -- Function to check whether line object is selectable by x,y within the given resolution res

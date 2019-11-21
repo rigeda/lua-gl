@@ -2,7 +2,11 @@ local math = math
 
 local M = {}
 package.loaded[...] = M
-_ENV = M
+if setfenv and type(setfenv) == "function" then
+	setfenv(1,M)	-- Lua 5.1
+else
+	_ENV = M		-- Lua 5.2+
+end
 
 -- function to calculate the area of a triangle given the vertices
 local function area(x1, y1, x2, y2, x3, y3) 
