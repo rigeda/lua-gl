@@ -111,7 +111,7 @@ groupObjects = function(cnvobj,objList)
 	table.sort(groups[#groups],function(one,two) 
 			return one.order < two.order
 	end)
-	-- Update the obj group 
+	-- Update the obj group and collect the order number for each item in the group so they all can be grouped together in the order chain along the object with the highest order
 	local order = cnvobj.drawn.order
 	local grpOrder = {}
 	local grp = groups[#groups]
@@ -143,6 +143,22 @@ drawObj = function(cnvobj,shape)
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	local objs = cnvobj.drawn.obj
+	
+	local function drawEnd()
+		-- End the drawing
+		objs[#objs].end_x = x
+		objs[#objs].end_y = y
+		objs.ids = objs.ids + 1
+		-- Add the object to be drawn in the order array
+		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+			type = "object",
+			item = objs[#objs]
+		}
+		tu.emptyTable(cnvobj.op)
+		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.cnv.button_cb = oldBCB
+		cnvobj.cnv.motion_cb = oldMCB		
+	end
 	-- button_CB to handle object drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		y = cnvobj.height - y
@@ -157,8 +173,10 @@ drawObj = function(cnvobj,shape)
 		y = coorc.snapY(y, grdy)
 		
 		if button == iup.BUTTON1 and pressed == 1 then
+			-- Start the drawing
 			cnvobj.op.mode = "DRAWOBJ"	-- Set the mode to drawing object
 			cnvobj.op.obj = shape
+			cnvobj.op.end = drawEnd
 			local t = {}
 			t.id = #objs.ids + 1
 			t.shape = shape
@@ -171,18 +189,7 @@ drawObj = function(cnvobj,shape)
 			t.port = {}
 			objs[#objs + 1] = t
 		elseif button == iup.BUTTON1 and pressed == 0 then
-			objs[#objs].end_x = x
-			objs[#objs].end_y = y
-			objs.ids = objs.ids + 1
-			-- Add the object to be drawn in the order array
-			cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-				type = "object",
-				item = objs[#objs]
-			}
-			tableUtils.emptyTable(cnvobj.op)
-			cnvobj.op.mode = "DISP"	-- Default display mode
-			cnvobj.cnv.button_cb = oldBCB
-			cnvobj.cnv.motion_cb = oldMCB
+			drawEnd()
 		end
 		-- Process any hooks 
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,xo,yo,status})
@@ -218,49 +225,53 @@ moveObj = function(cnvobj,objID,refX,refY)
 	else
 		grp = {obj}
 	end
+	local order = cnvobj.drawn.order
 	local oldOrder = grp[1].order	-- smallest order
 	table.remove(cnvobj.drawn.order,grp[#grp].order)
 	table.insert(cnvobj.drawn.order,grp[#grp],#cnvobj.drawn.order+1)
 	for i = #grp-1,1,-1 do
 		table.remove(cnvobj.drawn.order,grp[i].order)
 		table.insert(cnvobj.drawn.order,grp[i],#cnvobj.drawn.order)
-		-- Mark the item as being moved
-		
 	end
 	-- Update the order number for all items 
 	for i = 1,#order do
 		order[i].item.order = i
+	end
+	
+	local function moveEnd()
+		-- End the move at this point
+		-- Reset the orders back
+		for i = #grp,1,-1 do
+			table.remove(cnvobj.drawn.order,grp[i].order)
+			table.insert(cnvobj.drawn.order,grp[i],cnvobj.op.oldOrder)
+		end
+		-- Update the order number for all items
+		for i = 1,#order do
+			order[i].item.order = i
+		end
+		-- Reset mode
+		tu.emptyTable(cnvobj.op)
+		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.cnv.button_cb = oldBCB
+		cnvobj.cnv.motion_cb = oldMCB
 	end
 		
 	cnvobj.op.mode = "MOVEOBJ"
 	cnvobj.op.grp = grp
 	cnvobj.op.oldOrder = oldOrder
 	cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+	cnvobj.op.end = moveEnd
 	
 	-- button_CB to handle object drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
-		processHooks(cnvobj,"MOUSECLICKPRE",{button,pressed,x,y, status})
+		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
 		if button == iup.BUTTON1 and pressed == 1 then
-			-- End the move at this point
-			-- Reset the orders back
-			for i = #grp,1,-1 do
-				table.remove(cnvobj.drawn.order,grp[i].order)
-				table.insert(cnvobj.drawn.order,grp[i],cnvobj.op.oldOrder)
-			end
-			-- Update the order number for all items
-			for i = 1,#order do
-				order[i].item.order = i
-			end
-			-- Reset mode
-			tableUtils.emptyTable(cnvobj.op)
-			cnvobj.op.mode = "DISP"	-- Default display mode
-			cnvobj.cnv.button_cb = oldBCB
-			cnvobj.cnv.motion_cb = oldMCB
+			moveEnd()
 		end
 		-- Process any hooks 
-		processHooks(cnvobj,"MOUSECLICKPOST",{button,pressed,x,y, status})
+		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})
 	end
 
 	function cnvobj.cnv:motion_cb(x,y,status)
@@ -279,6 +290,19 @@ moveObj = function(cnvobj,objID,refX,refY)
 			grp[i].end_x = grp[i].end_x + offx
 			grp[i].start_y = grp[i].start_y + offy
 			grp[i].end_y = grp[i].end_y + offy
+			-- Update port coordinates
+			local portT = grp[i].port
+			for j = 1,#portT do
+				portT[j].x = portT[j].x + offx
+				portT[j].y = portT[j].y + offy
+			end
+		end
+		-- Now redo the connectors
+		for i = 1,#grp do
+			local portT = grp[i].port
+			for j = 1,#portT do
+				
+			end
 		end
 	end
 end,

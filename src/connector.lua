@@ -298,15 +298,6 @@ drawConnector  = function(cnvobj)
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
-	local function startConnector(x,y)
-		-- Check whether this lies on a segment of a existing connector then add this to that existing connector
-		cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
-		cnvobj.op.start = {x=x,y=y}
-		cnvobj.op.startseg = 1
-		cnvobj.op.connID = cnvobj.drawn.conn.ids + 1
-		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1
-	end
-	
 	local function setWaypoint(x,y)
 		cnvobj.op.startseg = #cnvobj.drawn.conn[#cnvobj.drawn.conn].segments+1
 		cnvobj.op.start = {x=x,y=y}
@@ -315,14 +306,6 @@ drawConnector  = function(cnvobj)
 	local function endConnector()
 		-- Traverse through the segments and check where they overlap with ports and connect to ports
 		-- Note that diagnol segments would not be checked for this
-		--[[
-					local portSegTableLen = #cnvobj.port[p_ID].segmentTable
-					cnvobj.port[p_ID].segmentTable[portSegTableLen+1] = {}
-
-					cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentID = segLen
-					cnvobj.port[p_ID].segmentTable[portSegTableLen+1].connectorID = index
-					cnvobj.port[p_ID].segmentTable[portSegTableLen+1].segmentStatus = "ending"
-		]]
 		local segTable = cnvobj.drawn.conn[cnvobj.op.connID].segments
 		for i = 1,#segTable do
 			local start,stop,step,mode
@@ -362,6 +345,16 @@ drawConnector  = function(cnvobj)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
+	end		-- Function endConnector ends here
+	
+	local function startConnector(x,y)
+		-- Check whether this lies on a segment of a existing connector then add this to that existing connector
+		cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
+		cnvobj.op.start = {x=x,y=y}
+		cnvobj.op.startseg = 1
+		cnvobj.op.connID = cnvobj.drawn.conn.ids + 1
+		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1
+		cnvobj.op.end = endConnector
 	end
 	
 	-- button_CB to handle connector drawing

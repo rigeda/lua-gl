@@ -24,6 +24,18 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
+--- TASKS
+--[[
+1. Make connector structure store all end points. So given the endpoints the whole connector structure can be redrawn
+2. Finish loading of saved structure.
+3. Add tapping of connectors
+4. Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved. Do not generate everytime a connector path is calculated.
+10. Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
+11. Connector labeling
+12. Have to add export/print
+
+]]
+
 
 -- this function is used to manipulate active Element table data
 -- cnvobj is the canvas object
@@ -46,98 +58,6 @@ end
 }
 
 ]]
-local function Manipulate_activeEle(cnvobj, x, y, Table)
-	if #Table == 0 then
-		-- Nothing to do
-		return
-	end
-	-- Create the matrix representing the points that a connector can traverse
-	cnvobj.matrix = segmentGenerator.findMatrix(cnvobj)
-	
-	for i=1, #Table do	
-	
-		-- Update all port offsets 
-		if type(Table[i].portTable) == "table" and #Table[i].portTable >= 0 then
-			local pT = Table[i].portTable
-			for ite=1 , #pT do   --offsetx is distance between ports x coordinate and start_x
-				pT[ite].offsetx = Table[i].start_x - pT[ite].x
-				pT[ite].offsety = Table[i].start_y - pT[ite].y
-			end
-		end
-
-		if i==1 then 
-			
-			Table[1].start_x = math.floor(x - Table[1].offs_x)
-			Table[1].start_y = math.floor(y - Table[1].offs_y)	
-			if cnvobj.snapGrid == true then
-				Table[1].start_x = snap.Sx(Table[1].start_x, cnvobj.grid_x)
-				Table[1].start_y = snap.Sy(Table[1].start_y, cnvobj.grid_y)
-
-				Table[1].start_x = math.floor(Table[1].start_x + Table[1].offsetXfromGrid)
-				Table[1].start_y = math.floor(Table[1].start_y + Table[1].offsetYfromGrid)
-			end
-			
-			
-			Table[1].end_x = math.floor(Table[1].start_x - Table[1].distX)
-			Table[1].end_y = math.floor(Table[1].start_y - Table[1].distY)
-		else
-			Table[i].start_x = math.floor(Table[1].start_x - Table[i].offs_x )
-			Table[i].start_y = math.floor(Table[1].start_y - Table[i].offs_y )
-			Table[i].end_x = math.floor(Table[i].start_x - Table[i].distX)
-			Table[i].end_y = math.floor(Table[i].start_y - Table[i].distY)
-		end
-
-		if Table[i].portTable then
-			if #Table[i].portTable >= 0 then
-				for ite=1 , #Table[i].portTable do
-				
-					Table[i].portTable[ite].x = math.floor(Table[i].start_x - Table[i].portTable[ite].offsetx)
-					Table[i].portTable[ite].y = math.floor(Table[i].start_y - Table[i].portTable[ite].offsety)
-					
-					if Table[i].portTable[ite].segmentTable then
-						for segIte = 1, #Table[i].portTable[ite].segmentTable do
-							local segmentID = Table[i].portTable[ite].segmentTable[segIte].segmentID
-							local connectorID = Table[i].portTable[ite].segmentTable[segIte].connectorID
-							--print("connector Id = "..connectorID)
-							
-							local status = Table[i].portTable[ite].segmentTable[segIte].segmentStatus
-							if segmentID and status=="ending" and connectorID then
-								
-								local endX = Table[i].portTable[ite].x
-								local endY = Table[i].portTable[ite].y
-								local startX = cnvobj.connector[connectorID].segments[1].start_x
-								local startY = cnvobj.connector[connectorID].segments[1].start_y
-								local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
-								
-								if segmentID and connectorID then
-									segmentGenerator.generateSegments(cnvobj, connectorID, totalSegmentInThisConnector, startX, startY, endX, endY)
-								end
-							end
-							
-							if segmentID and status=="starting" and connectorID then
-
-								local startX = Table[i].portTable[ite].x
-								local startY = Table[i].portTable[ite].y
-								local totalSegmentInThisConnector = #cnvobj.connector[connectorID].segments
-								
-								local endX = cnvobj.connector[connectorID].segments[totalSegmentInThisConnector].end_x
-								local endY = cnvobj.connector[connectorID].segments[totalSegmentInThisConnector].end_y
-								
-								
-								if segmentID and connectorID then
-									segmentGenerator.generateSegments(cnvobj, connectorID, totalSegmentInThisConnector, startX, startY, endX, endY)
-								end
-							end
-							CC.update(cnvobj)
-							
-						end
-					end
-				end
-			end
-		end
-		
-	end
-end
 
 local function Manipulate_LoadedEle(cnvobj, x, y, LoadedData)
 	Table = LoadedData.drawnEle
@@ -189,19 +109,6 @@ local function Manipulate_LoadedEle(cnvobj, x, y, LoadedData)
 	end
 end
 
-local function checkIndexInGroups(cnvobj,shape_id)
-	if #cnvobj.group > 0 then
-		for i=1,#cnvobj.group do
-			for j=1, #cnvobj.group[i] do
-				if shape_id == cnvobj.drawnObj[cnvobj.group[i][j]].shapeID then
-					return true, i 
-				end
-			end
-		end
-	end
-	return false
-end
-
 -- This is the metatable that contains the API of the library that can be used by the host program
 
 local objFuncs
@@ -210,6 +117,10 @@ objFuncs = {
 	save = function(cnvobj)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return
+		end
+		-- First check if any operation is happenning then end it
+		if cnvobj.op.end and type(cnvobj.op.end) == "function" then
+			cnvobj.op.end()
 		end
 		return tu.t2sr(cnvobj.drawn)
 	end,
@@ -243,6 +154,14 @@ objFuncs = {
 			port = {ids=0},		-- array of port structures. See structure of port in ports.lua
 			conn = {ids=0},		-- array of connector structures. See structure of connector in connector.lua
 			order = {},			-- array of structures containing the things to draw in order
+			--[[ Order stucture looks like this:
+			{
+				[i] = {
+					type = <string>,	-- string describing what type of item this is. Values are like "object", "connector"
+					item = <table>		-- table structure of the item that is at this order position. For object it will be the object structure. For connector it will be the connector structure.
+				},
+			}
+			]]
 		}
 		cnvobj.hook = {ids=0}	-- Array of hook structure. See structure of hook in hooks.lua
 		cnvobj.op = {mode="DISP"}
@@ -260,81 +179,12 @@ objFuncs = {
 
 
 	-------------------MOTION CB
-			-- click fun.
-			if iup.isbutton1(status) and cnvobj.drawing == "CLICKED" and #cnvobj.activeEle > 0 then
-				Manipulate_activeEle(cnvobj,x,y,cnvobj.activeEle)
-				CC.update(cnvobj)
-			end
-			
 			-- if load function is called then 
 			if iup.isbutton1(status) and cnvobj.drawing == "LOAD" and move then
 				Manipulate_LoadedEle(cnvobj, x, y, cnvobj.loadedEle)
 				CC.update(cnvobj)
 			end
 ---------------------------		
-			--click function
-			if #cnvobj.drawnObj > 0 and cnvobj.drawing == "STOP" and pressed == 1 then
-				--y = cnvobj.height - y
-				local index = check.checkXY(cnvobj,x,y)
-				if index ~= 0 and index then --index should not nill
-					cnvobj.drawing = "CLICKED"
-					local indexBelongToAnyGroup, groupID = checkIndexInGroups(cnvobj,cnvobj.drawnObj[index].shapeID)
-
-					if indexBelongToAnyGroup then
-						for j=1, #cnvobj.group[groupID] do
-							local i = 1
-							while #cnvobj.drawnObj >= i do
-								--print(#cnvobj.group[groupID],j,groupID,i)
-								if cnvobj.group[groupID][j] == cnvobj.drawnObj[i].shapeID then
-									local ActiveEleLen = #cnvobj.activeEle
-									--cnvobj.activeEle[ActiveEleLen+1] = {}
-									cnvobj.activeEle[ActiveEleLen+1] = cnvobj.drawnObj[i]
-									if ActiveEleLen == 1 then 
-										cnvobj.activeEle[1].offs_x = x - cnvobj.activeEle[1].start_x
-										cnvobj.activeEle[1].offs_y = y - cnvobj.activeEle[1].start_y
-										cnvobj.activeEle[1].distX = cnvobj.activeEle[1].start_x - cnvobj.activeEle[1].end_x
-										cnvobj.activeEle[1].distY = cnvobj.activeEle[1].start_y - cnvobj.activeEle[1].end_y
-
-										local GridXpos = snap.Sx(cnvobj.activeEle[1].start_x, cnvobj.grid_x)
-										local GridYpos = snap.Sy(cnvobj.activeEle[1].start_y, cnvobj.grid_y)
-										cnvobj.activeEle[1].offsetXfromGrid = cnvobj.activeEle[1].start_x - GridXpos
-										cnvobj.activeEle[1].offsetYfromGrid = cnvobj.activeEle[1].start_y - GridYpos
-									end
-
-									cnvobj.activeEle[ActiveEleLen+1].offs_x = cnvobj.activeEle[1].start_x - cnvobj.activeEle[ActiveEleLen+1].start_x
-									cnvobj.activeEle[ActiveEleLen+1].offs_y = cnvobj.activeEle[1].start_y - cnvobj.activeEle[ActiveEleLen+1].start_y
-
-									cnvobj.activeEle[ActiveEleLen+1].distX = cnvobj.activeEle[ActiveEleLen+1].start_x - cnvobj.activeEle[ActiveEleLen+1].end_x
-									cnvobj.activeEle[ActiveEleLen+1].distY = cnvobj.activeEle[ActiveEleLen+1].start_y - cnvobj.activeEle[ActiveEleLen+1].end_y
-
-									table.remove(cnvobj.drawnObj,i)
-								else
-									i = i + 1
-								end
-							end	
-						end
-					else
-						cnvobj.activeEle[1] = cnvobj.drawnObj[index]
-						cnvobj.activeEle[1].offs_x = x - cnvobj.activeEle[1].start_x
-						cnvobj.activeEle[1].offs_y = y - cnvobj.activeEle[1].start_y
-						cnvobj.activeEle[1].distX = cnvobj.activeEle[1].start_x - cnvobj.activeEle[1].end_x
-						cnvobj.activeEle[1].distY = cnvobj.activeEle[1].start_y - cnvobj.activeEle[1].end_y
-
-						local GridXpos = snap.Sx(cnvobj.activeEle[1].start_x, cnvobj.grid_x)
-						local GridYpos = snap.Sy(cnvobj.activeEle[1].start_y, cnvobj.grid_y)
-						cnvobj.activeEle[1].offsetXfromGrid = cnvobj.activeEle[1].start_x - GridXpos
-						cnvobj.activeEle[1].offsetYfromGrid = cnvobj.activeEle[1].start_y - GridYpos
-
-						table.remove(cnvobj.drawnObj, index)
-					end
-				end
-			elseif #cnvobj.activeEle > 0 and cnvobj.drawing == "CLICKED" and pressed == 0 then
-				cnvobj.drawing = "STOP"
-				for i=1, #cnvobj.activeEle do
-					table.insert(cnvobj.drawnObj, cnvobj.activeEle[i].shapeID, cnvobj.activeEle[i])
-				end
-				cnvobj.activeEle = {}
-			end
 
 			--if load function is called
 			if cnvobj.drawing == "LOAD" then
