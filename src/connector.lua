@@ -4,8 +4,11 @@ local table = table
 local type = type
 local math = math
 
+local print = print
+
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
+
 
 local M = {}
 package.loaded[...] = M
@@ -33,14 +36,9 @@ do
 	local matrix_width, matrix_height = 0, 0
 
 	local function isValid(row, col) 
-
-		-- return true if row number and column number 
-		-- is in range 
 		if (row > 0) and (row <= matrix_width) and (col > 0) and (col <= matrix_height) then
-			return 1
-		else
-			return 0
-		end 
+			return true
+		end
 	end 
 	  
 	-- These arrays are used to get row and column 
@@ -55,8 +53,8 @@ do
 		-- check source and destination cell 
 		-- of the matrix have value 1 
 		matrix_width, matrix_height = mWidth, mHeight
-		if isValid(srcX,srcY) == 0 or isValid(destX, destY)==0 or mat[srcX][srcY]==0 or mat[destX][destY]==0 then 
-			return -1
+		if not isValid(srcX,srcY) or not isValid(destX, destY) or mat[srcX][srcY]==0 or mat[destX][destY]==0 then 
+			return
 		end
 
 		local visited = {}
@@ -76,7 +74,7 @@ do
 		-- Distance of source cell is 0 
 		str = ""
 	   
-		s = {srcX, srcY, 0, str}; 
+		s = {srcX, srcY, 0, str}
 		table.insert(q,s)  -- Enqueue source cell 
 	  
 		-- Do a BFS starting from source cell 
@@ -90,14 +88,14 @@ do
 			-- Otherwise dequeue the front cell in the queue 
 			-- and enqueue its adjacent cells 
 
-			local pt = tu.copyTable(q[1],P{)
+			local pt = tu.copyTable(q[1],{})
 			
 			table.remove(q,1); 
 			
 			for i=1, 4 do
 			   
-				srcX = pt[1] + rowNum[i]; 
-				srcY = pt[2] + colNum[i]; 
+				srcX = pt[1] + rowNum[i]
+				srcY = pt[2] + colNum[i]
 			   
 				-- if adjacent cell is valid, has path and 
 				-- not visited yet, enqueue it. 
@@ -105,7 +103,7 @@ do
 				
 				if isValid(srcX, srcY)==1 and mat[srcX][srcY]==1 and not visited[srcX][srcY] then
 					-- mark cell as visited and enqueue it 
-					visited[srcX][srcY] = true; 
+					visited[srcX][srcY] = true
 					if i==1 then
 						str = pt[4].."U"
 					elseif i==2 then
@@ -156,33 +154,45 @@ do
 	
 end
 
+-- Function to represent the canvas area as a matrix of obstacles to use for BFS path searching
 local function findMatrix(cnvobj)
+	local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
+	if not cnvobj.snapGrid then
+		grdx,grdy = 1,1
+	end
+	
     local matrix = {}
-    local matrix_width = math.floor(cnvobj.width/cnvobj.grid_x) + 1
-    local matrix_height = math.floor(cnvobj.height/cnvobj.grid_y) + 1
+	
+	-- Shortlist all blocking rectangles
+	local br = {}
+	local objs = cnvobj.drawn.obj
+	for i = 1,#objs do
+		if objs[i].shape == "BLOCKINGRECT" then
+			br[#br + 1] =objs[i]
+		end
+	end
+	
+    local matrix_width = math.floor(cnvobj.width/grdx) + 1
+    local matrix_height = math.floor(cnvobj.height/grdy) + 1
     for i=1, matrix_width  do
         matrix[i] = {}
         for j=1, matrix_height do 
-            local x = (i-1)*cnvobj.grid_x
-            local y = (j-1)*cnvobj.grid_y
-            local index = check.checkXY(cnvobj,x,y)
-         
-            if index ~= 0 and index and cnvobj.drawnEle[index].shape == "BLOCKINGRECT" then --index should not nill
-                matrix[i][j]=0
-            else
-                matrix[i][j]=1
-            end
+            local x = (i-1)*grdx
+            local y = (j-1)*grdy
+			matrix[i][j]=1	-- 1 where the connector can route
+			-- Check if x,y lies in any blocking rectangle
+			for k = 1,#br do
+				local x1, y1 = br[k].start_x, br[k].start_y
+				local x3, y3 = br[k].end_x , br[k].end_y
+				local x2, y2, x4, y4 = x1, y3, x3, y1
+
+				if coorc.PointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y) then
+					matrix[i][j]=0	-- 0 where the connector cannot route
+					break
+				end
+			end
         end
     end
-
-    --[[for i=1, matrix_width do
-        str = ""
-        for j=1, matrix_height  do
-            str = str..matrix[i][j].." "
-        end
-        print(str)
-        print()
-    end]]
     return matrix
 end
 
@@ -210,14 +220,14 @@ local function generateSegments(cnvobj, connectorID, segStart,startX, startY, x,
    
     local shortestPathLen, shortestPathString = BFS(findMatrix(cnvobj), srcX, srcY, destX, destY, matrix_width, matrix_height)
     
-    if shortestPathString == 0 or shortestPathLen == -1 then
+	if not shortestPathLen then
         return 
     end
-
-	cnvobj.connector[connectorID] = cnvobj.connector[connectorID] or {segments = {}}
+	cnvobj.drawn.conn[connectorID] = cnvobj.drawn.conn[connectorID] or {segments = {}}
+	local connector = cnvobj.drawn.conn[connectorID]
 	
-    for i = segStart,#cnvobj.connector[connectorID].segments do
-        table.remove(cnvobj.connector[connectorID].segments, i)
+    for i = #connector.segments,segStart,-1 do
+        table.remove(connector.segments, i)
     end
 
     local shortestpathTable = {}
@@ -243,36 +253,22 @@ local function generateSegments(cnvobj, connectorID, segStart,startX, startY, x,
     local rowNum = {-1, 0, 0, 1}; 
     local colNum = {0, -1, 1, 0}; 
 
-    --[[if shortestPathLen == -1 then
-        print("path not found")
-    else
-        print("Shortest path ", shortestPathLen, shortestPathString)
-    end]]
     
-    if shortestPathLen ~= -1 and #shortestpathTable>0 then
-        
-        
-        --cnvobj.connector[connectorID].segments[segLen].end_x = math.floor(cnvobj.connector[connectorID].segments[segLen].start_x + rowNum[shortestpathTable[1]]*cnvobj.grid_x)
-        --cnvobj.connector[connectorID].segments[segLen].end_y = math.floor(cnvobj.connector[connectorID].segments[segLen].start_y + colNum[shortestpathTable[1]]*cnvobj.grid_y)
-        --print(cnvobj.connector[connectorID].segments[segLen].start_x,cnvobj.connector[connectorID].segments[segLen].start_y,cnvobj.connector[connectorID].segments[segLen].end_x,cnvobj.connector[connectorID].segments[segLen].end_y)
-    
-        for i=1, shortestPathLen do
-            
-            cnvobj.connector[connectorID].segments[i] = {}
-           -- cnvobj.connector[connectorID].segments[i].ID = segLen + 1
-            if i==1 then
-                cnvobj.connector[connectorID].segments[i].start_x = (srcX-1)*cnvobj.grid_x
-                cnvobj.connector[connectorID].segments[i].start_y = (srcY-1)*cnvobj.grid_y
-            else
-                cnvobj.connector[connectorID].segments[i].start_x = cnvobj.connector[connectorID].segments[i-1].end_x --if i=1 else condition will not run 
-                cnvobj.connector[connectorID].segments[i].start_y = cnvobj.connector[connectorID].segments[i-1].end_y
-            end
-            cnvobj.connector[connectorID].segments[i].end_x =math.floor(cnvobj.connector[connectorID].segments[i].start_x + (rowNum[shortestpathTable[i]])*cnvobj.grid_x)
-            cnvobj.connector[connectorID].segments[i].end_y =math.floor(cnvobj.connector[connectorID].segments[i].start_y + (colNum[shortestpathTable[i]])*cnvobj.grid_y)   
-        end
-        print("total seg in this connector"..#cnvobj.connector[connectorID].segments)
-    end
-    
+	for i=segStart, shortestPathLen do
+		
+		connector.segments[i] = {}
+	   -- cnvobj.connector[connectorID].segments[i].ID = segLen + 1
+		if i==1 then
+			connector.segments[i].start_x = (srcX-1)*grdx
+			connector.segments[i].start_y = (srcY-1)*grdy
+		else
+			connector.segments[i].start_x = connector.segments[i-1].end_x  
+			connector.segments[i].start_y = connector.segments[i-1].end_y
+		end
+		connector.segments[i].end_x = math.floor(connector.segments[i].start_x + (rowNum[shortestpathTable[i]])*grdx)
+		connector.segments[i].end_y = math.floor(connector.segments[i].start_y + (colNum[shortestpathTable[i]])*grdy)   
+	end
+	print("total seg in this connector"..#cnvobj.connector[connectorID].segments)
 end
 
 drawConnector  = function(cnvobj)
