@@ -24,6 +24,15 @@ function unmapCB(cnvobj)
 	cd_Canvas:Kill()
 end
 
+function buttonCB(cnvobj,button,pressed,x,y, status)
+	cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
+	cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y,status})
+end
+
+function motionCB(cnvobj,x, y, status)
+	
+end
+
 function update(cnvobj)
 	iup.Update(cnvobj.cnv)
 end

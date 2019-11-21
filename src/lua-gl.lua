@@ -2,24 +2,19 @@ local table = table
 local pairs = pairs
 local print = print
 local iup = iup
-local cd = cd
 local error = error
 local pcall = pcall
 local type = type
 local math = math
-local snap = require("snap")
-local segmentGenerator = require("segmentGenerator")
-local check = require("ClickFunctions")
-local tableUtils = require("tableUtils")
-local CC = require("createCanvas")
 
 local setmetatable = setmetatable
 local getmetatable = getmetatable
 
 local objects = require("lua-gl.objects")
 local ports = require("lua-gl.ports")
-local hooks = require("lua-gl.hooks")
 local conn = require("lua-gl.connector")
+local tu = require("tableUtils")
+local CC = require("lua-gl.canvas")
 
 local M = {}
 package.loaded[...] = M
@@ -216,13 +211,7 @@ objFuncs = {
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return
 		end
-		cnvobj.drawnData.drawnEle = cnvobj.drawnObj
-		cnvobj.drawnData.group = cnvobj.group
-		cnvobj.drawnData.port = cnvobj.port
-		cnvobj.drawnData.connector = cnvobj.connector
-		
-		local str = tableUtils.t2sr(cnvobj.drawnData)
-		return str
+		return tu.t2sr(cnvobj.drawn)
 	end,
 	
 	load = function(cnvobj,str)
@@ -248,53 +237,29 @@ objFuncs = {
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return
 		end
-		--[[
+		cnvobj.drawn = {
+			obj = {ids=0},		-- See structure in objects.lua
+			group = {},			-- array of arrays containing objects intended to be grouped together
+			port = {ids=0},		-- array of port structures. See structure of port in ports.lua
+			conn = {ids=0},		-- array of connector structures. See structure of connector in connector.lua
+			order = {},			-- array of structures containing the things to draw in order
+		}
+		cnvobj.hook = {ids=0}	-- Array of hook structure. See structure of hook in hooks.lua
+		cnvobj.op = {mode="DISP"}
 		
-	####**** WHY NOT DO ALL THESE????
-	cnvobj.drawnData = {}
-	cnvobj.drawnObj = {}
-	cnvobj.group = {}
-  	cnvobj.loadedEle = {}
-	cnvobj.activeEle = {}
-	cnvobj.hook = {}
-	cnvobj.port = {}
-	cnvobj.connector = {}
-	cnvobj.connectorFlag = false
-	cnvobj.clickFlag = false
-	cnvobj.tempflag = false
-	]]	
-		cnvobj.drawnObj = {}
-		cnvobj.group = {}
-		cnvobj.port = {}
-		cnvobj.connector = {}
-		cnvobj.connectorFlag = false
-		cnvobj.clickFlag = false
-		cnvobj.tempflag = false
-		CC.update(cnvobj)
+		if cnvobj.cnv then
+			function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+				CC.buttonCB(cnvobj,button,pressed,x,y, status)
+			end
+			
+			function cnvobj.cnv:motion_cb(x, y, status)
+				CC.motionCB(cnvobj,x,y, status)		
+			end
+		end
 	end,
 
 
-	moveObj = function(cnvobj)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return
-		end
-		local oldBCB = cnvobj.cnv.button_cb
-		local oldMCB = cnvobj.cnv.motion_cb
-		-- button_CB to handle object drawing
-		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-			y = cnvobj.height - y
-			-- Check if any hooks need to be processed here
-			processHooks(cnvobj,"MOUSECLICKPRE")
-			
-			-- Process any hooks 
-			processHooks(cnvobj,"MOUSECLICKPOST")
-		end
-	
-		function cnvobj.cnv:motion_cb(x,y,status)
-			
-		end
-	end,
-		-------------------MOTION CB
+	-------------------MOTION CB
 			-- click fun.
 			if iup.isbutton1(status) and cnvobj.drawing == "CLICKED" and #cnvobj.activeEle > 0 then
 				Manipulate_activeEle(cnvobj,x,y,cnvobj.activeEle)
@@ -441,6 +406,7 @@ objFuncs = {
 	getPortFromXY = ports.getPortFromXY,	-- get the port structure close to x,y
 	---- OBJECTS------------
 	drawObj = objects.drawObj,
+	moveObj = objects.moveObj,
 	groupObjects = objects.groupObjects,
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
@@ -491,19 +457,12 @@ new = function(para)
 		cnvobj[k] = v
 	end
 	  
-	cnvobj.drawn = {
-		obj = {ids=0},		-- See structure in objects.lua
-		group = {},			-- array of arrays containing objects intended to be grouped together
-		port = {ids=0},		-- array of port structures. See structure of port in ports.lua
-		conn = {ids=0},		-- array of connector structures. See structure of connector in connector.lua
-	}
-	cnvobj.hook = {ids=0}	-- Array of hook structure. See structure of hook in hooks.lua
-	cnvobj.op = {mode="DISP"}
-	
+	objFuncs.erase(cnvobj)
 	-- Create the canvas element
 	cnvobj.cnv = iup.canvas{}		-- iup canvas where all drawing will happen
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	
+	-- Setup the callback functions
 	function cnvobj.cnv.map_cb()
 		CC.mapCB(cnvobj)	
 	end
@@ -517,12 +476,11 @@ new = function(para)
 	end
 	
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		hooks.processHooks(cnvobj,"MOUSECLICKPRE")
-		hooks.processHooks(cnvobj,"MOUSECLICKPOST")
+		CC.buttonCB(cnvobj,button,pressed,x,y, status)
 	end
 	
 	function cnvobj.cnv:motion_cb(x, y, status)
-		
+		CC.motionCB(cnvobj,x,y, status)		
 	end
 	
 	setmetatable(cnvobj,{__index = objFuncs})
