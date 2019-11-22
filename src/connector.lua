@@ -31,6 +31,12 @@ end
 			end_y = <integer>			-- ending coordinate y of the segment
 		}
 	},
+	junction = {	-- Array of junction structures
+		[i] = {
+			x = <integer>,		-- X coordinate of the junction
+			y = <integer>		-- Y coordinate of the junction
+		},
+	}
 }
 ]]
 -- The connector structure is located in the array cnvobj.drawn.conn
@@ -206,11 +212,8 @@ end
 
 
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
-local function generateSegments(cnvobj, x, y)
-	local cIndex = cnvobj.op.cIndex
-	local segStart = cnvobj.startseg
-	local startX = cnvobj.op.start.x
-	local startY = cnvobj.op.start.y
+-- The new segments are added to the end of the segments array passed to it
+function generateSegments(cnvobj, startX,startY,x, y,segments)
 	local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
 	if not cnvobj.snapGrid then
 		grdx,grdy = 1,1
@@ -235,13 +238,7 @@ local function generateSegments(cnvobj, x, y)
 	if not shortestPathLen then
         return 
     end
-	cnvobj.drawn.conn[cIndex] = cnvobj.drawn.conn[cIndex] or {segments = {},id=cnvobj.op.connID,order=#cnvobj.drawn.order+1}
-	local connector = cnvobj.drawn.conn[cIndex]
 	
-    for i = #connector.segments,segStart,-1 do
-        table.remove(connector.segments, i)
-    end
-
     local shortestpathTable = {}
     for i=1, #shortestPathString do
 		local c = str:sub(i,i)
@@ -266,21 +263,21 @@ local function generateSegments(cnvobj, x, y)
     local colNum = {0, -1, 1, 0}; 
 
     
-	for i=segStart, shortestPathLen do
-		
-		connector.segments[i] = {}
+	for i=#segments+1, #segments + shortestPathLen do
+		segments[i] = {}
 	   -- cnvobj.connector[connectorID].segments[i].ID = segLen + 1
-		if i==1 then
-			connector.segments[i].start_x = (srcX-1)*grdx
-			connector.segments[i].start_y = (srcY-1)*grdy
+		if i==#segments+1 then
+			segments[i].start_x = (srcX-1)*grdx
+			segments[i].start_y = (srcY-1)*grdy
 		else
-			connector.segments[i].start_x = connector.segments[i-1].end_x  
-			connector.segments[i].start_y = connector.segments[i-1].end_y
+			segments[i].start_x = segments[i-1].end_x  
+			segments[i].start_y = segments[i-1].end_y
 		end
-		connector.segments[i].end_x = math.floor(connector.segments[i].start_x + (rowNum[shortestpathTable[i]])*grdx)
-		connector.segments[i].end_y = math.floor(connector.segments[i].start_y + (colNum[shortestpathTable[i]])*grdy)   
+		segments[i].end_x = math.floor(segments[i].start_x + (rowNum[shortestpathTable[i]])*grdx)
+		segments[i].end_y = math.floor(segments[i].start_y + (colNum[shortestpathTable[i]])*grdy)   
 	end
-	print("total seg in this connector"..#connector.segments)
+	print("total seg in this connector"..#segments)
+	return true
 end
 
 drawConnector  = function(cnvobj)
@@ -306,7 +303,7 @@ drawConnector  = function(cnvobj)
 	local function endConnector()
 		-- Traverse through the segments and check where they overlap with ports and connect to ports
 		-- Note that diagnol segments would not be checked for this
-		local segTable = cnvobj.drawn.conn[cnvobj.op.connID].segments
+		local segTable = cnvobj.drawn.conn[cnvobj.op.cIndex].segments
 		for i = 1,#segTable do
 			local start,stop,step,mode
 			if segTable[i].start_x == segTable[i].end_x then
@@ -334,12 +331,19 @@ drawConnector  = function(cnvobj)
 				end	
 			end				
 		end
-		cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
-		-- Add the connector to be drawn in the order array
-		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-			type = "connector",
-			item = cnvobj.drawn.conn[cnvobj.op.cIndex]
-		}
+		if cnvobj.drawn.conn[cnvobj.op.cIndex].id > cnvobj.drawn.conn.ids then
+			-- New connector was added in this case
+			cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
+			-- Add the connector to be drawn in the order array
+			cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+				type = "connector",
+				item = cnvobj.drawn.conn[cnvobj.op.cIndex]
+			}
+		else
+			-- Add a junction
+			local jT = cnvobj.drawm.conn[cnvobj.op.cIndex].junction
+			jT[#jT + 1] = cnvobj.op.j
+		end
 		-- Check where the segments cross over ports then connect them to the ports here
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
@@ -348,12 +352,45 @@ drawConnector  = function(cnvobj)
 	end		-- Function endConnector ends here
 	
 	local function startConnector(x,y)
-		-- Check whether this lies on a segment of a existing connector then add this to that existing connector
 		cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
-		cnvobj.op.start = {x=x,y=y}
+		cnvobj.op.start = {x=x,y=y}	-- snapping is done in generateSegments
+		-- Check whether this lies on any connector then this would be a junction and add segments to that connector
+		-- Note however if x,y is at a crossover where multiple connectors lie it will connect to the connector that was drawn last
+		local conn = cnvobj.drawn.conn
+		local found
+		local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
+		if not cnvobj.snapGrid then
+			grdx,grdy = 1,1
+		end
+		local X,Y  =  coorc.snapX(x, grdx),coorc.snapY(x, grdy)
 		cnvobj.op.startseg = 1
-		cnvobj.op.connID = cnvobj.drawn.conn.ids + 1
-		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1
+		for i = #conn,1,-1 do	-- Connect to the connector drawn last so the loop is reverse
+			local segTable = conn[i].segments
+			for j = 1,#segTable do
+				-- Check whether the X,Y coordinate lies on the segment
+				if coorc.PointOnLine(segTable[j].start_x, segTable[j].start_y,segTable[j].end_x,segTable[j].end_y,X,Y,0) then	-- res is set to 0 to check exactly on line 
+					-- Split this segment into 2
+					table.insert(segTable,j+1,{
+						start_x = X,
+						start_y = Y,
+						end_x = segTable[j].end_x,
+						end_y = segTable[j].end_y
+					})
+					segTable[j].end_x = X
+					segTable[j].end_y = Y
+					cnvobj.op.startseg = #segTable + 1
+					found = i
+					cnvobj.op.j = {		-- Add this junction to the connector structure when the connector finishes
+						x = X,
+						y = Y
+					}
+					break
+				end
+			end
+			if found then break end
+		end
+		cnvobj.op.connID = (found and cnvobj.drawn.conn[found].id) or (cnvobj.drawn.conn.ids + 1)
+		cnvobj.op.cIndex = found or #cnvobj.drawn.conn + 1
 		cnvobj.op.end = endConnector
 	end
 	
@@ -382,7 +419,16 @@ drawConnector  = function(cnvobj)
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--connectors
 		if cnvobj.op.mode == "DRAWCONN" and cnvobj.connectorFlag == true then
-			generateSegments(cnvobj, x, y)
+			local cIndex = cnvobj.op.cIndex
+			local segStart = cnvobj.op.startseg
+			local startX = cnvobj.op.start.x
+			local startY = cnvobj.op.start.y
+			cnvobj.drawn.conn[cIndex] = cnvobj.drawn.conn[cIndex] or {segments = {},id=cnvobj.op.connID,order=#cnvobj.drawn.order+1}
+			local connector = cnvobj.drawn.conn[cIndex]
+			for i = #connector.segments,segStart,-1 do
+				table.remove(connector.segments,i)
+			end
+			generateSegments(cnvobj, startX,startY,x, y,connector.segments)
 			CC.update(cnvobj)
 		end			
 	end

@@ -3,12 +3,14 @@
 local type = type
 local table = table
 local math = math
+local pairs = pairs
 
 local RECT = require("lua-gl.rectangle")
 local LINE = require("lua-gl.line")
 local ELLIPSE = require("lua-gl.ellipse")
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
+local CONN = require("lua-gl.connector")
 
 
 local M = {}
@@ -255,6 +257,63 @@ moveObj = function(cnvobj,objID,refX,refY)
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
 	end
+	
+	-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
+	local connSrc = {}	-- To store the x,y coordinate for each connector from which rerouting has to be applied and also store the segments that need to be removed
+	for i = 1,#grp do	-- For every object in the group that is moving
+		local portT = grp[i].port	
+		for j = 1,#portT do		-- check every port for the object
+			local conn = portT[j].conn
+			local enx,eny = portT[j].x,portT[j].y
+			for k = 1,#conn do		-- for all connectors connected to this port of this object
+				-- Find the 1st junction or if none the starting point of the connector
+				local segTable = conn[k].segments
+				local x,y = enx,eny
+				local jT = conn[k].junction
+				local found
+				local checkedSegs = {}		-- Array to store index of segments already traversed to prevent traversing them again
+				local checkedSegsCount = 0
+				while not found do
+					-- Check if a junction exists on x,y
+					for l = 1,#jT do
+						if jT[l].x == x and jT[l].y == y then
+							found = true
+							break
+						end
+					end
+					if found then break end
+					-- Find a segment whose one end is on x,y
+					found = true
+					for l = 1,#segTable do
+						if not checkedSegs[l] then
+							-- This segment is not traversed
+							if segTable[l].end_x == x and segTable[l].end_y == y then
+								found = false
+								x,y = segTable[l].start_x,segTable[l].start_y
+								checkedSegs[l] = true
+								checkedSegsCount = checkedSegsCount + 1
+								break
+							elseif segTable[l].start_x == x and segTable[l].start_y == y then
+								found = false
+								x,y = segTable[l].end_x,segTable[l].end_y
+								checkedSegs[l] = true
+								checkedSegsCount = checkedSegsCount + 1
+								break
+							end
+						end
+					end		-- for l (segTable) ends here
+				end
+				connSrc[conn[k].id] = {x=x,y=y,segs=checkedSegs,segsCount = checkedSegsCount}		-- Source point to use for routing of the connector
+				-- Move the traversed segments to the end of the segments array
+				for l,_ in pairs(connSrc[conn[k].id].segs) do
+					local item = conn[k].segments[l]
+					table.remove(conn[k].segments,l)	-- Remove
+					table.insert(conn[k].segments,item)	-- Insert at end
+				end				
+			end		-- For k (connector table) ends here
+		end		-- For j (port table) ends here
+	end		-- for i (group) ends here
+	
 		
 	cnvobj.op.mode = "MOVEOBJ"
 	cnvobj.op.grp = grp
@@ -301,7 +360,15 @@ moveObj = function(cnvobj,objID,refX,refY)
 		for i = 1,#grp do
 			local portT = grp[i].port
 			for j = 1,#portT do
-				
+				local conn = portT[j].conn
+				for k = 1,#conn do
+					local segStart = #conn[k].segments-connSrc[conn[k].id].segsCount+1
+					for l = #conn[k].segments,segStart,-1 do
+						table.remove(conn[k].segments,l)
+					end
+					-- Regenerate the connector segments here
+					CONN.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+				end
 			end
 		end
 	end
