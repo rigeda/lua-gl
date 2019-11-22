@@ -18,6 +18,8 @@ function checkXY(obj, x, y, res)
 	local x1, y1 = obj.start_x, obj.start_y
 	local x3, y3 = obj.end_x , obj.end_y
 	local x2, y2, x4, y4 = x1, y3, x3, y1
+	
+	local midx1,midy1,midx2,midy2,midx3,midy3,midx4,midy4
 	midx1 = (x2 + x1)/2
 	midy1 = (y2 + y1)/2
 

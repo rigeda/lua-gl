@@ -26,10 +26,9 @@ end
 
 --- TASKS
 --[[
-1. Make connector structure store junctions. Junctions only happen at segment end points. 
+
 2. Finish loading of saved structure.
-3. Add tapping of connectors
-4. Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved. Do not generate everytime a connector path is calculated.
+4. Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.
 10. Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
 11. Connector labeling
 12. Have to add export/print
