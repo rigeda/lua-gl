@@ -210,7 +210,7 @@ drawObj = function(cnvobj,shape)
 	end    
 end	-- end drawObj function
 
-moveObj = function(cnvobj,objID,refX,refY)
+dragObj = function(cnvobj,objID,refX,refY)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return
 	end

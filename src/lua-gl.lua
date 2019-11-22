@@ -5,10 +5,11 @@ local iup = iup
 local error = error
 local pcall = pcall
 local type = type
-local math = math
 
+local math = math
 local setmetatable = setmetatable
 local getmetatable = getmetatable
+local tonumber = tonumber
 
 local objects = require("lua-gl.objects")
 local ports = require("lua-gl.ports")
@@ -58,56 +59,6 @@ end
 
 ]]
 
-local function Manipulate_LoadedEle(cnvobj, x, y, LoadedData)
-	Table = LoadedData.drawnEle
-	if #Table > 0 then
-		local center_x , center_y = (Table[1].end_x - Table[1].start_x)/2+Table[1].start_x, (Table[1].end_y-Table[1].start_y)/2+Table[1].start_y
-			
-		for i=1, #Table do
-			if Table[i].portTable then
-				if #Table[i].portTable >= 0 then
-					for ite=1 , #Table[i].portTable do   --offsetx is distance between ports x coordinate and start_x
-						Table[i].portTable[ite].offsetx = Table[i].start_x - Table[i].portTable[ite].x
-						Table[i].portTable[ite].offsety = Table[i].start_y - Table[i].portTable[ite].y
-					end
-				end
-			end
-		end
-		--manipulating connector
-		for i=1, #cnvobj.connector do
-			for j=1, #cnvobj.connector[i].segments do
-				LoadedData.connector[i].segments[j].start_x = math.floor(LoadedData.connector[i].segments[j].start_x + x - center_x)
-				LoadedData.connector[i].segments[j].start_y = math.floor(LoadedData.connector[i].segments[j].start_y + y - center_y)
-				LoadedData.connector[i].segments[j].end_x = math.floor(LoadedData.connector[i].segments[j].end_x + x - center_x)
-				LoadedData.connector[i].segments[j].end_y = math.floor(LoadedData.connector[i].segments[j].end_y + y - center_y)
-			end
-		end
-		
-		for i=1, #Table do	
-			
-			Table[i].start_x = math.floor(Table[i].start_x + x - center_x)
-			Table[i].start_y = math.floor(Table[i].start_y + y - center_y)
-			
-			Table[i].end_x = math.floor(Table[i].end_x + x - center_x)
-			Table[i].end_y = math.floor(Table[i].end_y + y - center_y)
-			
-			if Table[i].portTable then
-				if #Table[i].portTable >= 0 then
-					for ite=1 , #Table[i].portTable do
-					
-						Table[i].portTable[ite].x = math.floor(Table[i].start_x - Table[i].portTable[ite].offsetx)
-						Table[i].portTable[ite].y = math.floor(Table[i].start_y - Table[i].portTable[ite].offsety)
-
-					end
-				end
-			end
-			
-			
-		end
-		
-	end
-end
-
 -- This is the metatable that contains the API of the library that can be used by the host program
 
 local objFuncs
@@ -123,24 +74,78 @@ objFuncs = {
 		end
 		return tu.t2sr(cnvobj.drawn)
 	end,
-	
-	load = function(cnvobj,str)
+	-- function to load the drawn structures in str and put them in the canvas 
+	-- x and y are the coordinates where the structures will be loaded. If not given x,y will default to the center of the canvas
+	-- if interactive==true then the placed elements will be moving with the mouse pointer and left click will place them
+	load = function(cnvobj,str,x,y,interactive)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return
 		end
-		if cnvobj then
-			cnvobj.drawing = "LOAD"
-			
-			move = false
-			
-
-			cnvobj.loadedEle = tableUtils.s2tr(str)
-
-			if not cnvobj.loadedEle then
-				local msg = "length of string is zero"
-				return msg
+		local tab = tu.s2tr(str)
+		if not tab then return nil,"No data found" end
+		x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
+		y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
+		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
+		if not cnvobj.snapGrid then
+			grdx,grdy = 1,1
+		end
+		-- Now append the data in tab into the cnvobj.drawn structure
+		-- obj array copy
+		local objS = tab.obj
+		local objD = cnvobj.drawn.obj
+		local offx,offy = x-objS[1].start_x,y-objS[1].start_y
+		for i = 1,#objS do
+			objD[#objD + 1] = objS[i]
+			objS[i].id = objD.ids + 1
+			objS[i].start_x = objS[i].start_x + offx
+			objS[i].start_y = objS[i].start_y + offy
+			objS[i].end_x = objS[i].end_x + offx
+			objS[i].end_y = objS[i].end_y + offx
+			objD.ids = objD.ids + 1
+		end
+		
+		-- port array copy
+		local portS = tab.port
+		local portD = cnvobj.drawn.port
+		for i = 1,#portS do
+			portD[#portD + 1] = portS[i]
+			portS[i].id = portD.ids + 1
+			portD.ids = portD.ids + 1
+			portS[i].x = portS[i].x + offx
+			portS[i].y = portS[i].y + offy
+		end
+		
+		-- group array copy
+		local grpS = tab.group
+		local grpD = cnvobj.drawn.group
+		for i = 1,#grpS do
+			grpD[#grpD + 1] = grpS[i]
+		end
+		
+		-- conn array copy
+		local connS = tab.conn
+		local connD = cnvobj.drawn.conn
+		for i = 1,#connS do
+			connD[#connD + 1] = connS[i]
+			connS[i].id = connD.ids + 1
+			connD.ids = connD.ids + 1
+			-- update all segments
+			local segs = connS[i].segments
+			for j = 1,#segs do
+				segs[j].start_x = segs[j].start_x + offx
+				segs[j].start_y = segs[j].start_y + offy
+				segs[j].end_x = segs[j].end_x + offx
+				segs[j].end_y = segs[j].end_y + offy
 			end
-		end	
+			-- Update all junctions
+			local junc = connS[i].junction
+			for j = 1,#junc do
+				junc[j].x = junc[j].x + offx
+				junc[j].y = junc[j].y + offy
+			end
+		end
+		
+		-- Now do the order array copy
 	end,
 
 	erase = function(cnvobj)
@@ -148,7 +153,7 @@ objFuncs = {
 			return
 		end
 		cnvobj.drawn = {
-			obj = {ids=0},		-- See structure in objects.lua
+			obj = {ids=0},		-- array of object structures. See structure in objects.lua
 			group = {},			-- array of arrays containing objects intended to be grouped together
 			port = {ids=0},		-- array of port structures. See structure of port in ports.lua
 			conn = {ids=0},		-- array of connector structures. See structure of connector in connector.lua
@@ -177,86 +182,21 @@ objFuncs = {
 	end,
 
 
-	-------------------MOTION CB
-			-- if load function is called then 
-			if iup.isbutton1(status) and cnvobj.drawing == "LOAD" and move then
-				Manipulate_LoadedEle(cnvobj, x, y, cnvobj.loadedEle)
-				CC.update(cnvobj)
-			end
----------------------------		
-
-			--if load function is called
-			if cnvobj.drawing == "LOAD" then
-				if button == iup.BUTTON1 then
-					if pressed == 1 then
-						move = true
-					else
-						move = false
-						
-						--group previously grouped shapes
-						local total_shapes = #cnvobj.loadedEle.drawnEle
-						
-						for g_i = 1, #cnvobj.loadedEle.group do
-							cnvobj.group[#cnvobj.group + 1] = {}
-							for g_j = 1, #cnvobj.loadedEle.group[g_i] do 
-								cnvobj.group[#cnvobj.group][g_j] = total_shapes + cnvobj.loadedEle.group[g_i][g_j]
-							end
-						end
-
-						--load the connectors
-						local no_of_connector = #cnvobj.loadedEle.connector
-						for i=1, no_of_connector do 
-							cnvobj.connector[#cnvobj.connector+1] = cnvobj.loadedEle.connector[i]
-							cnvobj.connector[#cnvobj.connector].ID = no_of_connector + i
-						end
-						
-					
-						--load all the drawn shapes and port 
-						for i=1, #cnvobj.loadedEle.drawnEle do
-							local index = #cnvobj.drawnObj
-							cnvobj.drawnObj[index+1] = cnvobj.loadedEle.drawnEle[i]
-							cnvobj.drawnObj[index+1].shapeID = index + 1
-
-							--table.insert(tempTable, index+1)
-							--print(#cnvobj.port)
-							if cnvobj.drawnObj[index+1].portTable then
-								for ite = 1, #cnvobj.drawnObj[index+1].portTable do
-									cnvobj.port[#cnvobj.port+1] = cnvobj.drawnObj[index+1].portTable[ite]
-
-									cnvobj.port[#cnvobj.port].portID = #cnvobj.port
-
-									for p_j=1, #cnvobj.port[#cnvobj.port].segmentTable do
-										cnvobj.port[#cnvobj.port].segmentTable[p_j].connectorID = no_of_connector + cnvobj.port[#cnvobj.port].segmentTable[p_j].connectorID
-									end
-									--cnvobj.port[p_ID].segmentTable[portSegTableLen+1].connectorID = #cnvobj.connector
-
-									--cnvobj.port[#cnvobj.port].segmentTable = 
-								end
-							end
-						end
-
-						--cnvobj:groupShapes(tempTable)
-						cnvobj.loadedEle = {}
-						cnvobj.drawing = "STOP"
-					end
-				end
-			end	
-			
 	---- CONNECTORS---------
-	drawConnector = conn.drawConnector,
+	drawConnector = conn.drawConnector,		-- draw connector
 	---- HOOKS--------------
 	addHook = hooks.addHook,
 	removeHook = hooks.removeHook,
 	processHooks = hooks.processHooks,
 	---- PORTS--------------
-	addPort = ports.addPort, 	-- Add a port to a shape
-	removePort = ports.removePort,	-- Remove a port given the portID
+	addPort = ports.addPort, 				-- Add a port to a shape
+	removePort = ports.removePort,			-- Remove a port given the portID
 	getPortFromID = ports.getPortFromID,	-- Get the port structure from the port ID
 	getPortFromXY = ports.getPortFromXY,	-- get the port structure close to x,y
 	---- OBJECTS------------
-	drawObj = objects.drawObj,
-	moveObj = objects.moveObj,
-	groupObjects = objects.groupObjects,
+	drawObj = objects.drawObj,				-- Draw object
+	dragObj = objects.dragObj,				-- drag object/group
+	groupObjects = objects.groupObjects,	
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
 }
