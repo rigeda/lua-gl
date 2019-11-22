@@ -2,6 +2,7 @@
 local pcall = pcall
 local type = type
 local table = table
+local tostring = tostring
 
 local M = {}
 package.loaded[...] = M
@@ -46,7 +47,7 @@ addHook = function(cnvobj,key,func)
 	local hook = {
 		key = key,
 		func = func,
-		id = cnvobj.hook.ids + 1
+		id = "H"..tostring(cnvobj.hook.ids + 1)
 	}
 	local index = #cnvobj.hook
 	cnvobj.hook[index+1] = hook

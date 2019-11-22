@@ -76,7 +76,7 @@ addPort = function(cnvobj,x,y,objID)
 	x = coorc.snapX(x, grdx)
 	y = coorc.snapY(y, grdy)
 	local index = #cnvobj.port + 1
-	local portID = cnvobj.drawn.port.ids + 1
+	local portID = "P"..tostring(cnvobj.drawn.port.ids + 1)
 	cnvobj.drawn.port.ids = cnvobj.drawn.port.ids + 1
 	
 	cnvobj.drawn.port[index] = {

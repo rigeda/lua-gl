@@ -10,6 +10,7 @@ local math = math
 local setmetatable = setmetatable
 local getmetatable = getmetatable
 local tonumber = tonumber
+local tostring = tostring
 
 local objects = require("lua-gl.objects")
 local ports = require("lua-gl.ports")
@@ -63,6 +64,42 @@ end
 
 local objFuncs
 objFuncs = {
+	
+	-- Function to move the list of items (given as a list of their IDs) by moving the all items offx and offy offsets
+	-- if offxx is not a number then the movement is done interactively with a mouse
+	move = function(cnvobj,items,offx,offy)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return nil,"Not a valid lua-gl object"
+		end
+		local interactive
+		if offx and type(offx) ~= "number" then
+			interactive = true
+		elseif not offx or not offy or type(offx) ~= "number" or type(offy) ~= "number" then
+			return nil, "Coordinates not given"
+		end
+		if not interactive then
+			-- Just do a single move
+			-- Compile the list of objects from their item IDs
+			local itemList = {}
+			for i = 1,#items do
+				local it = items[i]:match("(.)%d*")
+				if it == "O" then
+					itemList[i] = cnvobj:getObjFromID(items[i])
+				else
+					itemList[i] = cnvobj:getConn
+			end
+			-- sort items according to their order
+			table.sort(items,function(one,two)
+			end)
+			for i = 1,#items do
+				
+			end
+			
+			return true
+		end
+		-- Setup the interactive move call backs
+		
+	end,
 
 	save = function(cnvobj)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
@@ -96,7 +133,7 @@ objFuncs = {
 		local offx,offy = x-objS[1].start_x,y-objS[1].start_y
 		for i = 1,#objS do
 			objD[#objD + 1] = objS[i]
-			objS[i].id = objD.ids + 1
+			objS[i].id = "O"..tostring(objD.ids + 1)
 			objS[i].start_x = objS[i].start_x + offx
 			objS[i].start_y = objS[i].start_y + offy
 			objS[i].end_x = objS[i].end_x + offx
@@ -109,7 +146,7 @@ objFuncs = {
 		local portD = cnvobj.drawn.port
 		for i = 1,#portS do
 			portD[#portD + 1] = portS[i]
-			portS[i].id = portD.ids + 1
+			portS[i].id = "P"..tostring(portD.ids + 1)
 			portD.ids = portD.ids + 1
 			portS[i].x = portS[i].x + offx
 			portS[i].y = portS[i].y + offy
@@ -127,7 +164,7 @@ objFuncs = {
 		local connD = cnvobj.drawn.conn
 		for i = 1,#connS do
 			connD[#connD + 1] = connS[i]
-			connS[i].id = connD.ids + 1
+			connS[i].id = "C"..tostring(connD.ids + 1)
 			connD.ids = connD.ids + 1
 			-- update all segments
 			local segs = connS[i].segments
@@ -146,6 +183,20 @@ objFuncs = {
 		end
 		
 		-- Now do the order array copy
+		local orderS = tab.order
+		local orderD = cnvobj.drawn.order
+		local curTop = #orderD
+		for i = 1,#orderS do
+			orderD[#orderD+1] = orderS[i]
+			-- Fix the order number on the item
+			orderS[i].item.order = #orderD
+		end
+		
+		-- Everything is loaded now
+		if not interactive then
+			return true
+		end
+		-- Setup the interactive movement here
 	end,
 
 	erase = function(cnvobj)

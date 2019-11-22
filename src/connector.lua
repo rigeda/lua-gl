@@ -3,6 +3,7 @@
 local table = table
 local type = type
 local math = math
+local tonumber = tonumber
 
 local print = print
 
@@ -40,6 +41,24 @@ end
 }
 ]]
 -- The connector structure is located in the array cnvobj.drawn.conn
+
+-- Returns the connector structure given the connector ID
+getConnFromID = function(cnvobj,connID)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return
+	end
+	if not connID or not connID:match("C%d%d*") then
+		return nil,"Need valid connector id"
+	end
+	local conn = cnvobj.drawn.conn
+	for i = 1,#conn do
+		if conn[i].id == connID then
+			return conn[i]
+		end
+	end
+	return nil,"No connector found"
+end
+
 
 -- BFS algorithm implementation
 local BFS
@@ -331,7 +350,7 @@ drawConnector  = function(cnvobj)
 				end	
 			end				
 		end
-		if cnvobj.drawn.conn[cnvobj.op.cIndex].id > cnvobj.drawn.conn.ids then
+		if tonumber(cnvobj.drawn.conn[cnvobj.op.cIndex].id:match("C(%d%d*)")) > cnvobj.drawn.conn.ids then
 			-- New connector was added in this case
 			cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
 			-- Add the connector to be drawn in the order array
@@ -389,7 +408,7 @@ drawConnector  = function(cnvobj)
 			end
 			if found then break end
 		end
-		cnvobj.op.connID = (found and cnvobj.drawn.conn[found].id) or (cnvobj.drawn.conn.ids + 1)
+		cnvobj.op.connID = (found and cnvobj.drawn.conn[found].id) or ("C"..tostring(cnvobj.drawn.conn.ids + 1))
 		cnvobj.op.cIndex = found or #cnvobj.drawn.conn + 1
 		cnvobj.op.end = endConnector
 	end
@@ -423,7 +442,7 @@ drawConnector  = function(cnvobj)
 			local segStart = cnvobj.op.startseg
 			local startX = cnvobj.op.start.x
 			local startY = cnvobj.op.start.y
-			cnvobj.drawn.conn[cIndex] = cnvobj.drawn.conn[cIndex] or {segments = {},id=cnvobj.op.connID,order=#cnvobj.drawn.order+1}
+			cnvobj.drawn.conn[cIndex] = cnvobj.drawn.conn[cIndex] or {segments = {},id=cnvobj.op.connID,order=#cnvobj.drawn.order+1,junction={}}
 			local connector = cnvobj.drawn.conn[cIndex]
 			for i = #connector.segments,segStart,-1 do
 				table.remove(connector.segments,i)

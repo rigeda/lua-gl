@@ -4,6 +4,7 @@ local type = type
 local table = table
 local math = math
 local pairs = pairs
+local tostring = tostring
 
 local RECT = require("lua-gl.rectangle")
 local LINE = require("lua-gl.line")
@@ -49,8 +50,8 @@ getObjFromID = function(cnvobj,objID)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return
 	end
-	if not objID or type(objID) ~= "number" then
-		return nil,"Need valid shapeID"
+	if not objID or not objID:match("O%d%d*") then
+		return nil,"Need valid object id"
 	end
 	local objs = cnvobj.drawn.obj
 	for i = 1,#objs do
@@ -180,7 +181,7 @@ drawObj = function(cnvobj,shape)
 			cnvobj.op.obj = shape
 			cnvobj.op.end = drawEnd
 			local t = {}
-			t.id = #objs.ids + 1
+			t.id = "O"..tostring(objs.ids + 1)
 			t.shape = shape
 			t.start_x = x
 			t.start_y = y
