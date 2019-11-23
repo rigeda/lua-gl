@@ -17,12 +17,15 @@ end
 {
 	key = <string>,			-- string which tells when the hook has to be executed
 	func = <function>,		-- function code for the hook that is executed
-	id = <integer>			-- Unique ID for the hook
+	id = <integer>			-- Unique ID for the hook. Format is H<num> i.e. H followed by a unique number
 }
 ]]
 -- Hooks are located at cnvobj.hook
 
 function processHooks(cnvobj, key, params)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
 	if #cnvobj.hook == 0 then
 		return
 	end
@@ -39,7 +42,7 @@ end
 
 addHook = function(cnvobj,key,func)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	if type(func) ~= "function" then
 		return nil,"Need a function to add as a hook"

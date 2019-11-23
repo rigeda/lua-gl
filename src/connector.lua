@@ -22,7 +22,7 @@ end
 -- The connector structure looks like this:
 --[[
 {
-	id = <integer>,		-- unique ID for the connector
+	id = <integer>,		-- unique ID for the connector. Format is C<num> i.e. C followed by a unique number
 	order = <integer>,	-- Index in the order array
 	segments = {	-- Array of segment structures
 		[i] = {
@@ -45,7 +45,7 @@ end
 -- Returns the connector structure given the connector ID
 getConnFromID = function(cnvobj,connID)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	if not connID or not connID:match("C%d%d*") then
 		return nil,"Need valid connector id"
@@ -233,6 +233,9 @@ end
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
 -- The new segments are added to the end of the segments array passed to it
 function generateSegments(cnvobj, startX,startY,x, y,segments)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
 	local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
 	if not cnvobj.snapGrid then
 		grdx,grdy = 1,1
@@ -301,7 +304,7 @@ end
 
 drawConnector  = function(cnvobj)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	-- Connector drawing methodology
 	-- Connector drawing starts with Event 1. This event may be a mouse event or a keyboard event

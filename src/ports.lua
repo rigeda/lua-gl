@@ -15,7 +15,7 @@ end
 -- The port structure looks like this:
 --[[
 {
-	id = <integer>,		-- Unique identification number for the port
+	id = <integer>,		-- Unique identification number for the port. Format is P<num> i.e. P followed by a unique number
 	conn = <array>,		-- Array of connectors connected to the port
 	obj = <Object>,		-- Pointer to the object structure to which the port is associated with
 	x = x,
@@ -26,7 +26,7 @@ end
 
 getPortFromXY = function(cnvobj, x, y)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	local ports = cnvobj.drawn.port
 	if #ports == 0 then
@@ -44,7 +44,7 @@ end
 
 getPortFromID = function(cnvobj,portID)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	local ports = cnvobj.drawn.port
 	for i = 1,#ports do
@@ -60,7 +60,7 @@ end
 -- Note ports can only be added to shapes
 addPort = function(cnvobj,x,y,objID)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	if not objID or type(objID) ~= "number" or not cnvobj:getObjectFromID(objID) then
 		return nil,"Need valid shapeID"
@@ -94,7 +94,7 @@ end
 
 removePort = function(cnvobj,portID)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	local ports = cnvobj.drawn.port
 	for i = 1,#ports do

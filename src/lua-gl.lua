@@ -15,6 +15,7 @@ local tostring = tostring
 local objects = require("lua-gl.objects")
 local ports = require("lua-gl.ports")
 local conn = require("lua-gl.connector")
+local hooks = require("lua-gl.hooks")
 local tu = require("tableUtils")
 local CC = require("lua-gl.canvas")
 
@@ -28,8 +29,15 @@ end
 
 --- TASKS
 --[[
-
-2. Finish loading of saved structure.
+* Create getConnectorFromXY - return all connectors
+* Modify getObjectFromXY to return all matches
+* Modify getPortFromXY to return all matches
+* Finish moveObj function
+* Modify dragObj to add non interactive mode
+* Modify drawObj to add non interactive mode
+* Modigy drawConn to add non interactive mode
+* Finish loading of saved structure.
+* Update the canvas module with the new data structure methodology
 4. Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.
 10. Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
 11. Connector labeling
@@ -71,6 +79,7 @@ objFuncs = {
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
+		-- Check whether this is an interactive move or not
 		local interactive
 		if offx and type(offx) ~= "number" then
 			interactive = true
@@ -82,17 +91,23 @@ objFuncs = {
 			-- Compile the list of objects from their item IDs
 			local itemList = {}
 			for i = 1,#items do
-				local it = items[i]:match("(.)%d*")
+				local it = items[i]:match("^(.)%d*")
 				if it == "O" then
 					itemList[i] = cnvobj:getObjFromID(items[i])
 				else
-					itemList[i] = cnvobj:getConn
+					itemList[i] = cnvobj:getConnFromID(items[i])
+				end
 			end
 			-- sort items according to their order
-			table.sort(items,function(one,two)
+			table.sort(itemList,function(one,two)
+					return one.order < two.order
 			end)
-			for i = 1,#items do
-				
+			for i = 1,#itemList do
+				local it = itemList[i].id:match("^(.)%d*")
+				if it == "O" then
+					
+				else
+				end
 			end
 			
 			return true
@@ -103,7 +118,7 @@ objFuncs = {
 
 	save = function(cnvobj)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return
+			return nil,"Not a valid lua-gl object"
 		end
 		-- First check if any operation is happenning then end it
 		if cnvobj.op.end and type(cnvobj.op.end) == "function" then
@@ -116,7 +131,7 @@ objFuncs = {
 	-- if interactive==true then the placed elements will be moving with the mouse pointer and left click will place them
 	load = function(cnvobj,str,x,y,interactive)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return
+			return nil,"Not a valid lua-gl object"
 		end
 		local tab = tu.s2tr(str)
 		if not tab then return nil,"No data found" end
@@ -201,7 +216,7 @@ objFuncs = {
 
 	erase = function(cnvobj)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return
+			return nil,"Not a valid lua-gl object"
 		end
 		cnvobj.drawn = {
 			obj = {ids=0},		-- array of object structures. See structure in objects.lua
@@ -235,6 +250,11 @@ objFuncs = {
 
 	---- CONNECTORS---------
 	drawConnector = conn.drawConnector,		-- draw connector
+	dragSegment = conn.dragSegment,
+	moveSegment = conn.moveSegment,
+	moveConn = conn.moveConn,
+	getConnFromID = conn.getConnFromID,
+	getConnFromXY = conn.getConnFromXY,
 	---- HOOKS--------------
 	addHook = hooks.addHook,
 	removeHook = hooks.removeHook,
@@ -246,7 +266,8 @@ objFuncs = {
 	getPortFromXY = ports.getPortFromXY,	-- get the port structure close to x,y
 	---- OBJECTS------------
 	drawObj = objects.drawObj,				-- Draw object
-	dragObj = objects.dragObj,				-- drag object/group
+	dragObj = objects.dragObj,				-- drag object(s)/group(s)
+	moveObj = objects.moveObj,				-- move object(s)
 	groupObjects = objects.groupObjects,	
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,

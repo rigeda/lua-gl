@@ -32,7 +32,7 @@ M.FILLEDELLIPSE = ELLIPSE
 -- The object structure looks like this:
 --[[
 {
-	id = <integer>,			-- Unique identification number for the object
+	id = <integer>,			-- Unique identification number for the object. Format is O<num> i.e. O followed by a unique number
 	shape = <string>,		-- string indicating the type of object. Each object type has its own handler module
 	start_x = <integer>,	-- starting x coordinate of the bounding rectangle
 	start_y = <integer>,	-- starting y coordinate of the bounding rectangle
@@ -48,7 +48,7 @@ M.FILLEDELLIPSE = ELLIPSE
 -- Returns the object structure given the object ID
 getObjFromID = function(cnvobj,objID)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	if not objID or not objID:match("O%d%d*") then
 		return nil,"Need valid object id"
@@ -65,7 +65,7 @@ end
 -- this function take x & y as input and return shapeID if point (x, y) is near to the shape
 getObjFromXY = function(cnvobj,x,y)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	local objs = cnvobj.drawn.obj
 	if #objs == 0 then
@@ -83,7 +83,7 @@ end
 	-- groupShapes used to group Shape using shapeList
 groupObjects = function(cnvobj,objList)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	local objs = cnvobj.drawn.obj
 	if #objs == 0 then
@@ -138,9 +138,54 @@ groupObjects = function(cnvobj,objList)
 	end
 end
 
-drawObj = function(cnvobj,shape)
+-- Function to move a list of objects provided as a id list with the given offset offx,offy
+-- if offx is not a number but evaluates to true then the move is done interactively
+moveObj = function(cnvobj,objIDs,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
+	end
+	-- Check whether this is an interactive move or not
+	local interactive
+	if offx and type(offx) ~= "number" then
+		interactive = true
+	elseif not offx or not offy or type(offx) ~= "number" or type(offy) ~= "number" then
+		return nil, "Coordinates not given"
+	end
+	local grp = {}
+	local grpsDone = {}
+	
+	for i = 1,#objIDs do
+		local obj = cnvobj:getObjFromID(objIDs[i])
+		if obj.group then
+			if not grpsDone[obj.group] then
+				for j = 1,#obj.group do
+					grp[#grp + 1] = obj.group[j]
+				end
+				grpsDone[obj.group] = true
+			end
+		else
+			grp[#grp + 1] = obj
+		end
+	end
+	if #grp == 0 then
+		return nil,"No objects to drag"
+	end
+	
+	if not interactive then
+		for i = 1,#grp do
+			-- Move the object coordinates
+			-- Disconnect any connectors
+			-- Connect ports to any overlapping connector on the port
+		end
+		return true
+	end
+	-- Setup the interactive move operation here
+	
+end
+
+drawObj = function(cnvobj,shape,interactive)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
 	end
 	
 	local oldBCB = cnvobj.cnv.button_cb
@@ -211,25 +256,42 @@ drawObj = function(cnvobj,shape)
 	end    
 end	-- end drawObj function
 
-dragObj = function(cnvobj,objID,refX,refY)
+-- Function to drag objects (dragging implies connector connections are maintained 
+-- objIDs is a list of object ids of the objects to be dragged
+dragObj = function(cnvobj,objIDs,refX,refY,interactive)
 	if not cnvobj or type(cnvobj) ~= "table" then
-		return
+		return nil,"Not a valid lua-gl object"
 	end
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
-	local obj = cnvobj:getObjFromID(objID)
-	if not obj then
-		return
+	local grp = {}
+	local grpsDone = {}
+	for i = 1,#objIDs do
+		local obj = cnvobj:getObjFromID(objIDs[i])
+		if obj.group then
+			if not grpsDone[obj.group] then
+				for j = 1,#obj.group do
+					grp[#grp + 1] = obj.group[j]
+				end
+				grpsDone[obj.group] = true
+			end
+		else
+			grp[#grp + 1] = obj
+		end
 	end
+	if #grp == 0 then
+		return nil,"No objects to drag"
+	end
+	-- Sort the group elements in ascending order ranking
+	table.sort(grp,function(one,two) 
+			return one.order < two.order
+	end)
 	-- Backup the orders of the elements to move and change their orders to display in the front
-	local grp
-	if obj.group then
-		grp = cnvobj.drawn.group[obj.group]
-	else
-		grp = {obj}
-	end
 	local order = cnvobj.drawn.order
-	local oldOrder = grp[1].order	-- smallest order
+	local oldOrder = {}
+	for i = 1,#grp do
+		oldOrder[i] = grp[i].order
+	end
 	table.remove(cnvobj.drawn.order,grp[#grp].order)
 	table.insert(cnvobj.drawn.order,grp[#grp],#cnvobj.drawn.order+1)
 	for i = #grp-1,1,-1 do
@@ -244,9 +306,9 @@ dragObj = function(cnvobj,objID,refX,refY)
 	local function moveEnd()
 		-- End the move at this point
 		-- Reset the orders back
-		for i = #grp,1,-1 do
+		for i = 1,#grp do
 			table.remove(cnvobj.drawn.order,grp[i].order)
-			table.insert(cnvobj.drawn.order,grp[i],cnvobj.op.oldOrder)
+			table.insert(cnvobj.drawn.order,grp[i],oldOrder[i])
 		end
 		-- Update the order number for all items
 		for i = 1,#order do
