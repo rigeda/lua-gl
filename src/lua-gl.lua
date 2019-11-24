@@ -29,13 +29,13 @@ end
 
 --- TASKS
 --[[
-* Create getConnectorFromXY - return all connectors
-* Modify getObjectFromXY to return all matches
-* Modify getPortFromXY to return all matches
 * Finish moveObj function
 * Modify dragObj to add non interactive mode
 * Modify drawObj to add non interactive mode
-* Modigy drawConn to add non interactive mode
+* Modify drawConn to add non interactive mode
+* Finish dragSegment 
+* Finish moveSegment
+* Finish moveConn
 * Finish loading of saved structure.
 * Update the canvas module with the new data structure methodology
 4. Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.

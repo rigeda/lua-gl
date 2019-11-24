@@ -59,6 +59,27 @@ getConnFromID = function(cnvobj,connID)
 	return nil,"No connector found"
 end
 
+getConnFromXY = function(cnvobj,x,y)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	local conns = cnvobj.drawn.conn
+	if #conns == 0 then
+		return {}
+	end
+	local res = math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	local allConns = {}
+	for i = 1,#conns do
+		local segs = conns[i].segments
+		for j = 1,#segs do
+			if coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, x, y, res)  then
+				allConns[#allConns + 1] = conns[i]
+			end
+		end
+	end
+	return allConns
+end
+
 
 -- BFS algorithm implementation
 local BFS

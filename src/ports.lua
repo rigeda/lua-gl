@@ -30,16 +30,17 @@ getPortFromXY = function(cnvobj, x, y)
 	end
 	local ports = cnvobj.drawn.port
 	if #ports == 0 then
-		return nil, "No port found"
+		return {}
 	end
 	local res = math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	local allPorts = {}
 	for i = 1, #ports do
 		if math.abs(ports[i].x - x) <= res and math.abs(cnvobj.port[i].y - y) <= res then
-				return ports[i]
+				allPorts[#allPorts + 1] = ports[i]
 			end
 		end
 	end
-	return nil, "No port found"
+	return allPorts
 end
 
 getPortFromID = function(cnvobj,portID)
@@ -54,10 +55,10 @@ getPortFromID = function(cnvobj,portID)
 	end
 end
 
--- Add a port to a shape
+-- Add a port to an object
 -- A port is defined as a stick point for a connector. Any connector that passes over a point occupied by a port will get connected to it.
 -- Subsequent movement of the port or connector will try to maintain the port connections
--- Note ports can only be added to shapes
+-- Note ports can only be added to object and a port can only be associated with 1 object
 addPort = function(cnvobj,x,y,objID)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"

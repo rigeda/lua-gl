@@ -69,18 +69,19 @@ getObjFromXY = function(cnvobj,x,y)
 	end
 	local objs = cnvobj.drawn.obj
 	if #objs == 0 then
-		return nil, "No object found"
+		return {}
 	end
 	local res = math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	local allObjs = {}
 	for i = 1,#objs do
-		if _ENV[objs[i].shape].checkXY(x,y,res) then
-			return objs[i]
+		if M[objs[i].shape].checkXY(x,y,res) then
+			allObjs[#allObjs + 1] = objs[i]
 		end
 	end
-	return nil, "No object found"
+	return allObjs
 end
 
-	-- groupShapes used to group Shape using shapeList
+-- Function to group a bunch of objects listed in objList
 groupObjects = function(cnvobj,objList)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -138,9 +139,10 @@ groupObjects = function(cnvobj,objList)
 	end
 end
 
--- Function to move a list of objects provided as a id list with the given offset offx,offy
+-- Function to move a list of objects provided as a id list with the given offset offx,offy which are added to the coordinates
 -- if offx is not a number but evaluates to true then the move is done interactively
-moveObj = function(cnvobj,objIDs,offx,offy)
+-- objList is a list of object structures of the objects to be dragged
+moveObj = function(cnvobj,objList,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -154,8 +156,9 @@ moveObj = function(cnvobj,objIDs,offx,offy)
 	local grp = {}
 	local grpsDone = {}
 	
-	for i = 1,#objIDs do
-		local obj = cnvobj:getObjFromID(objIDs[i])
+	-- Combile a list of objects by adding objects in the same group as the given objects
+	for i = 1,#objList do
+		local obj = objList[i]
 		if obj.group then
 			if not grpsDone[obj.group] then
 				for j = 1,#obj.group do
@@ -168,19 +171,68 @@ moveObj = function(cnvobj,objIDs,offx,offy)
 		end
 	end
 	if #grp == 0 then
-		return nil,"No objects to drag"
+		return nil,"No objects to move"
 	end
 	
 	if not interactive then
+		-- Take care of grid snapping
+		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
+		if not cnvobj.snapGrid then
+			grdx,grdy = 1,1
+		end
+		offx = coorc.snapX(offx, grdx)
+		offy = coorc.snapY(offy, grdy)
 		for i = 1,#grp do
-			-- Move the object coordinates
-			-- Disconnect any connectors
-			-- Connect ports to any overlapping connector on the port
+			-- Move the object coordinates with their port coordinates
+			grp[i].start_x = grp[i].start_x + offx
+			grp[i].start_y = grp[i].start_y + offy
+			grp[i].end_x = grp[i].end_x + offx
+			grp[i].end_y = grp[i].end_y + offy
+			for j = 1,#grp[i].port do
+				grp[i].port[j].x = grp[i].port[j].x + offx
+				grp[i].port[j].y = grp[i].port[j].y + offy
+				-- Disconnect any connectors
+				-- Connect ports to any overlapping connector on the port
+				grp[i].port[j].conn = cnvobj:getConnFromXY(grp[i].port[j].x,grp[i].port[j].y)
+			end
 		end
 		return true
 	end
 	-- Setup the interactive move operation here
+	local oldMCB = cnvobj.cnv.motion_cb
+	local oldBCB = cnvobj.cnv.button_cb
 	
+	local function moveEnd()
+		tu.emptyTable(cnvobj.op)
+		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.cnv.button_cb = oldBCB
+		cnvobj.cnv.motion_cb = oldMCB				
+	end
+	
+	cnvobj.op.mode = "MOVEOBJ"	-- Set the mode to drawing object
+	cnvobj.op.end = moveEnd
+	
+	-- button_CB to handle interactive move ending
+	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+		y = cnvobj.height - y
+		-- Check if any hooks need to be processed here
+		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
+		if button == iup.BUTTON1 and pressed == 1 then
+			-- End the move
+			moveEnd()
+		end
+		-- Process any hooks 
+		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,xo,yo,status})
+	end
+	
+	function cnvobj.cnv:motion_cb(x,y,status)
+		y = cnvobj.height - y
+		for i = 1,#grp do
+			-- Move the object coordinates with their port coordinates
+		end
+	end
+	
+	return true
 end
 
 drawObj = function(cnvobj,shape,interactive)
@@ -257,17 +309,27 @@ drawObj = function(cnvobj,shape,interactive)
 end	-- end drawObj function
 
 -- Function to drag objects (dragging implies connector connections are maintained 
--- objIDs is a list of object ids of the objects to be dragged
-dragObj = function(cnvobj,objIDs,refX,refY,interactive)
+-- objList is a list of object structures of the objects to be dragged
+dragObj = function(cnvobj,objList,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	-- Check whether this is an interactive move or not
+	local interactive
+	if offx and type(offx) ~= "number" then
+		interactive = true
+	elseif not offx or not offy or type(offx) ~= "number" or type(offy) ~= "number" then
+		return nil, "Coordinates not given"
+	end
+	-- Set refX,refY as the mouse coordinate on the canvas
+	
+	local refX,refY
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	local grp = {}
 	local grpsDone = {}
-	for i = 1,#objIDs do
-		local obj = cnvobj:getObjFromID(objIDs[i])
+	for i = 1,#objList do
+		local obj = objList[i]
 		if obj.group then
 			if not grpsDone[obj.group] then
 				for j = 1,#obj.group do
@@ -378,7 +440,7 @@ dragObj = function(cnvobj,objIDs,refX,refY,interactive)
 	end		-- for i (group) ends here
 	
 		
-	cnvobj.op.mode = "MOVEOBJ"
+	cnvobj.op.mode = "DRAGOBJ"
 	cnvobj.op.grp = grp
 	cnvobj.op.oldOrder = oldOrder
 	cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
