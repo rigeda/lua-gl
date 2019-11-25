@@ -323,10 +323,56 @@ function generateSegments(cnvobj, startX,startY,x, y,segments)
 	return true
 end
 
-drawConnector  = function(cnvobj)
+-- Function to draw a connector on the canvas
+-- if segs is a table of segment coordinates then this will be a non interactive draw
+drawConnector  = function(cnvobj,segs)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	-- Check whether this is an interactive move or not
+	local interactive
+	if type(segs) ~= "table" then
+		interactive = true
+	end
+	
+	if not interactive then
+		-- Check segs validity
+		--[[
+		segments = {	-- Array of segment structures
+			[i] = {
+				start_x = <integer>,		-- starting coordinate x of the segment
+				start_y = <integer>,		-- starting coordinate y of the segment
+				end_x = <integer>,			-- ending coordinate x of the segment
+				end_y = <integer>			-- ending coordinate y of the segment
+			}
+		},
+		]]
+		local conn = cnvobj.drawn.conn
+		local shorted = {}
+		for i = 1,#segs do
+			if type(segs[i]) ~= "table" then
+				return nil,"Invalid segments table given"
+			end
+			if not segs[i].start_x or type(segs[i].start_x) ~= "number" then
+				return nil,"Invalid or missing coordinate."
+			end
+			if not segs[i].start_y or type(segs[i].start_y) ~= "number" then
+				return nil,"Invalid or missing coordinate."
+			end
+			if not segs[i].end_x or type(segs[i].end_x) ~= "number" then
+				return nil,"Invalid or missing coordinate."
+			end
+			if not segs[i].end_y or type(segs[i].end_y) ~= "number" then
+				return nil,"Invalid or missing coordinate."
+			end
+			-- This segment is valid. Check if this shorts to any other connector
+			for j = 1,#conn do
+				for k =
+			end
+		end
+	end
+	-- Setup interactive drawing
+	
 	-- Connector drawing methodology
 	-- Connector drawing starts with Event 1. This event may be a mouse event or a keyboard event
 	-- Connector waypoint is set with Event 2. This event may be a mouse event or a keyboard event. The waypoint freezes the connector route up till that point

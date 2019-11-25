@@ -29,7 +29,6 @@ end
 
 --- TASKS
 --[[
-* Finish moveObj function
 * Modify drawConn to add non interactive mode
 * Finish dragSegment 
 * Finish moveSegment
