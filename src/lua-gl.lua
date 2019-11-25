@@ -30,43 +30,24 @@ end
 --- TASKS
 --[[
 * Finish moveObj function
-* Modify dragObj to add non interactive mode
-* Modify drawObj to add non interactive mode
 * Modify drawConn to add non interactive mode
 * Finish dragSegment 
 * Finish moveSegment
 * Finish moveConn
 * Finish loading of saved structure.
 * Update the canvas module with the new data structure methodology
-4. Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.
-10. Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
+* Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.
+* Add Text functionality
+* Add ARC functionality
+* Canvas scroll, zoom, pan
+* Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
 11. Connector labeling
 12. Have to add export/print
 
 ]]
 
 
--- this function is used to manipulate active Element table data
--- cnvobj is the canvas object
--- x is the x coordinate of the mouse pointer
--- y is the y coordinate of the mouse pointer
--- Table is the active elements table
--- Structure of active elements table:
---[[
-[i] = {
-	portTable = {	-- table containing ports information
-		[j] = {
-			offsetx
-			offsety
-			x
-			y
-		}
-	},
-	start_x
-	start_y
-}
 
-]]
 
 -- This is the metatable that contains the API of the library that can be used by the host program
 
