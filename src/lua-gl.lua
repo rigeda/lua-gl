@@ -30,14 +30,19 @@ end
 --- TASKS
 --[[
 * Modify drawConn to add non interactive mode
+* Check object dragging to make sure connector structure is kept updated on what ports it connects to
 * Finish dragSegment 
 * Finish moveSegment
 * Finish moveConn
+* Finish removeConn
+* Finish removeObj
 * Finish loading of saved structure.
 * Update the canvas module with the new data structure methodology
 * Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.
+	* Avoid going through junctions
+	* Ports on the edge of blocking rectangles should be connectable
 * Add Text functionality
-* Add ARC functionality
+* Add arc functionality
 * Canvas scroll, zoom, pan
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
 11. Connector labeling
