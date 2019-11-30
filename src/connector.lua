@@ -256,7 +256,6 @@ local function findMatrix(cnvobj)
     return matrix
 end
 
-
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
 -- The new segments are added to the end of the segments array passed to it
 function generateSegments(cnvobj, startX,startY,x, y,segments)
@@ -329,6 +328,354 @@ function generateSegments(cnvobj, startX,startY,x, y,segments)
 	return true
 end
 
+-- Function to check whether other connectors exist in the given coordinates (coor) then they are all merged
+-- Structure of coor is as follows:
+--[[
+{		-- Array of coordinates
+	<i>	= {
+		x = <integer>,		-- x coordinate
+		y = <integer>		-- y coordinate
+	}
+}
+]]
+checkAndMergeConnectors = function(coor)
+	-- Get all the connectors on the given coor
+	local allConns,segs 
+	local allSegs = {}
+	local isJunc = {}
+	for i = 1,#coor do
+		allConns,segs = = getConnFromXY(coor[i].x,coor[i].y,0)	-- 0 resolution check
+		if #segs > 1 then
+			-- More than 1 connector at this coordinate so this has to be a junction
+			isJunc[#isJunc + 1] = true
+		end
+		-- merge segs with allSegs skipping duplicates
+		tu.mergeArrays(segs,allSegs,false,function(v1,v2)
+				return v1.conn == v2.conn and v1.seg==v2.seg 
+			end)
+	end
+	-- Now we need to see whether we need to split a segment and which new junctions to create
+	local jstart,jend	-- booleans to indicate which of start and end or both of this new connector are junctions to be added in the merged connector
+		-- Conectors need to be merged
+		if #segs > 1 then	-- At least 1 connector which is drawn just now should be returned
+			jstop = true	-- junction needs to be created at the ending point
+			-- lets split the segments in the connectors where the start points appear
+			segTable = conn.segments
+			local X,Y = segTable[#segTable].end_x,segTable[#segTable].end_y	-- The ending point of the new drawn connector can be on another connectors
+			for i = 1,#segs do
+				local segTable = cnvobj.drawn.conn[segs[i].conn].segments
+				local j = segs[i].seg	-- Contains the segment number where the point X,Y lies
+				-- Check whether any of the end points match X1,Y1
+				if not(segTable[j].start_x == X and segTable[j].start_y == Y or segTable[j].end_x == X and segTable[j].end_y == Y) then 
+					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+					table.insert(segTable,j+1,{
+						start_x = X,
+						start_y = Y,
+						end_x = segTable[j].end_x,
+						end_y = segTable[j].end_y
+					})
+					segTable[j].end_x = X
+					segTable[j].end_y = Y
+				end
+			end
+		end
+		if #cnvobj.op.merge > 0 then
+			jstart = true	-- junction needs to be created at the starting point
+			-- lets split the segments in the connectors where the start points appear
+			segTable = conn.segments
+			local X,Y = segTable[1].start_x,segTable[1].start_y	-- The starting point of the new drawn connector can be on another connectors
+			local segs = cnvobj.op.merge
+			for i = 1,#segs do
+				local segTable = cnvobj.drawn.conn[segs[i].conn].segments
+				local j = segs[i].seg	-- Contains the segment number where the point X,Y lies
+				-- Check whether any of the end points match X1,Y1
+				if not(segTable[j].start_x == X and segTable[j].start_y == Y or segTable[j].end_x == X and segTable[j].end_y == Y) then 
+					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+					table.insert(segTable,j+1,{
+						start_x = X,
+						start_y = Y,
+						end_x = segTable[j].end_x,
+						end_y = segTable[j].end_y
+					})
+					segTable[j].end_x = X
+					segTable[j].end_y = Y
+				end
+			end
+		end
+		-- Now merge all the connectors
+		-- Compile all the connector indexes
+		local connIndex = {}
+		for i = 1,#cnvobj.op.merge do
+			connIndex[#connIndex + 1] = cnvobj.op.merge[i].conn
+		end
+		for i = 1,#segs do
+			connIndex[#connIndex + 1] = segs[i].conn
+		end
+		-- Sort connector index to be descending
+		table.sort(connIndex,function(one,two)
+				one > two	-- Sort descending order of the indexes
+			end)
+		local connM = cnvobj.drawn.conn[connIndex[1]]	-- Master connector where everything will end up
+		local conns = cnvobj.drawn.conn					-- All connectors structure
+		local maxOrder = connM.order
+		for i = 2,#connIndex do
+			if connIndex[i] ~= connIndex[i-1] then
+				if conns[connIndex].order > maxOrder then
+					maxOrder = conns[connIndex].order
+				end
+				-- Copy the segments over
+				local segTableD = connM.segments
+				local segTableS = conns[connIndex].segments
+				for i = 1,#segTableS do
+					segTableD[#segTableD + 1] = segTableS[i]
+				end
+				-- Copy and update the ports
+				local portD = connM.port
+				local portS = conns[connIndex].port
+				for i = 1,#portS do
+					-- Check if this port already exists
+					local found
+					for j = 1,#portD do
+						if portS[i] == portD[j] then
+							found = true
+							break
+						end
+					end
+					if not found then
+						portD[#portD + 1] = portS[i]
+						-- Update the port to refer to the connM connector
+						portS[i].conn[#portS[i].conn + 1] = connM
+					end
+				end
+				-- Copy the junctions
+				local juncD = connM.junction
+				local juncS = conns[connIndex].junction
+				for i = 1,#juncS do
+					-- Check if this junction already exists
+					local found
+					for j = 1,#juncD do
+						if juncS[i].x == juncD[j].x and juncS[i].y == juncD[j].y then
+							found = true
+							break
+						end
+					end
+					if not found then
+						juncD[#juncD + 1] = juncS[i]
+					end
+				end
+			end		-- if connIndex[i] ~= connIndex[i-1] then ends
+		end
+		-- Set the order to the highest
+		connM.order = maxOrder
+		-- We should delete all the connectors
+		for i = 2,#connIndex do		-- 1st index is where all the connectors were merged
+			if connIndex[i] ~= connIndex[i-1] then	-- Condition to take care of repetitions
+				table.remove(conns,i)
+			end
+		end
+		-- Add a junctions if required for jstart and jstop
+		local juncD = connM.junction
+		segTable = conn.segments
+		if jstart then
+			local X,Y = segTable[1].start_x,segTable[1].start_y	-- The starting point of the new drawn connector can be on another connectors
+			local found
+			for i = 1,#juncD do
+				if juncD[i].x == X and juncD[i].y == Y then
+					found = true
+					break
+				end
+			end
+			if not found then
+				juncD[#juncD + 1] = {x=X,y=Y}
+			end
+		end			
+		if jend then
+			local X,Y = segTable[#segTable].end_x,segTable[#segTable].end_y	-- The ending point of the new drawn connector can be on another connectors
+			local found
+			for i = 1,#juncD do
+				if juncD[i].x == X and juncD[i].y == Y then
+					found = true
+					break
+				end
+			end
+			if not found then
+				juncD[#juncD + 1] = {x=X,y=Y}
+			end				
+		end
+
+end
+
+local function checkAndAddPorts(X,Y,conn)
+	local allPorts = cnvobj:getPortFromXY(X,Y)
+	for j = 1,#allPorts do
+		local found
+		for k = 1,#allPorts[j].conn do
+			if allPorts[j].conn[k] == conn then
+				found = true
+				break
+			end
+		end
+		if not found then
+			-- Add the connector to the port
+			allPorts[j].conn[#allPorts[j].conn + 1] = conn
+			-- Add the port to the connector
+			conn.port[#conn.port + 1] = allPorts[j]
+		end
+	end
+end
+	
+-- Function to drag a list of segments (dragging implies connector connections are maintained)
+-- segList is a list of structures like this:
+--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}
+]]
+dragSegment = function(cnvobj,segList,offx,offy)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	-- Check whether this is an interactive move or not
+	local interactive
+	if not offx or type(offx) ~= "number" then
+		interactive = true
+	elseif not offy or type(offy) ~= "number" then
+		return nil, "Coordinates not given"
+	end
+	
+	if not interactive then
+		-- Take care of grid snapping
+		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
+		if not cnvobj.snapGrid then
+			grdx,grdy = 1,1
+		end
+		offx = coorc.snapX(offx, grdx)
+		offy = coorc.snapY(offy, grdy)
+		
+		return true
+	end
+	
+	-- Setup the interactive move operation here
+	-- Set refX,refY as the mouse coordinate on the canvas
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+	local refX,refY = gx-sx,gy-sy
+	local oldBCB = cnvobj.cnv.button_cb
+	local oldMCB = cnvobj.cnv.motion_cb
+	
+	local function dragEnd()
+		-- Check whether after drag the ends of the dragged segment are touching other connectors or ports then those get connected to the segment
+		-- First step is to check the end points of the dragged segment and check if they are on a port
+		for i = 1,#segList do
+			local X,Y = cnvobj.op.oldSegs[i][segList[i].seg].start_x+cnvobj.op.offx,cnvobj.op.oldSegs[i][segList[i].seg].start_y+cnvobj.op.offy
+			-- Check whether after drag X and Y are on a port
+			checkAndAddPorts(X,Y,segList[i].conn)
+			-- Check if X,Y are on a connector
+			X,Y = cnvobj.op.oldSegs[i][segList[i].seg].end_x+cnvobj.op.offx,cnvobj.op.oldSegs[i][segList[i].seg].end_y+cnvobj.op.offy
+			checkAndAddPorts(X,Y,segList[i].conn)
+			
+			local allConns,segs = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
+			for k = 1,#allConns do
+				-- Check if this connector is already connected to the port
+				local found
+				for l = 1,#conn do
+					if conn[l] == allConns[k] then
+						found = true
+						break
+					end
+				end
+				if not found then
+					-- Add the connector to the port structure
+					conn[#conn + 1] = allConns[k]
+					-- Add the port to the connector structure
+					allConns[k].port[#allConns[k].port + 1] = conn[#conn]
+				end
+			end
+			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+			-- If there is no connector then now there is a new connector (with no segments of course) between the 2 ports
+		end
+		
+		-- Reset mode
+		tu.emptyTable(cnvobj.op)
+		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.cnv.button_cb = oldBCB
+		cnvobj.cnv.motion_cb = oldMCB
+	end
+	
+	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
+	table.sort(segList,function(one,two)
+			if one.conn.id == two.conn.id then
+				-- this is the same connector
+				return one.seg > two.seg	-- sort with descending segment index
+			else
+				return one.conn.id > two.conn.id
+			end
+		end)
+	
+	cnvobj.op.mode = "DRAGSEG"
+	cnvobj.op.segList = segList
+	cnvobj.op.coor1 = {x=segList[1].conn.segments[segList[1].seg].start_x,y=segList[1].conn.segments[segList[1].seg].start_y}
+	cnvobj.op.end = dragEnd
+	cnvobj.op.oldSegs = {}
+	for i = 1,#segList do
+		cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{},true)	-- Copy the entire segments table by duplicating it value by value
+	end
+	
+	-- button_CB to handle segment dragging
+	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+		y = cnvobj.height - y
+		-- Check if any hooks need to be processed here
+		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
+		if button == iup.BUTTON1 and pressed == 1 then
+			dragEnd()
+		end
+		-- Process any hooks 
+		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})	
+	end
+
+	-- motion_cb to handle segment dragging
+	function cnvobj.cnv:motion_cb(x,y,status)
+		y = cnvobj.height - y
+		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
+		if not cnvobj.snapGrid then
+			grdx,grdy = 1,1
+		end
+		x = coorc.snapX(x, grdx)
+		y = coorc.snapY(y, grdy)
+		local offx,offy = x-refX,y-refY
+		cnvobj.op.offx = offx
+		cnvobj.op.offy = offy
+
+		-- Now shift the segments and redo the connectors
+		for i = 1,#segList do
+			-- First copy the old segments to the connector
+			segList[i].conn.segments = {}
+			tu.copyTable(cnvobj.op.oldSegs[i],segList[i].conn.segments,true)	-- Copy the eniter oldSegs[i] table back to the connector segments
+			local seg = segList[i].conn.segments[segList[i].seg]
+			-- route connector from previous start_x to the new start_x
+			local newSegs = {}
+			generateSegments(cnvobj,seg.end_x,seg.end_y,seg.end_x+offx,seg.end_y+offy,newSegs)
+			-- Add these segments before this current segment
+			for j = #newSegs,1,-1 do
+				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg+1)
+			end
+			newSegs = {}
+			generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs)
+			for j = #newSegs,1,-1 do
+				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg)
+			end
+			-- Move the segment
+			seg.start_x = seg.start_x + offx
+			seg.start_y = seg.start_y + offy
+			seg.end_x = seg.end_x + offx
+			seg.end_y = seg.end_y + offy
+		end
+	end
+	
+	return true
+end
+
 -- Function to draw a connector on the canvas
 -- if segs is a table of segment coordinates then this will be a non interactive draw
 drawConnector  = function(cnvobj,segs)
@@ -353,13 +700,15 @@ drawConnector  = function(cnvobj,segs)
 			}
 		},
 		]]
+		-- Take care of grid snapping
+		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
+		if not cnvobj.snapGrid then
+			grdx,grdy = 1,1
+		end
 		local conn = cnvobj.drawn.conn
 		local shorted = {}		-- To store all connector information which get shorted to this new connector whose segments are given in segs
 		local junc = {}			-- To store all new created junctions
 		for i = 1,#segs do
-			if type(segs[i]) ~= "table" then
-				return nil,"Invalid segments table given"
-			end
 			if not segs[i].start_x or type(segs[i].start_x) ~= "number" then
 				return nil,"Invalid or missing coordinate."
 			end
@@ -372,8 +721,43 @@ drawConnector  = function(cnvobj,segs)
 			if not segs[i].end_y or type(segs[i].end_y) ~= "number" then
 				return nil,"Invalid or missing coordinate."
 			end
+			segs[i].start_x = coorc.snapX(segs[i].start_x, grdx)
+			segs[i].start_y = coorc.snapY(segs[i].start_y, grdy)
+			segs[i].end_x = coorc.snapX(segs[i].end_x, grdx)
+			segs[i].end_y = coorc.snapY(segs[i].end_y, grdy)
+			local jcst,jcen=0,0	-- counters to count how many connectors does the start point of the i th segment connects to (jcst) and how many connectors does the end point of the i th segment connects to (jcen)
+			for j = 1,#segs do
+				if j ~= i then
+					-- the end points of the ith segment should not lie anywhere on the jth segment except its ends
+					local ep
+					if segs[i].start_x == segs[j].start_x and segs[i].start_y == segs[j].start_y then
+						jcst = jcst + 1
+						ep = true
+					elseif segs[i].start_x == segs[j].end_x and segs[i].start_y == segs[j].end_y then
+						jcst = jcst + 1
+						ep = true
+					elseif segs[i].end_x == segs[j].end_x and segs[i].end_y == segs[j].end_y then
+						jcen = jcen + 1
+						ep = true
+					elseifif segs[i].end_x == segs[j].start_x and segs[i].end_y == segs[j].start_y then
+						jcen = jcen + 1
+						ep = true
+					end
+					if not ep and (coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].start_x, segs[i].start_y, 0)  
+					  or coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].end_x, segs[i].end_y, 0)) then
+						return nil, "The end point of a segment touches a mid point of another segment."
+					end
+				end
+			end
+			if jcst > 1 then
+				junc[#junc + 1] = {x=segs[i].start_x,y=segs[i].start_y}
+			end
+			if jcen > 1 then
+				junc[#junc + 1] = {x=segs[i].end_x,y=segs[i].end_y}
+			end
 			-- This segment is valid. Check if this shorts to any other connector
 			local allConns,segsI
+			-- Check the segment starting point
 			local X,Y = segs[i].start_x,segs[i].start_y
 			allConns,segsI = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
 			if #allConns > 0 then
@@ -385,7 +769,7 @@ drawConnector  = function(cnvobj,segs)
 					local segTable = allConns[j].segments
 					local k = segsI[j].seg
 					-- check whether we need to split a segment and which new junctions to create
-					if not(segTable[k].start_x == X and segTable[k].start_y == Y ) then 
+					if not((segTable[k].start_x == X and segTable[k].start_y == Y) or (segTable[k].end_x == X and segTable[k].end_y == Y) ) then 
 						-- The point X,Y lies somewhere on this segment in between so split the segment into 2
 						table.insert(segTable,k+1,{
 							start_x = X,
@@ -399,6 +783,7 @@ drawConnector  = function(cnvobj,segs)
 					shorted[#shorted + 1] = segsI[j]
 				end
 			end			-- if segs[i].start_? coordinates lie on any connector ends
+			-- Check the segment ending point
 			X,Y = segs[i].end_x,segs[i].end_y
 			allConns,segsI = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
 			if #allConns > 0 then
@@ -410,7 +795,7 @@ drawConnector  = function(cnvobj,segs)
 					local segTable = allConns[j].segments
 					local k = segsI[j].seg
 					-- check whether we need to split a segment and which new junctions to create
-					if not(segTable[k].end_x == X and segTable[k].end_y == Y ) then 
+					if not((segTable[k].start_x == X and segTable[k].start_y == Y) or (segTable[k].end_x == X and segTable[k].end_y == Y) ) then 
 						-- The point X,Y lies somewhere on this segment in between so split the segment into 2
 						table.insert(segTable,k+1,{
 							start_x = X,
@@ -427,59 +812,73 @@ drawConnector  = function(cnvobj,segs)
 		end	-- for i segs ends here
 		-- Merge all the connectors in shorted, splitting is already done and junctions are already there
 		if #shorted > 0 then
+			-- Sort sorted with decreasing index
+			table.sort(shorted,function(one,two)
+					one.conn > two.conn
+				end)
 			local connM = cnvobj.drawn.conn[shorted[1].conn]	-- Master connector where everything will end up
-			local segTableD = connM.segments
+			local segTableD = connM.segments					-- Destination segments table
+			local portD = connM.port
+			local juncD = connM.junction
 			local conns = cnvobj.drawn.conn						-- All connectors structure
 			local maxOrder = connM.order
 			for i = 2,#shorted do
-				if conns[shorted[i].conn].order > maxOrder then
-					maxOrder = conns[shorted[i].conn].order
-				end
-				-- Copy the segments over
-				local segTableS = conns[shorted[i].conn].segments
-				for i = 1,#segTableS do
-					segTableD[#segTableD + 1] = segTableS[i]
-				end
-				-- Copy and update the ports
-				local portD = connM.port
-				local portS = conns[shorted[i].conn].port
-				for i = 1,#portS do
-					-- Check if this port already exists
-					local found
-					for j = 1,#portD do
-						if portS[i] == portD[j] then
-							found = true
-							break
+				if shorted[i].conn ~= shorted[i-1].conn then
+					if conns[shorted[i].conn].order > maxOrder then
+						maxOrder = conns[shorted[i].conn].order
+					end
+					-- Copy the segments over
+					local segTableS = conns[shorted[i].conn].segments
+					for i = 1,#segTableS do
+						segTableD[#segTableD + 1] = segTableS[i]
+					end
+					-- Copy and update the ports
+					local portS = conns[shorted[i].conn].port
+					for i = 1,#portS do
+						-- Check if this port already exists
+						local found
+						for j = 1,#portD do
+							if portS[i] == portD[j] then
+								found = true
+								break
+							end
+						end
+						if not found then
+							portD[#portD + 1] = portS[i]
+							-- Update the port to refer to the connM connector
+							portS[i].conn[#portS[i].conn + 1] = connM
 						end
 					end
-					if not found then
-						portD[#portD + 1] = portS[i]
-						-- Update the port to refer to the connM connector
-						portS[i].conn[#portS[i].conn + 1] = connM
-					end
-				end
-				-- Copy the junctions
-				local juncD = connM.junction
-				local juncS = conns[shorted[i].conn].junction
-				for i = 1,#juncS do
-					-- Check if this junction already exists
-					local found
-					for j = 1,#juncD do
-						if juncS[i].x == juncD[j].x and juncS[i].y == juncD[j].y then
-							found = true
-							break
+					-- Copy the junctions
+					local juncS = conns[shorted[i].conn].junction
+					for i = 1,#juncS do
+						-- Check if this junction already exists
+						local found
+						for j = 1,#juncD do
+							if juncS[i].x == juncD[j].x and juncS[i].y == juncD[j].y then
+								found = true
+								break
+							end
+						end
+						if not found then
+							juncD[#juncD + 1] = juncS[i]
 						end
 					end
-					if not found then
-						juncD[#juncD + 1] = juncS[i]
-					end
-				end
+				end		-- if shorted[i].conn ~= shorted[i-1].conn then ends
 			end		-- for i = 2,#shorted do ends here
+			-- Delete all the connectors that were merged
+			for i = 2,#shorted do
+				if shorted[i].conn ~= shorted[i-1].conn then
+					table.remove(conns,shorted[i].conn)
+				end
+			end
 			-- Now add segments in segs after checking overlapping segments and merging them
 			for i = 1,#segs do
+				-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
 				local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
 				local overlap,mergedSegment
 				for j = 1,#segTableD do
+					-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
 					local x3,y3,x4,y4 = segTableD[j].start_x,segTableD[j].start_y,segTableD[j].end_x,segTableD[j].end_y
 					-- Check whether the 2 line segments have the same line equation
 					local sameeqn 
@@ -493,71 +892,112 @@ drawConnector  = function(cnvobj,segs)
 						end
 					end
 					if sameeqn then
-						overlap = j
-						-- There are 12 overlapping cases
+						overlap = j		-- Assume they overlap
+						-- There are 8 overlapping cases and 4 non overlapping cases
+						--[[
+						1.
+									A-----------B
+						C------D	
+						2.
+							A-----------B
+						C------D	
+						3.
+						  A-----------B
+							C------D	
+						4.
+						  A-----------B
+								  C------D	
+						5.
+							A-----------B
+											C------D	
+						6.
+						  C-----------D
+							A------B	
+						7.
+									A-----------B
+						D------C	
+						8.
+							A-----------B
+						D------C	
+						9.
+						  A-----------B
+							D------C	
+						10.
+						  A-----------B
+								  D------C	
+						11.
+							A-----------B
+											D------C
+						12.
+						  D-----------C
+							A------B	
+						
+						]]
 						if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
-							-- C lies on AB
+							-- C lies on AB - Cases 3,4,8,9
 							if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-								-- D lies on AB
+								-- D lies on AB - Cases 3 and 9
 								-- AB is the merged segment
 								mergedSegment = segs[i]
 								break
 							else
-								-- C lies on AB but not D
+								-- C lies on AB but not D- Cases 4 and 8
 								if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
-									-- B lies on AD
+									-- B lies on AD - Case 4
 									-- AD is the merged segment
 									mergedSegment = {
-										start_x = segs[i].start_x,
-										start_y = segs[i].start_y,
-										end_x = segTableD[j].end_x,
-										end_y = segTableD[j].end_y
+										start_x = x1,
+										start_y = y1,
+										end_x = x4,
+										end_y = y4
 									}
 									break
 								else
-									-- B does not lie on AD that means BD is the merged segment
+									-- B does not lie on AD - Case 8
+									-- BD is the merged segment
 									mergedSegment = {
-										start_x = segs[i].end_x,
-										start_y = segs[i].end_y,
-										end_x = segTableD[j].end_x,
-										end_y = segTableD[j].end_y
+										start_x = x2,
+										start_y = y2,
+										end_x = x4,
+										end_y = y4
 									}
 									break
 								end
 							end									
 						else
-							-- C does not lie on AB
+							-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
 							if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-								-- D lies on AB
+								-- D lies on AB - Cases 2 and 10
 								if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
-									-- B lies on AC
+									-- B lies on AC	-- Case 10
 									-- AC is the merged segment
 									mergedSegment = {
-										start_x = segs[i].start_x,
-										start_y = segs[i].start_y,
-										end_x = segTableD[j].start_x,
-										end_y = segTableD[j].start_y
+										start_x = x1,
+										start_y = y1,
+										end_x = x3,
+										end_y = y3
 									}
 									break
 								else
-									-- B does not lie on AC
+									-- B does not lie on AC	- Case 2
 									-- BC is the merged segment
 									mergedSegment = {
-										start_x = segs[i].end_x,
-										start_y = segs[i].end_y,
-										end_x = segTableD[j].start_x,
-										end_y = segTableD[j].start_y
+										start_x = x2,
+										start_y = y2,
+										end_x = x3,
+										end_y = y3
 									}
 									break
 								end
 							else
-								-- D does not lie on AB
+								-- D does not lie on AB - Cases 1,5,6,7,11,12
 								if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
-									-- A lies on CD then
+									-- A lies on CD then - Cases 6 and 12
 									-- CD is the merged segment
 									mergedSegment = segTableD[j]
 									break
 								else
+									-- Cases 1,5,7,11
 									overlap = false
 								end
 							end	-- if check D lies on AB ends
@@ -569,6 +1009,40 @@ drawConnector  = function(cnvobj,segs)
 				else
 					segTableD[#segTableD + 1] = segs[i]
 				end
+				-- Check if the segments of segs connect to any port
+				local prts = cnvobj:getPortFromXY(segs[i].start_x,segs[i].start_y)
+				for i = 1,#prts do
+					-- Check if this port already exists
+					local found
+					for j = 1,#portD do
+						if prts[i] == portD[j] then
+							found = true
+							break
+						end
+					end
+					if not found then
+						portD[#portD + 1] = prts[i]
+						-- Update the port to refer to the connM connector
+						prts[i].conn[#prts[i].conn + 1] = connM
+					end
+				end
+				-- Check if the segments of segs connect to any port
+				prts = cnvobj:getPortFromXY(segs[i].end_x,segs[i].end_y)
+				for i = 1,#prts do
+					-- Check if this port already exists
+					local found
+					for j = 1,#portD do
+						if prts[i] == portD[j] then
+							found = true
+							break
+						end
+					end
+					if not found then
+						portD[#portD + 1] = prts[i]
+						-- Update the port to refer to the connM connector
+						prts[i].conn[#prts[i].conn + 1] = connM
+					end
+				end
 			end		-- for i = 1,#segs do ends
 			-- Set the order to the highest
 			connM.order = maxOrder
@@ -577,8 +1051,8 @@ drawConnector  = function(cnvobj,segs)
 			for i = 1,#junc do
 				local X,Y = junc[i].x,junc[i].y	
 				local found
-				for i = 1,#juncD do
-					if juncD[i].x == X and juncD[i].y == Y then
+				for j = 1,#juncD do
+					if juncD[j].x == X and juncD[j].y == Y then
 						found = true
 						break
 					end
@@ -589,7 +1063,70 @@ drawConnector  = function(cnvobj,segs)
 			end			
 		else
 			-- Create a new connector
-			
+			conn[#conn + 1] = {
+				segments = segs,
+				id=conn.ids + 1,
+				order=#cnvobj.drawn.order+1,
+				junction={},
+				port={}
+			}
+			conn.ids = conn.ids + 1
+			local portD = conn[#conn].port
+			for i = 1,#segs do
+				-- Check if the segments of segs connect to any port
+				local prts = cnvobj:getPortFromXY(segs[i].start_x,segs[i].start_y)
+				for i = 1,#prts do
+					-- Check if this port already exists
+					local found
+					for j = 1,#portD do
+						if prts[i] == portD[j] then
+							found = true
+							break
+						end
+					end
+					if not found then
+						portD[#portD + 1] = prts[i]
+						-- Update the port to refer to the connM connector
+						prts[i].conn[#prts[i].conn + 1] = connM
+					end
+				end
+				-- Check if the segments of segs connect to any port
+				prts = cnvobj:getPortFromXY(segs[i].end_x,segs[i].end_y)
+				for i = 1,#prts do
+					-- Check if this port already exists
+					local found
+					for j = 1,#portD do
+						if prts[i] == portD[j] then
+							found = true
+							break
+						end
+					end
+					if not found then
+						portD[#portD + 1] = prts[i]
+						-- Update the port to refer to the connM connector
+						prts[i].conn[#prts[i].conn + 1] = connM
+					end
+				end
+			end
+			-- Add a junctions if any
+			local juncD = conn[#conn].junction
+			for i = 1,#junc do
+				local X,Y = junc[i].x,junc[i].y	
+				local found
+				for j = 1,#juncD do
+					if juncD[j].x == X and juncD[j].y == Y then
+						found = true
+						break
+					end
+				end
+				if not found then
+					juncD[#juncD + 1] = junc[i]
+				end
+			end			
+			cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+				type = "connector",
+				item = conn[#conn]
+			}
 		end		-- if #shorted > 0 then ends here
 	end
 	-- Setup interactive drawing
@@ -612,18 +1149,14 @@ drawConnector  = function(cnvobj,segs)
 	
 	local function endConnector()
 		-- Check whether the new segments overlap any port
+		-- Note that ports can only happen at the start and end of the whole connector
+		-- This is because routing avoids ports unless it is the ending point		
 		local conn = cnvobj.drawn.conn[cnvobj.op.cIndex]
 		local segTable = conn.segments
-		for i = cnvobj.op.startseg,#segTable do
-			local prts = cnvobj:getPortFromXY(segTable[i].start_x,j)
-			for j = 1,#prts do
-				local portconn = prts[j].conn
-				-- Add info to the port structure about the connector
-				portconn[#portconn+1] = conn
-				-- Add info to the connector structure about the port
-				conn.port[#conn.port + 1] = prts[j]
-			end	
-		end
+		-- Get the ports at the start of the connector and add it
+		checkAndAddPorts(segTable[1].start_x,segTable[1].start_y,conn)
+		-- Get the ports at the end of the connector
+		checkAndAddPorts(segTable[#segTable].end_x,segTable[#segTable].end_y,conn)
 		-- Now we also need to handle merging of connectors in case the drawn connector started and or ended on another connector
 		-- First we need to see whether we need to split a segment and which new junctions to create
 		local jstart,jend	-- booleans to indicate which of start and end or both of this new connector are junctions to be added in the merged connector
@@ -677,56 +1210,76 @@ drawConnector  = function(cnvobj,segs)
 				end
 			end
 			-- Now merge all the connectors
-			local connM = cnvobj.drawn.conn[segs[1].conn]	-- Master connector where everything will end up
+			-- Compile all the connector indexes
+			local connIndex = {}
+			for i = 1,#cnvobj.op.merge do
+				connIndex[#connIndex + 1] = cnvobj.op.merge[i].conn
+			end
+			for i = 1,#segs do
+				connIndex[#connIndex + 1] = segs[i].conn
+			end
+			-- Sort connector index to be descending
+			table.sort(connIndex,function(one,two)
+					one > two	-- Sort descending order of the indexes
+				end)
+			local connM = cnvobj.drawn.conn[connIndex[1]]	-- Master connector where everything will end up
 			local conns = cnvobj.drawn.conn					-- All connectors structure
 			local maxOrder = connM.order
-			for i = 2,#segs do
-				if conns[segs[i].conn].order > maxOrder then
-					maxOrder = conns[segs[i].conn].order
-				end
-				-- Copy the segments over
-				local segTableD = connM.segments
-				local segTableS = conns[segs[i].conn].segments
-				for i = 1,#segTableS do
-					segTableD[#segTableD + 1] = segTableS[i]
-				end
-				-- Copy and update the ports
-				local portD = connM.port
-				local portS = conns[segs[i].conn].port
-				for i = 1,#portS do
-					-- Check if this port already exists
-					local found
-					for j = 1,#portD do
-						if portS[i] == portD[j] then
-							found = true
-							break
+			for i = 2,#connIndex do
+				if connIndex[i] ~= connIndex[i-1] then
+					if conns[connIndex].order > maxOrder then
+						maxOrder = conns[connIndex].order
+					end
+					-- Copy the segments over
+					local segTableD = connM.segments
+					local segTableS = conns[connIndex].segments
+					for i = 1,#segTableS do
+						segTableD[#segTableD + 1] = segTableS[i]
+					end
+					-- Copy and update the ports
+					local portD = connM.port
+					local portS = conns[connIndex].port
+					for i = 1,#portS do
+						-- Check if this port already exists
+						local found
+						for j = 1,#portD do
+							if portS[i] == portD[j] then
+								found = true
+								break
+							end
+						end
+						if not found then
+							portD[#portD + 1] = portS[i]
+							-- Update the port to refer to the connM connector
+							portS[i].conn[#portS[i].conn + 1] = connM
 						end
 					end
-					if not found then
-						portD[#portD + 1] = portS[i]
-						-- Update the port to refer to the connM connector
-						portS[i].conn[#portS[i].conn + 1] = connM
-					end
-				end
-				-- Copy the junctions
-				local juncD = connM.junction
-				local juncS = conns[segs[i].conn].junction
-				for i = 1,#juncS do
-					-- Check if this junction already exists
-					local found
-					for j = 1,#juncD do
-						if juncS[i].x == juncD[j].x and juncS[i].y == juncD[j].y then
-							found = true
-							break
+					-- Copy the junctions
+					local juncD = connM.junction
+					local juncS = conns[connIndex].junction
+					for i = 1,#juncS do
+						-- Check if this junction already exists
+						local found
+						for j = 1,#juncD do
+							if juncS[i].x == juncD[j].x and juncS[i].y == juncD[j].y then
+								found = true
+								break
+							end
+						end
+						if not found then
+							juncD[#juncD + 1] = juncS[i]
 						end
 					end
-					if not found then
-						juncD[#juncD + 1] = juncS[i]
-					end
-				end
+				end		-- if connIndex[i] ~= connIndex[i-1] then ends
 			end
 			-- Set the order to the highest
 			connM.order = maxOrder
+			-- We should delete all the connectors
+			for i = 2,#connIndex do		-- 1st index is where all the connectors were merged
+				if connIndex[i] ~= connIndex[i-1] then	-- Condition to take care of repetitions
+					table.remove(conns,i)
+				end
+			end
 			-- Add a junctions if required for jstart and jstop
 			local juncD = connM.junction
 			segTable = conn.segments
@@ -787,7 +1340,7 @@ drawConnector  = function(cnvobj,segs)
 		-- Check if the starting point lays on another connector
 		local allConns,segs = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
 		cnvobj.op.connID = (#allConns > 0 and "MERGE") or ("C"..tostring(cnvobj.drawn.conn.ids + 1))
-		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1
+		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1		-- Storing this connector in a new connecotr structure. Will merge it with other connectors if required in endConnector
 		-- Add this connector to the merge list
 		--segs[#segs + 1] = {conn=cnvobj.op.cIndex,seg=1}
 		cnvobj.op.merge = segs	-- segs contains the connector number and segment number of all the connectors where X,Y lies

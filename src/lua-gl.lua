@@ -29,9 +29,9 @@ end
 
 --- TASKS
 --[[
-* Modify drawConn to add non interactive mode
-* Check object dragging to make sure connector structure is kept updated on what ports it connects to
 * Finish dragSegment 
+* dragObj end check port overlapping with another port and handle that case
+* check that case for moveObj as well
 * Finish moveSegment
 * Finish moveConn
 * Finish removeConn

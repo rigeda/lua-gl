@@ -11,8 +11,6 @@ local LINE = require("lua-gl.line")
 local ELLIPSE = require("lua-gl.ellipse")
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
-local CONN = require("lua-gl.connector")
-
 
 local M = {}
 package.loaded[...] = M
@@ -380,7 +378,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 	end    
 end	-- end drawObj function
 
--- Function to drag objects (dragging implies connector connections are maintained 
+-- Function to drag objects (dragging implies connector connections are maintained)
 -- objList is a list of object structures of the objects to be dragged
 dragObj = function(cnvobj,objList,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
@@ -441,7 +439,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 						end
 					end
 					if found then break end
-					-- Find a segment whose one end is on x,y
+					-- Find a segment whose one end is on x,y if none found this is the other end of the connector and would be the starting point for the connector routing
 					found = true
 					for l = 1,#segTable do
 						if not checkedSegs[l] then
@@ -493,10 +491,30 @@ dragObj = function(cnvobj,objList,offx,offy)
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					CONN.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					cnvobj:generateSegments(connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+				end
+				-- Check whether after drag the ports are touching other connectors then those get connected to the port
+				local allConns,segs = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
+				for k = 1,#allConns do
+					-- Check if this connector is already connected to the port
+					local found
+					for l = 1,#conn do
+						if conn[l] == allConns[k] then
+							found = true
+							break
+						end
+					end
+					if not found then
+						-- Add the connector to the port structure
+						conn[#conn + 1] = allConns[k]
+						-- Add the port to the connector structure
+						allConns[k].port[#allConns[k].port + 1] = conn[#conn]
+					end
 				end
 			end
 		end
+		
+		
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -512,11 +530,13 @@ dragObj = function(cnvobj,objList,offx,offy)
 	for i = 1,#grp do
 		oldOrder[i] = grp[i].order
 	end
+	local item = cnvobj.drawn.order[grp[#grp].order]
 	table.remove(cnvobj.drawn.order,grp[#grp].order)
-	table.insert(cnvobj.drawn.order,grp[#grp],#cnvobj.drawn.order+1)
+	table.insert(cnvobj.drawn.order,item,#cnvobj.drawn.order+1)
 	for i = #grp-1,1,-1 do
+		item = cnvobj.drawn.order[grp[i].order]
 		table.remove(cnvobj.drawn.order,grp[i].order)
-		table.insert(cnvobj.drawn.order,grp[i],#cnvobj.drawn.order)
+		table.insert(cnvobj.drawn.order,item,#cnvobj.drawn.order)
 	end
 	-- Update the order number for all items 
 	for i = 1,#order do
@@ -524,11 +544,38 @@ dragObj = function(cnvobj,objList,offx,offy)
 	end
 	
 	local function dragEnd()
-		-- End the move at this point
+		-- End the drag at this point
 		-- Reset the orders back
 		for i = 1,#grp do
+			local item = cnvobj.drawn.order[grp[i].order]
 			table.remove(cnvobj.drawn.order,grp[i].order)
-			table.insert(cnvobj.drawn.order,grp[i],oldOrder[i])
+			table.insert(cnvobj.drawn.order,item,oldOrder[i])
+			
+			-- Check whether after drag the ports are touching other connectors then those get connected to the port
+			local portT = grp[i].port
+			for j = 1,#portT do
+				local conn = portT[j].conn
+				-- Check whether after drag the ports are touching other connectors then those get connected to the port
+				local allConns,segs = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
+				for k = 1,#allConns do
+					-- Check if this connector is already connected to the port
+					local found
+					for l = 1,#conn do
+						if conn[l] == allConns[k] then
+							found = true
+							break
+						end
+					end
+					if not found then
+						-- Add the connector to the port structure
+						conn[#conn + 1] = allConns[k]
+						-- Add the port to the connector structure
+						allConns[k].port[#allConns[k].port + 1] = conn[#conn]
+					end
+				end
+				-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+				-- If there is no connector then now there is a new connector (with no segments of course) between the 2 ports
+			end
 		end
 		-- Update the order number for all items
 		for i = 1,#order do
@@ -548,7 +595,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 	cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
 	cnvobj.op.end = dragEnd
 	
-	-- button_CB to handle object drawing
+	-- button_CB to handle object dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
@@ -560,6 +607,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})
 	end
 
+	-- motion_cb to handle object dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		y = cnvobj.height - y
 		-- Move all items in the grp 
@@ -583,9 +631,10 @@ dragObj = function(cnvobj,objList,offx,offy)
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					CONN.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					cnvobj:generateSegments(connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
 				end
 			end
 		end
 	end
+	return true
 end,
