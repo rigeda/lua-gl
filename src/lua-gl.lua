@@ -29,6 +29,7 @@ end
 
 --- TASKS
 --[[
+* For drawConnector change non interactive methodology to create the new connector then call shortAndMergeConnectors and then finally check and resolve overlaps
 * Finish dragSegment 
 * dragObj end check port overlapping with another port and handle that case
 * check that case for moveObj as well
