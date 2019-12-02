@@ -520,26 +520,6 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			-- Check if X,Y are on a connector
 			X,Y = cnvobj.op.oldSegs[i][segList[i].seg].end_x+cnvobj.op.offx,cnvobj.op.oldSegs[i][segList[i].seg].end_y+cnvobj.op.offy
 			checkAndAddPorts(cnvobj,X,Y,segList[i].conn)
-			
-			local allConns,segs = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
-			for k = 1,#allConns do
-				-- Check if this connector is already connected to the port
-				local found
-				for l = 1,#conn do
-					if conn[l] == allConns[k] then
-						found = true
-						break
-					end
-				end
-				if not found then
-					-- Add the connector to the port structure
-					conn[#conn + 1] = allConns[k]
-					-- Add the port to the connector structure
-					allConns[k].port[#allConns[k].port + 1] = conn[#conn]
-				end
-			end
-			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-			-- If there is no connector then now there is a new connector (with no segments of course) between the 2 ports
 		end
 		
 		-- Reset mode
@@ -563,6 +543,8 @@ dragSegment = function(cnvobj,segList,offx,offy)
 	cnvobj.op.segList = segList
 	cnvobj.op.coor1 = {x=segList[1].conn.segments[segList[1].seg].start_x,y=segList[1].conn.segments[segList[1].seg].start_y}
 	cnvobj.op.end = dragEnd
+	cnvobj.op.offx = 0
+	cnvobj.op.offy = 0
 	cnvobj.op.oldSegs = {}
 	for i = 1,#segList do
 		cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{},true)	-- Copy the entire segments table by duplicating it value by value
@@ -711,342 +693,187 @@ drawConnector  = function(cnvobj,segs)
 					junc[#junc + 1] = {x=segs[i].end_x,y=segs[i].end_y}
 				end
 			end
-			-- This segment is valid. Check if this shorts to any other connector
-			local allConns,segsI
-			-- Check the segment starting point
-			local X,Y = segs[i].start_x,segs[i].start_y
-			allConns,segsI = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
-			if #allConns > 0 then
-				-- Since it shorts to other connectors add it as a junction
-				junc[#junc + 1] = {x=segs[i].start_x,y=segs[i].start_y}
-				-- Now split the segments if required
-				-- Add all the shorted connectors
-				for j = 1,#segsI do
-					local segTable = allConns[j].segments
-					local k = segsI[j].seg
-					-- check whether we need to split a segment and which new junctions to create
-					if not((segTable[k].start_x == X and segTable[k].start_y == Y) or (segTable[k].end_x == X and segTable[k].end_y == Y) ) then 
-						-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-						table.insert(segTable,k+1,{
-							start_x = X,
-							start_y = Y,
-							end_x = segTable[k].end_x,
-							end_y = segTable[k].end_y
-						})
-						segTable[k].end_x = X
-						segTable[k].end_y = Y
-					end					
-					shorted[#shorted + 1] = segsI[j]
-				end
-			end			-- if segs[i].start_? coordinates lie on any connector ends
-			-- Check the segment ending point
-			X,Y = segs[i].end_x,segs[i].end_y
-			allConns,segsI = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
-			if #allConns > 0 then
-				-- Since it shorts to other connectors add it as a junction
-				junc[#junc + 1] = {x=segs[i].end_x,y=segs[i].end_y}
-				-- Now split the segments if required
-				-- Add all the shorted connectors
-				for j = 1,#segsI do
-					local segTable = allConns[j].segments
-					local k = segsI[j].seg
-					-- check whether we need to split a segment and which new junctions to create
-					if not((segTable[k].start_x == X and segTable[k].start_y == Y) or (segTable[k].end_x == X and segTable[k].end_y == Y) ) then 
-						-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-						table.insert(segTable,k+1,{
-							start_x = X,
-							start_y = Y,
-							end_x = segTable[k].end_x,
-							end_y = segTable[k].end_y
-						})
-						segTable[k].end_x = X
-						segTable[k].end_y = Y
-					end					
-					shorted[#shorted + 1] = segsI[j]
-				end
-			end		-- if segs[i].end_? coordinates lie on any connector ends
-		end	-- for i segs ends here
-		-- Merge all the connectors in shorted, splitting is already done and junctions are already there
-		if #shorted > 0 then
-			-- Sort sorted with decreasing index
-			table.sort(shorted,function(one,two)
-					one.conn > two.conn
-				end)
-			local connM = cnvobj.drawn.conn[shorted[1].conn]	-- Master connector where everything will end up
-			local segTableD = connM.segments					-- Destination segments table
-			local portD = connM.port
-			local juncD = connM.junction
-			local conns = cnvobj.drawn.conn						-- All connectors structure
-			local maxOrder = connM.order
-			for i = 2,#shorted do
-				if shorted[i].conn ~= shorted[i-1].conn then
-					if conns[shorted[i].conn].order > maxOrder then
-						maxOrder = conns[shorted[i].conn].order
-					end
-					-- Copy the segments over
-					local segTableS = conns[shorted[i].conn].segments
-					for i = 1,#segTableS do
-						segTableD[#segTableD + 1] = segTableS[i]
-					end
-					-- Copy and update the ports
-					local portS = conns[shorted[i].conn].port
-					for i = 1,#portS do
-						-- Check if this port already exists
-						local found
-						for j = 1,#portD do
-							if portS[i] == portD[j] then
-								found = true
-								break
-							end
-						end
-						if not found then
-							portD[#portD + 1] = portS[i]
-							-- Update the port to refer to the connM connector
-							portS[i].conn[#portS[i].conn + 1] = connM
-						end
-					end
-					-- Copy the junctions
-					local juncS = conns[shorted[i].conn].junction
-					for i = 1,#juncS do
-						-- Check if this junction already exists
-						local found
-						for j = 1,#juncD do
-							if juncS[i].x == juncD[j].x and juncS[i].y == juncD[j].y then
-								found = true
-								break
-							end
-						end
-						if not found then
-							juncD[#juncD + 1] = juncS[i]
-						end
-					end
-				end		-- if shorted[i].conn ~= shorted[i-1].conn then ends
-			end		-- for i = 2,#shorted do ends here
-			-- Delete all the connectors that were merged
-			for i = 2,#shorted do
-				if shorted[i].conn ~= shorted[i-1].conn then
-					table.remove(conns,shorted[i].conn)
-				end
+		end		-- for i = 1,#segs ends here
+		-- Create a new connector using the segments
+		conn[#conn + 1] = {
+			segments = segs,
+			id=conn.ids + 1,
+			order=#cnvobj.drawn.order+1,
+			junction={},
+			port={}
+		}
+		conn.ids = conn.ids + 1
+		local coor = {}
+		for i = 1,#segs do
+			coor[#coor + 1] = {x = segs[i].start_x,y=segs[i].start_y}
+			coor[#coor + 1] = {x = segs[i].end_x,y=segs[i].end_y}
+			-- Check if the start of the segment lands on any port then connect to it
+			checkAndAddPorts(cnvobj,segs[i].start_x,segs[i].start_y,conn[#conn])
+			-- Check if the end of the segment lands on any port then connect to it
+			checkAndAddPorts(cnvobj,segs[i].end_x,segs[i].end_y,conn[#conn])
+		end
+		-- Add a junctions if any
+		local juncD = conn[#conn].junction
+		for i = 1,#junc do
+			if not tu.inArray(juncD,junc[i],function(v1,v2)
+					return v1.x == v2.x and v1.y == v2.y
+				end) then
+				juncD[#juncD + 1] = junc[i]
 			end
-			-- Now add segments in segs after checking overlapping segments and merging them
-			for i = 1,#segs do
-				-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
-				local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
-				local overlap,mergedSegment
-				for j = 1,#segTableD do
-					-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
-					local x3,y3,x4,y4 = segTableD[j].start_x,segTableD[j].start_y,segTableD[j].end_x,segTableD[j].end_y
-					-- Check whether the 2 line segments have the same line equation
-					local sameeqn 
-					if x1==x2 and x3==x4 and x1==x3 then
+		end			
+		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+			type = "connector",
+			item = conn[#conn]
+		}
+		-- Now lets check whether there are any shorts to any other connector. The shorts can be on the segment end points
+		local finConn = shortAndMergeConnectors(cnvobj,coor)	-- finConn will end up with the final merged connector
+		-- Now lets check if there are overlapping segments in finConn 
+		segs = finConn.segments
+		local i = 1
+		while i <= #segs do
+			-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
+			local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
+			local overlap,mergedSegment
+			local j = i + 1
+			while j <= #segs do
+			-- Check against all other segments
+				-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
+				local x3,y3,x4,y4 = segTableD[j].start_x,segTableD[j].start_y,segTableD[j].end_x,segTableD[j].end_y
+				-- Check whether the 2 line segments have the same line equation
+				local sameeqn 
+				if x1==x2 and x3==x4 and x1==x3 then
+					sameeqn = true
+				elseif x1~=x2 and x3~=x4 then
+					local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
+					local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
+					if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
 						sameeqn = true
-					elseif x1~=x2 and x3~=x4 then
-						local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
-						local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
-						if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
-							sameeqn = true
-						end
 					end
-					if sameeqn then
-						overlap = j		-- Assume they overlap
-						-- There are 8 overlapping cases and 4 non overlapping cases
-						--[[
-						1.
-									A-----------B
+				end
+				if sameeqn then
+					overlap = j		-- Assume they overlap
+					-- There are 8 overlapping cases and 4 non overlapping cases
+					--[[
+					1.
+								A-----------B
+					C------D	
+					2.
+						A-----------B
+					C------D	
+					3.
+					  A-----------B
 						C------D	
-						2.
-							A-----------B
-						C------D	
-						3.
-						  A-----------B
-							C------D	
-						4.
-						  A-----------B
-								  C------D	
-						5.
-							A-----------B
-											C------D	
-						6.
-						  C-----------D
-							A------B	
-						7.
-									A-----------B
+					4.
+					  A-----------B
+							  C------D	
+					5.
+						A-----------B
+										C------D	
+					6.
+					  C-----------D
+						A------B	
+					7.
+								A-----------B
+					D------C	
+					8.
+						A-----------B
+					D------C	
+					9.
+					  A-----------B
 						D------C	
-						8.
-							A-----------B
-						D------C	
-						9.
-						  A-----------B
-							D------C	
-						10.
-						  A-----------B
-								  D------C	
-						11.
-							A-----------B
-											D------C
-						12.
-						  D-----------C
-							A------B	
-						
-						]]
-						if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
-							-- C lies on AB - Cases 3,4,8,9
-							if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-								-- D lies on AB - Cases 3 and 9
-								-- AB is the merged segment
-								mergedSegment = segs[i]
+					10.
+					  A-----------B
+							  D------C	
+					11.
+						A-----------B
+										D------C
+					12.
+					  D-----------C
+						A------B	
+					
+					]]
+					if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
+						-- C lies on AB - Cases 3,4,8,9
+						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+							-- D lies on AB - Cases 3 and 9
+							-- AB is the merged segment
+							mergedSegment = segs[i]
+							break
+						else
+							-- C lies on AB but not D- Cases 4 and 8
+							if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
+								-- B lies on AD - Case 4
+								-- AD is the merged segment
+								mergedSegment = {
+									start_x = x1,
+									start_y = y1,
+									end_x = x4,
+									end_y = y4
+								}
 								break
 							else
-								-- C lies on AB but not D- Cases 4 and 8
-								if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
-									-- B lies on AD - Case 4
-									-- AD is the merged segment
-									mergedSegment = {
-										start_x = x1,
-										start_y = y1,
-										end_x = x4,
-										end_y = y4
-									}
-									break
-								else
-									-- B does not lie on AD - Case 8
-									-- BD is the merged segment
-									mergedSegment = {
-										start_x = x2,
-										start_y = y2,
-										end_x = x4,
-										end_y = y4
-									}
-									break
-								end
-							end									
-						else
-							-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
-							if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-								-- D lies on AB - Cases 2 and 10
-								if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
-									-- B lies on AC	-- Case 10
-									-- AC is the merged segment
-									mergedSegment = {
-										start_x = x1,
-										start_y = y1,
-										end_x = x3,
-										end_y = y3
-									}
-									break
-								else
-									-- B does not lie on AC	- Case 2
-									-- BC is the merged segment
-									mergedSegment = {
-										start_x = x2,
-										start_y = y2,
-										end_x = x3,
-										end_y = y3
-									}
-									break
-								end
+								-- B does not lie on AD - Case 8
+								-- BD is the merged segment
+								mergedSegment = {
+									start_x = x2,
+									start_y = y2,
+									end_x = x4,
+									end_y = y4
+								}
+								break
+							end
+						end									
+					else
+						-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
+						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+							-- D lies on AB - Cases 2 and 10
+							if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
+								-- B lies on AC	-- Case 10
+								-- AC is the merged segment
+								mergedSegment = {
+									start_x = x1,
+									start_y = y1,
+									end_x = x3,
+									end_y = y3
+								}
+								break
 							else
-								-- D does not lie on AB - Cases 1,5,6,7,11,12
-								if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
-									-- A lies on CD then - Cases 6 and 12
-									-- CD is the merged segment
-									mergedSegment = segTableD[j]
-									break
-								else
-									-- Cases 1,5,7,11
-									overlap = false
-								end
-							end	-- if check D lies on AB ends
-						end		-- if check C lies on AB ends
-					end		-- if m1==m2 and c1==c2 check ends here
-				end		-- for j = 1,#segTableD do ends
+								-- B does not lie on AC	- Case 2
+								-- BC is the merged segment
+								mergedSegment = {
+									start_x = x2,
+									start_y = y2,
+									end_x = x3,
+									end_y = y3
+								}
+								break
+							end
+						else
+							-- D does not lie on AB - Cases 1,5,6,7,11,12
+							if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
+								-- A lies on CD then - Cases 6 and 12
+								-- CD is the merged segment
+								mergedSegment = segTableD[j]
+								break
+							else
+								-- Cases 1,5,7,11
+								overlap = false
+							end
+						end	-- if check D lies on AB ends
+					end		-- if check C lies on AB ends
+				end		-- if m1==m2 and c1==c2 check ends here
 				if overlap then
-					segTableD[overlap] = mergedSegment
-				else
-					segTableD[#segTableD + 1] = segs[i]
+					-- Put the merged segment in the ith place and remove the jth segment and update x1,y2,x2,y2
+					x1,y1,x2,y2 = mergedSegment.start_x,mergedSegment.start_y,mergedSegment.end_x,mergedSegment.end_y
+					table.remove(segs,i)
+					table.insert(segs,i,mergedSegment)
+					table.remove(segs,j)
+					j = j - 1	-- To compensate for the j increment coming below
 				end
-				-- Check if the segments of segs connect to any port
-				local prts = cnvobj:getPortFromXY(segs[i].start_x,segs[i].start_y)
-				for i = 1,#prts do
-					-- Check if this port already exists
-					local found
-					for j = 1,#portD do
-						if prts[i] == portD[j] then
-							found = true
-							break
-						end
-					end
-					if not found then
-						portD[#portD + 1] = prts[i]
-						-- Update the port to refer to the connM connector
-						prts[i].conn[#prts[i].conn + 1] = connM
-					end
-				end
-				-- Check if the segments of segs connect to any port
-				prts = cnvobj:getPortFromXY(segs[i].end_x,segs[i].end_y)
-				for i = 1,#prts do
-					-- Check if this port already exists
-					local found
-					for j = 1,#portD do
-						if prts[i] == portD[j] then
-							found = true
-							break
-						end
-					end
-					if not found then
-						portD[#portD + 1] = prts[i]
-						-- Update the port to refer to the connM connector
-						prts[i].conn[#prts[i].conn + 1] = connM
-					end
-				end
-			end		-- for i = 1,#segs do ends
-			-- Set the order to the highest
-			connM.order = maxOrder
-			-- Add a junctions if any
-			local juncD = connM.junction
-			for i = 1,#junc do
-				local X,Y = junc[i].x,junc[i].y	
-				local found
-				for j = 1,#juncD do
-					if juncD[j].x == X and juncD[j].y == Y then
-						found = true
-						break
-					end
-				end
-				if not found then
-					juncD[#juncD + 1] = junc[i]
-				end
-			end			
-		else
-			-- Create a new connector
-			conn[#conn + 1] = {
-				segments = segs,
-				id=conn.ids + 1,
-				order=#cnvobj.drawn.order+1,
-				junction={},
-				port={}
-			}
-			conn.ids = conn.ids + 1
-			for i = 1,#segs do
-				-- Check if the start of the segment lands on any port then connect to it
-				checkAndAddPorts(cnvobj,segs[i].start_x,segs[i].start_y,conn[#conn])
-				-- Check if the end of the segment lands on any port then connect to it
-				checkAndAddPorts(cnvobj,segs[i].end_x,segs[i].end_y,conn[#conn])
-			end
-			-- Add a junctions if any
-			local juncD = conn[#conn].junction
-			for i = 1,#junc do
-				if not tu.inArray(juncD,junc[i],function(v1,v2)
-						return v1.x == v2.x and v1.y == v2.y
-					end) then
-					juncD[#juncD + 1] = junc[i]
-				end
-			end			
-			cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-				type = "connector",
-				item = conn[#conn]
-			}
-		end		-- if #shorted > 0 then ends here
+				j = j + 1
+			end		-- while j <= #segs do ends
+			i = i + 1
+		end		-- while i <= #segs do ends
 	end
 	-- Setup interactive drawing
 	
