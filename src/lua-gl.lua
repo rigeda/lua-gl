@@ -29,6 +29,7 @@ end
 
 --- TASKS
 --[[
+* Fix overlap segment code to split segment in case there is a junction
 * Finish dragSegment 
 * dragObj end check port overlapping with another port and handle that case
 * check that case for moveObj as well

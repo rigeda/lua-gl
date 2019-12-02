@@ -727,6 +727,7 @@ drawConnector  = function(cnvobj,segs)
 		}
 		-- Now lets check whether there are any shorts to any other connector. The shorts can be on the segment end points
 		local finConn = shortAndMergeConnectors(cnvobj,coor)	-- finConn will end up with the final merged connector
+		
 		-- Now lets check if there are overlapping segments in finConn 
 		segs = finConn.segments
 		local i = 1
