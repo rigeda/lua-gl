@@ -473,7 +473,6 @@ end
 -- Function to check whether segments are valid and if any segments need to be split further or merged
 local function repairSegAndJunc(conn)
 	-- First find the dangling nodes. Note that dangling segments are the ones which may merge with other segments
-	local dangling = {}		-- To store the indexes of dangling segments
 	local s,e = {},{}		-- Starting and ending node dangling segments indexes
 	local segs = conn.segments
 	for i = 1,#segs do
@@ -495,159 +494,164 @@ local function repairSegAndJunc(conn)
 		if not founds then
 			-- Starting node is dangling check if it connects to any port
 			if #cnvobj:getPortFromXY(sx,sy) == 0 then
-				dangling[#dangling + 1] = {index = i,node ="s"}
 				s[i] = true
 			end
 		end
 		if not founde then
 			-- Ending node is dangling, check if it connects to any port
 			if #cnvobj:getPortFromXY(ex,ey) == 0 then
-				dangling[#dangling + 1] = {index = i,node="e"}
 				e[i] = true
 			end
 		end
 	end
 	-- Now check for overlaps of the dangling segments with others
-	for k = 1,#dangling do
-		local i = dangling[k].index
+	for i = 1,#segs do
 		-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
 		local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
+		local adang,bdang = s[i],e[i]
 		local overlap,mergedSegment
 		for j = 1,#segs do 
-			-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
-			local x3,y3,x4,y4 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
-			-- Check whether the 2 line segments have the same line equation
-			local sameeqn 
-			if x1==x2 and x3==x4 and x1==x3 then
-				sameeqn = true
-			elseif x1~=x2 and x3~=x4 then
-				local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
-				local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
-				if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
+			if i ~= j then
+				-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
+				local x3,y3,x4,y4 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
+				local cdang,ddang = s[j],e[j]
+				-- Check whether the 2 line segments have the same line equation
+				local sameeqn 
+				if x1==x2 and x3==x4 and x1==x3 then
 					sameeqn = true
+				elseif x1~=x2 and x3~=x4 then
+					local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
+					local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
+					if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
+						sameeqn = true
+					end
 				end
-			end
-			if sameeqn then
-				overlap = j		-- Assume they overlap
-				-- There are 8 overlapping cases and 4 non overlapping cases
-				--[[
-				1. (no overlap)
-							A-----------B
-				C------D	
-				2. (overlap) The merge is 3 segments CA, AD and DB. If A and D are dangling then merged is CB. If A is dangling then merged is CD, DB. If D is dangling then merged is CA, AB
-					A-----------B
-				C------D	
-				3. (overlap) The merge is 3 segments AC CD and DB. If C and D are dangling then merged is AB. If C is dangling then merged are AD and DB. If D is dangling then merged are AC and CB
-				  A-----------B
+				if sameeqn then
+					overlap = j		-- Assume they overlap
+					-- There are 8 overlapping cases and 4 non overlapping cases
+					--[[
+					1. (no overlap)
+								A-----------B
 					C------D	
-				4. (overlap) The merge is 3 segments AC, CB and BD. If B and C are dangling then merged is AD. If C is dangling then merged is AB, BD. If B is dangling then merged are AC and CD
-				  A-----------B
-						  C------D	
-				5. (no overlap)
-					A-----------B
-									C------D	
-				6. (overlap) The merge is 3 segments CA, AB and BD. If A and B are dangling then merged is CD. If A is dangling then merged are CB and BD. If B is dangling then merged are CA and AD
-				  C-----------D
-					A------B	
-				7. (no overlap)
-							A-----------B
-				D------C	
-				8. (overlap) The merge is 3 segments DA, AC and CB. If A and C are dangling then merged is DB. If A is dangling then merged is DC and CB. If C is dangling then merged is DA and AB
-					A-----------B
-				D------C	
-				9. (overlap) The merge is 3 segments AC, CD and DB. If C and D are dangling then merged is AB. If D is dangling then merged are AC and CB. If C is dangling then merged are AD and DB
-				  A-----------B
+					2. (overlap) The merge is 3 segments CA, AD and DB. If A and D are dangling then merged is CB. If A is dangling then merged is CD, DB. If D is dangling then merged is CA, AB
+						A-----------B
+					C------D	
+					3. (overlap) The merge is 3 segments AC CD and DB. If C and D are dangling then merged is AB. If C is dangling then merged are AD and DB. If D is dangling then merged are AC and CB
+					  A-----------B
+						C------D	
+					4. (overlap) The merge is 3 segments AC, CB and BD. If B and C are dangling then merged is AD. If C is dangling then merged is AB, BD. If B is dangling then merged are AC and CD
+					  A-----------B
+							  C------D	
+					5. (no overlap)
+						A-----------B
+										C------D	
+					6. (overlap) The merge is 3 segments CA, AB and BD. If A and B are dangling then merged is CD. If A is dangling then merged are CB and BD. If B is dangling then merged are CA and AD
+					  C-----------D
+						A------B	
+					7. (no overlap)
+								A-----------B
 					D------C	
-				10. (overlap) The merge is 3 segments AD, DB and BC. If B and D are dangling then merged is AC. If B is dangling then merged are AD and DC. If D is dangling then mergedf are AB and BC
-				  A-----------B
-						  D------C	
-				11. (no overlap)
-					A-----------B
-									D------C
-				12. (overlap) The merge is 3 segments DA, AB and BC. If A and B are dangling then merged is DC. If A is dangling then merged are DB and BC. If B is dangling then merged are DA and AC
-				  D-----------C
-					A------B	
-				
-				]]
-				if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
-					-- C lies on AB - Cases 3,4,8,9
-					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-						-- D lies on AB - Cases 3 and 9
-						if coorc.PointOnLine(x1,y1,x4,y4,x3,y3,0) then
-							-- C lies on AD - Case 3
-							-- Segments are 
+					8. (overlap) The merge is 3 segments DA, AC and CB. If A and C are dangling then merged is DB. If A is dangling then merged is DC and CB. If C is dangling then merged is DA and AB
+						A-----------B
+					D------C	
+					9. (overlap) The merge is 3 segments AC, CD and DB. If C and D are dangling then merged is AB. If D is dangling then merged are AC and CB. If C is dangling then merged are AD and DB
+					  A-----------B
+						D------C	
+					10. (overlap) The merge is 3 segments AD, DB and BC. If B and D are dangling then merged is AC. If B is dangling then merged are AD and DC. If D is dangling then mergedf are AB and BC
+					  A-----------B
+							  D------C	
+					11. (no overlap)
+						A-----------B
+										D------C
+					12. (overlap) The merge is 3 segments DA, AB and BC. If A and B are dangling then merged is DC. If A is dangling then merged are DB and BC. If B is dangling then merged are DA and AC
+					  D-----------C
+						A------B	
+					
+					]]
+					if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
+						-- C lies on AB - Cases 3,4,8,9
+						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+							-- D lies on AB - Cases 3 and 9
+							if coorc.PointOnLine(x1,y1,x4,y4,x3,y3,0) then
+								-- C lies on AD - Case 3
+					--[[
+					3. (overlap) The merge is 3 segments AC CD and DB. If C and D are dangling then merged is AB. If C is dangling then merged are AD and DB. If D is dangling then merged are AC and CB
+					  A-----------B
+						C------D	]]
+								if cdang and ddang then
+									
+							else
+								-- D lies on AC - Case 9
+							end
+							-- AB is the merged segment
+							mergedSegment = segs[i]
+							break
 						else
-							-- D lies on AC - Case 9
-						end
-						-- AB is the merged segment
-						mergedSegment = segs[i]
-						break
+							-- C lies on AB but not D- Cases 4 and 8
+							if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
+								-- B lies on AD - Case 4
+								-- AD is the merged segment
+								mergedSegment = {
+									start_x = x1,
+									start_y = y1,
+									end_x = x4,
+									end_y = y4
+								}
+								break
+							else
+								-- B does not lie on AD - Case 8
+								-- BD is the merged segment
+								mergedSegment = {
+									start_x = x2,
+									start_y = y2,
+									end_x = x4,
+									end_y = y4
+								}
+								break
+							end
+						end									
 					else
-						-- C lies on AB but not D- Cases 4 and 8
-						if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
-							-- B lies on AD - Case 4
-							-- AD is the merged segment
-							mergedSegment = {
-								start_x = x1,
-								start_y = y1,
-								end_x = x4,
-								end_y = y4
-							}
-							break
+						-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
+						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+							-- D lies on AB - Cases 2 and 10
+							if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
+								-- B lies on AC	-- Case 10
+								-- AC is the merged segment
+								mergedSegment = {
+									start_x = x1,
+									start_y = y1,
+									end_x = x3,
+									end_y = y3
+								}
+								break
+							else
+								-- B does not lie on AC	- Case 2
+								-- BC is the merged segment
+								mergedSegment = {
+									start_x = x2,
+									start_y = y2,
+									end_x = x3,
+									end_y = y3
+								}
+								break
+							end
 						else
-							-- B does not lie on AD - Case 8
-							-- BD is the merged segment
-							mergedSegment = {
-								start_x = x2,
-								start_y = y2,
-								end_x = x4,
-								end_y = y4
-							}
-							break
-						end
-					end									
-				else
-					-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
-					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-						-- D lies on AB - Cases 2 and 10
-						if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
-							-- B lies on AC	-- Case 10
-							-- AC is the merged segment
-							mergedSegment = {
-								start_x = x1,
-								start_y = y1,
-								end_x = x3,
-								end_y = y3
-							}
-							break
-						else
-							-- B does not lie on AC	- Case 2
-							-- BC is the merged segment
-							mergedSegment = {
-								start_x = x2,
-								start_y = y2,
-								end_x = x3,
-								end_y = y3
-							}
-							break
-						end
-					else
-						-- D does not lie on AB - Cases 1,5,6,7,11,12
-						if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
-							-- A lies on CD then - Cases 6 and 12
-							-- CD is the merged segment
-							mergedSegment = segTableD[j]
-							break
-						else
-							-- Cases 1,5,7,11
-							overlap = false
-						end
-					end	-- if check D lies on AB ends
-				end		-- if check C lies on AB ends
-			end		-- if sameeqn then ends here
-			
+							-- D does not lie on AB - Cases 1,5,6,7,11,12
+							if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
+								-- A lies on CD then - Cases 6 and 12
+								-- CD is the merged segment
+								mergedSegment = segTableD[j]
+								break
+							else
+								-- Cases 1,5,7,11
+								overlap = false
+							end
+						end	-- if check D lies on AB ends
+					end		-- if check C lies on AB ends
+				end		-- if sameeqn then ends here
+			end		-- if i ~= j then ends here
 		end		-- for j = 1,#segs do ends
-	end		-- for k = 1,#dangling do ends
+	end		-- for i = 1,#segs do ends
 end
 
 -- Function to check and remove segment overlaps in the segments array of the given connector 'conn'
