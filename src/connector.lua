@@ -505,11 +505,26 @@ local function repairSegAndJunc(conn)
 		end
 	end
 	-- Now check for overlaps of the dangling segments with others
+	local function createSegments(coors)
+		local segs = {}
+		for i =1,#coors do
+			if not(coors[i][1] == coors[i][3] and coors[i][2] == coors[i][4]) then
+				segs[#segs + 1] = {
+					start_x = coors[i][1],
+					start_y = coors[i][2],
+					end_x = coors[i][3],
+					end_y = coors[i][4]
+				}
+			end
+		end
+		return segs
+	end
+
 	for i = 1,#segs do
 		-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
 		local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
 		local adang,bdang = s[i],e[i]
-		local overlap,mergedSegment
+		local overlap,newSegs
 		for j = 1,#segs do 
 			if i ~= j then
 				-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
@@ -579,69 +594,230 @@ local function repairSegAndJunc(conn)
 					  A-----------B
 						C------D	]]
 								if cdang and ddang then
-									
+									newSegs = {
+										segs[i]		-- Only AB is the segment
+									}
+								elseif cdang then
+									newSegs = createSegments({
+											{x1,y1,x4,y4},	-- AD
+											{x4,y4,x2,y2},	-- DB
+										})
+								elseif ddang then
+									newSegs = createSegments({
+											{x1,y1,x3,y3},	-- AC
+											{x3,y3,x2,y2},	-- CB
+										})
+								else
+									newSegs = createSegments({
+											{x1,y1,x3,y3},	-- AC
+											{x3,y3,x4,y4},	-- CD
+											{x4,y4,x2,y2},	-- DB
+										})
+								end
 							else
 								-- D lies on AC - Case 9
+					--[[
+					9. (overlap) The merge is 3 segments AD, DC and CB. If C and D are dangling then merged is AB. If D is dangling then merged are AC and CB. If C is dangling then merged are AD and DB
+					  A-----------B
+						D------C	]]
+								if cdang and ddang then
+									newSegs = {
+										segs[i]		-- Only AB is the segment
+									}
+								elseif cdang then
+									newSegs = createSegments({
+											{x1,y1,x4,y4},	-- AD
+											{x4,y4,x2,y2},	-- DB
+										})
+								elseif ddang then
+									newSegs = createSegments({
+											{x1,y1,x3,y3},	-- AC
+											{x3,y3,x2,y2},	-- CB
+										})
+								else
+									newSegs = createSegments({
+											{x1,y1,x4,y4},	-- AD
+											{x4,y4,x3,y3},	-- DC
+											{x3,y3,x2,y2},	-- CB
+										})
+								end						
 							end
-							-- AB is the merged segment
-							mergedSegment = segs[i]
-							break
 						else
 							-- C lies on AB but not D- Cases 4 and 8
 							if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
 								-- B lies on AD - Case 4
-								-- AD is the merged segment
-								mergedSegment = {
-									start_x = x1,
-									start_y = y1,
-									end_x = x4,
-									end_y = y4
-								}
-								break
+					--[[
+					4. (overlap) The merge is 3 segments AC, CB and BD. If B and C are dangling then merged is AD. If C is dangling then merged is AB, BD. If B is dangling then merged are AC and CD
+					  A-----------B
+							  C------D	]]
+								if cdang and bdang then
+									newSegs = createSegments({
+											{x1,y1,x4,y4},	-- AD										
+										)}
+								elseif cdang then
+									newSegs = createSegments({
+											{x1,y1,x2,y2},	-- AB
+											{x2,y2,x4,y4},	-- BD
+										})
+								elseif bdang then
+									newSegs = createSegments({
+											{x1,y1,x3,y3},	-- AC
+											{x3,y3,x4,y4},	-- CD
+										})
+								else
+									newSegs = createSegments({
+											{x1,y1,x3,y3},	-- AC
+											{x3,y3,x2,y2},	-- CB
+											{x2,y2,x4,y4},	-- BD
+										})
+								end						
 							else
 								-- B does not lie on AD - Case 8
-								-- BD is the merged segment
-								mergedSegment = {
-									start_x = x2,
-									start_y = y2,
-									end_x = x4,
-									end_y = y4
-								}
-								break
-							end
-						end									
-					else
+					--[[
+					8. (overlap) The merge is 3 segments DA, AC and CB. If A and C are dangling then merged is DB. If A is dangling then merged is DC and CB. If C is dangling then merged is DA and AB
+						A-----------B
+					D------C	]]
+								if cdang and adang then
+									newSegs = createSegments({
+											{x4,y4,x2,y2},	-- AD										
+										)}
+								elseif cdang then
+									newSegs = createSegments({
+											{x4,y4,x1,y1},	-- DA
+											{x1,y1,x2,y2},	-- AB
+										})
+								elseif adang then
+									newSegs = createSegments({
+											{x4,y4,x3,y3},	-- DC
+											{x3,y3,x2,y2},	-- CB
+										})
+								else
+									newSegs = createSegments({
+											{x4,y4,x1,y1},	-- DA
+											{x1,y1,x3,y3},	-- AC
+											{x3,y3,x2,y2},	-- CB
+										})
+								end						
+							end		-- if B lies on AD check
+						end		-- if D lies on AB check					
+					else	-- if C lies on AB check
 						-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
 						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
 							-- D lies on AB - Cases 2 and 10
 							if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
 								-- B lies on AC	-- Case 10
-								-- AC is the merged segment
-								mergedSegment = {
-									start_x = x1,
-									start_y = y1,
-									end_x = x3,
-									end_y = y3
-								}
-								break
+					--[[
+					10. (overlap) The merge is 3 segments AD, DB and BC. If B and D are dangling then merged is AC. If B is dangling then merged are AD and DC. If D is dangling then merged are AB and BC
+					  A-----------B
+							  D------C	]]
+								if bdang and ddang then
+									newSegs = createSegments({
+											{x1,y1,x3,y3},	-- AC										
+										)}
+								elseif bdang then
+									newSegs = createSegments({
+											{x1,y1,x4,y4},	-- AD
+											{x4,y4,x3,y3},	-- DC
+										})
+								elseif ddang then
+									newSegs = createSegments({
+											{x1,y1,x2,y2},	-- AB
+											{x2,y2,x3,y3},	-- BC
+										})
+								else
+									newSegs = createSegments({
+											{x1,y1,x4,y4},	-- AD
+											{x4,y4,x2,y2},	-- DB
+											{x2,y2,x3,y3},	-- BC
+										})
+								end						
 							else
 								-- B does not lie on AC	- Case 2
-								-- BC is the merged segment
-								mergedSegment = {
-									start_x = x2,
-									start_y = y2,
-									end_x = x3,
-									end_y = y3
-								}
-								break
-							end
-						else
-							-- D does not lie on AB - Cases 1,5,6,7,11,12
+					--[[
+					2. (overlap) The merge is 3 segments CA, AD and DB. If A and D are dangling then merged is CB. If A is dangling then merged is CD, DB. If D is dangling then merged is CA, AB
+						A-----------B
+					C------D	]]
+								if adang and ddang then
+									newSegs = createSegments({
+											{x3,y3,x2,y2},	-- CB										
+										)}
+								elseif adang then
+									newSegs = createSegments({
+											{x3,y3,x4,y4},	-- CD
+											{x4,y4,x2,y2},	-- DB
+										})
+								elseif ddang then
+									newSegs = createSegments({
+											{x3,y3,x1,y1},	-- CA
+											{x1,y1,x2,y2},	-- AB
+										})
+								else
+									newSegs = createSegments({
+											{x3,y3,x1,y1},	-- CA
+											{x1,y1,x4,y4},	-- AD
+											{x4,y4,x2,y2},	-- DB
+										})
+								end											
+							end		-- if B lies on AC check
+						else	-- if D lies on AB check
+							-- D does not lie on AB nor does C - Cases 1,5,6,7,11,12
 							if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
 								-- A lies on CD then - Cases 6 and 12
-								-- CD is the merged segment
-								mergedSegment = segTableD[j]
-								break
+								if coorc.PointOnLine(x3,y3,x2,y2,x1,y1,0) then
+									-- A lies on CB - Case 6
+					--[[
+					6. (overlap) The merge is 3 segments CA, AB and BD. If A and B are dangling then merged is CD. If A is dangling then merged are CB and BD. If B is dangling then merged are CA and AD
+					  C-----------D
+						A------B	]]
+									if adang and bdang then
+										newSegs = createSegments({
+												{x3,y3,x4,y4},	-- CD										
+											)}
+									elseif adang then
+										newSegs = createSegments({
+												{x3,y3,x2,y2},	-- CB
+												{x2,y2,x4,y4},	-- BD
+											})
+									elseif bdang then
+										newSegs = createSegments({
+												{x3,y3,x1,y1},	-- CA
+												{x1,y1,x4,y4},	-- AD
+											})
+									else
+										newSegs = createSegments({
+												{x3,y3,x1,y1},	-- CA
+												{x1,y1,x2,y2},	-- AB
+												{x2,y2,x4,y4},	-- BD
+											})
+									end											
+								else
+									-- A does not lie on CB - Case 12
+					--[[
+					12. (overlap) The merge is 3 segments DA, AB and BC. If A and B are dangling then merged is DC. If A is dangling then merged are DB and BC. If B is dangling then merged are DA and AC
+					  D-----------C
+						A------B	]]
+									if adang and bdang then
+										newSegs = createSegments({
+												{x4,y4,x3,y3},	-- DC										
+											)}
+									elseif adang then
+										newSegs = createSegments({
+												{x4,y4,x2,y2},	-- DB
+												{x2,y2,x3,y3},	-- BC
+											})
+									elseif bdang then
+										newSegs = createSegments({
+												{x4,y4,x1,y1},	-- DA
+												{x1,y1,x3,y3},	-- AC
+											})
+									else
+										newSegs = createSegments({
+												{x4,y4,x1,y1},	-- DA
+												{x1,y1,x2,y2},	-- AB
+												{x2,y2,x3,y3},	-- BC
+											})
+									end											
+								end
 							else
 								-- Cases 1,5,7,11
 								overlap = false
