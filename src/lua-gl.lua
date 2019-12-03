@@ -30,6 +30,8 @@ end
 --- TASKS
 --[[
 * Fix overlap segment code to split segment in case there is a junction
+* A connector may connect to a port and then continue to connect to another port. In this case when the object is dragged the connector has to be routed by routing 2 lines. This can be any number of lines
+* After drag object when port shorting is checked if there is a port short then the segment may need to be split to make sure port only connects on segment ends
 * Finish dragSegment 
 * dragObj end check port overlapping with another port and handle that case
 * check that case for moveObj as well

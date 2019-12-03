@@ -37,7 +37,6 @@ getPortFromXY = function(cnvobj, x, y)
 	for i = 1, #ports do
 		if math.abs(ports[i].x - x) <= res and math.abs(cnvobj.port[i].y - y) <= res then
 				allPorts[#allPorts + 1] = ports[i]
-			end
 		end
 	end
 	return allPorts

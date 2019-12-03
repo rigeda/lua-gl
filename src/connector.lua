@@ -328,6 +328,10 @@ function generateSegments(cnvobj, startX,startY,x, y,segments)
 	return true
 end
 
+local function equalCoordinate(v1,v2)
+	return v1.x == v2.x and v1.y == v2.y
+end
+
 -- Function to check whether other connectors exist in the given coordinates (coor) then they are all shorted and merged into 1 connector
 -- Structure of coor is as follows:
 --[[
@@ -423,9 +427,7 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 			local juncS = conns[allSegs[i].conn].junction
 			for i = 1,#juncS do
 				-- Check if this junction already exists
-				if not tu.inArray(juncD,juncS[i],function(v1,v2)
-						return v1.x == v2.x and v1.y == v2.y 
-					end) then
+				if not tu.inArray(juncD,juncS[i],equalCoordinate) then
 					juncD[#juncD + 1] = juncS[i]
 				end
 			end
@@ -447,9 +449,7 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 	-- Now add the junctions if required
 	for i = 1,#coor do
 		if isJunc[i] then
-			if not tu.inArray(juncD,coor[i],function(v1,v2)
-					return v1.x == v2.x and v1.y == v2.y 
-				end) then
+			if not tu.inArray(juncD,coor[i],equalCoordinate) then
 				juncD[#juncD + 1] = {x=coor[i].x,y=coor[i].y}
 			end
 		end
@@ -468,6 +468,343 @@ local function checkAndAddPorts(cnvobj,X,Y,conn)
 			conn.port[#conn.port + 1] = allPorts[j]
 		end
 	end
+end
+
+-- Function to check whether segments are valid and if any segments need to be split further or merged
+local function repairSegAndJunc(conn)
+	-- First find the dangling nodes. Note that dangling segments are the ones which may merge with other segments
+	local dangling = {}		-- To store the indexes of dangling segments
+	local s,e = {},{}		-- Starting and ending node dangling segments indexes
+	local segs = conn.segments
+	for i = 1,#segs do
+		local sx,sy,ex,ey = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
+		local founds,founde
+		for j = 1,#segs do
+			if j ~= i then
+				local sx1,sy1,ex1,ey1 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
+				if sx == sx1 and sy == sy1 or sx == ex1 and sy == ey1 then
+					founds = true
+					if founde then break end
+				end
+				if ex == sx1 and ey == sy1 or ex == ex1 and ey == ey1 then
+					founde = true
+					if founds then break end
+				end
+			end
+		end
+		if not founds then
+			-- Starting node is dangling check if it connects to any port
+			if #cnvobj:getPortFromXY(sx,sy) == 0 then
+				dangling[#dangling + 1] = {index = i,node ="s"}
+				s[i] = true
+			end
+		end
+		if not founde then
+			-- Ending node is dangling, check if it connects to any port
+			if #cnvobj:getPortFromXY(ex,ey) == 0 then
+				dangling[#dangling + 1] = {index = i,node="e"}
+				e[i] = true
+			end
+		end
+	end
+	-- Now check for overlaps of the dangling segments with others
+	for k = 1,#dangling do
+		local i = dangling[k].index
+		-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
+		local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
+		local overlap,mergedSegment
+		for j = 1,#segs do 
+			-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
+			local x3,y3,x4,y4 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
+			-- Check whether the 2 line segments have the same line equation
+			local sameeqn 
+			if x1==x2 and x3==x4 and x1==x3 then
+				sameeqn = true
+			elseif x1~=x2 and x3~=x4 then
+				local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
+				local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
+				if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
+					sameeqn = true
+				end
+			end
+			if sameeqn then
+				overlap = j		-- Assume they overlap
+				-- There are 8 overlapping cases and 4 non overlapping cases
+				--[[
+				1. (no overlap)
+							A-----------B
+				C------D	
+				2. (overlap) The merge is 3 segments CA, AD and DB. If A and D are dangling then merged is CB. If A is dangling then merged is CD, DB. If D is dangling then merged is CA, AB
+					A-----------B
+				C------D	
+				3. (overlap) The merge is 3 segments AC CD and DB. If C and D are dangling then merged is AB. If C is dangling then merged are AD and DB. If D is dangling then merged are AC and CB
+				  A-----------B
+					C------D	
+				4. (overlap) The merge is 3 segments AC, CB and BD. If B and C are dangling then merged is AD. If C is dangling then merged is AB, BD. If B is dangling then merged are AC and CD
+				  A-----------B
+						  C------D	
+				5. (no overlap)
+					A-----------B
+									C------D	
+				6. (overlap) The merge is 3 segments CA, AB and BD. If A and B are dangling then merged is CD. If A is dangling then merged are CB and BD. If B is dangling then merged are CA and AD
+				  C-----------D
+					A------B	
+				7. (no overlap)
+							A-----------B
+				D------C	
+				8. (overlap) The merge is 3 segments DA, AC and CB. If A and C are dangling then merged is DB. If A is dangling then merged is DC and CB. If C is dangling then merged is DA and AB
+					A-----------B
+				D------C	
+				9. (overlap) The merge is 3 segments AC, CD and DB. If C and D are dangling then merged is AB. If D is dangling then merged are AC and CB. If C is dangling then merged are AD and DB
+				  A-----------B
+					D------C	
+				10. (overlap) The merge is 3 segments AD, DB and BC. If B and D are dangling then merged is AC. If B is dangling then merged are AD and DC. If D is dangling then mergedf are AB and BC
+				  A-----------B
+						  D------C	
+				11. (no overlap)
+					A-----------B
+									D------C
+				12. (overlap) The merge is 3 segments DA, AB and BC. If A and B are dangling then merged is DC. If A is dangling then merged are DB and BC. If B is dangling then merged are DA and AC
+				  D-----------C
+					A------B	
+				
+				]]
+				if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
+					-- C lies on AB - Cases 3,4,8,9
+					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+						-- D lies on AB - Cases 3 and 9
+						if coorc.PointOnLine(x1,y1,x4,y4,x3,y3,0) then
+							-- C lies on AD - Case 3
+							-- Segments are 
+						else
+							-- D lies on AC - Case 9
+						end
+						-- AB is the merged segment
+						mergedSegment = segs[i]
+						break
+					else
+						-- C lies on AB but not D- Cases 4 and 8
+						if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
+							-- B lies on AD - Case 4
+							-- AD is the merged segment
+							mergedSegment = {
+								start_x = x1,
+								start_y = y1,
+								end_x = x4,
+								end_y = y4
+							}
+							break
+						else
+							-- B does not lie on AD - Case 8
+							-- BD is the merged segment
+							mergedSegment = {
+								start_x = x2,
+								start_y = y2,
+								end_x = x4,
+								end_y = y4
+							}
+							break
+						end
+					end									
+				else
+					-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
+					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+						-- D lies on AB - Cases 2 and 10
+						if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
+							-- B lies on AC	-- Case 10
+							-- AC is the merged segment
+							mergedSegment = {
+								start_x = x1,
+								start_y = y1,
+								end_x = x3,
+								end_y = y3
+							}
+							break
+						else
+							-- B does not lie on AC	- Case 2
+							-- BC is the merged segment
+							mergedSegment = {
+								start_x = x2,
+								start_y = y2,
+								end_x = x3,
+								end_y = y3
+							}
+							break
+						end
+					else
+						-- D does not lie on AB - Cases 1,5,6,7,11,12
+						if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
+							-- A lies on CD then - Cases 6 and 12
+							-- CD is the merged segment
+							mergedSegment = segTableD[j]
+							break
+						else
+							-- Cases 1,5,7,11
+							overlap = false
+						end
+					end	-- if check D lies on AB ends
+				end		-- if check C lies on AB ends
+			end		-- if sameeqn then ends here
+			
+		end		-- for j = 1,#segs do ends
+	end		-- for k = 1,#dangling do ends
+end
+
+-- Function to check and remove segment overlaps in the segments array of the given connector 'conn'
+local function removeOverlaps(conn)
+	local segs = conn.segments
+	local i = 1
+	while i <= #segs do
+		-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
+		local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
+		local overlap,mergedSegment
+		local j = i + 1
+		while j <= #segs do
+		-- Check against all other segments
+			-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
+			local x3,y3,x4,y4 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
+			-- Check whether the 2 line segments have the same line equation
+			local sameeqn 
+			if x1==x2 and x3==x4 and x1==x3 then
+				sameeqn = true
+			elseif x1~=x2 and x3~=x4 then
+				local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
+				local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
+				if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
+					sameeqn = true
+				end
+			end
+			if sameeqn then
+				overlap = j		-- Assume they overlap
+				-- There are 8 overlapping cases and 4 non overlapping cases
+				--[[
+				1. (no overlap)
+							A-----------B
+				C------D	
+				2. (overlap) A is already a junction (so this case shouldn't occur) the merge is 3 segments CA, AD and DB
+					A-----------B
+				C------D	
+				3. (overlap) The merge is 3 segments AC CD and DB
+				  A-----------B
+					C------D	
+				4. (overlap) B is already a junction (so this case shouldn't occur). The merge is 3 segments AC, CB and BD
+				  A-----------B
+						  C------D	
+				5. (no overlap)
+					A-----------B
+									C------D	
+				6. (overlap) A and B are already junctions (so this case shouldn't occur). The merge is 3 segments CA, AB and BD
+				  C-----------D
+					A------B	
+				7. (no overlap)
+							A-----------B
+				D------C	
+				8. (overlap) A is already a junction (so this case shouldn't occur) the merge is 3 segments DA, AC and CB
+					A-----------B
+				D------C	
+				9. (overlap) The merge is 3 segments AC CD and DB
+				  A-----------B
+					D------C	
+				10. (overlap) B is already a junction (so this case shouldn't occur). The merge is 3 segments AD, DB and BC
+				  A-----------B
+						  D------C	
+				11. (no overlap)
+					A-----------B
+									D------C
+				12. (overlap) A and B are already junctions (so this case shouldn't occur). The merge is 3 segments DA, AB and BC
+				  D-----------C
+					A------B	
+				
+				]]
+				if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
+					-- C lies on AB - Cases 3,4,8,9
+					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+						-- D lies on AB - Cases 3 and 9
+						if coorc.PointOnLine(x1,y1,x4,y4,x3,y3,0) then
+							-- C lies on AD - Case 3
+							-- Segments are 
+						else
+							-- D lies on AC - Case 9
+						end
+						-- AB is the merged segment
+						mergedSegment = segs[i]
+						break
+					else
+						-- C lies on AB but not D- Cases 4 and 8
+						if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
+							-- B lies on AD - Case 4
+							-- AD is the merged segment
+							mergedSegment = {
+								start_x = x1,
+								start_y = y1,
+								end_x = x4,
+								end_y = y4
+							}
+							break
+						else
+							-- B does not lie on AD - Case 8
+							-- BD is the merged segment
+							mergedSegment = {
+								start_x = x2,
+								start_y = y2,
+								end_x = x4,
+								end_y = y4
+							}
+							break
+						end
+					end									
+				else
+					-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
+					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+						-- D lies on AB - Cases 2 and 10
+						if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
+							-- B lies on AC	-- Case 10
+							-- AC is the merged segment
+							mergedSegment = {
+								start_x = x1,
+								start_y = y1,
+								end_x = x3,
+								end_y = y3
+							}
+							break
+						else
+							-- B does not lie on AC	- Case 2
+							-- BC is the merged segment
+							mergedSegment = {
+								start_x = x2,
+								start_y = y2,
+								end_x = x3,
+								end_y = y3
+							}
+							break
+						end
+					else
+						-- D does not lie on AB - Cases 1,5,6,7,11,12
+						if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
+							-- A lies on CD then - Cases 6 and 12
+							-- CD is the merged segment
+							mergedSegment = segTableD[j]
+							break
+						else
+							-- Cases 1,5,7,11
+							overlap = false
+						end
+					end	-- if check D lies on AB ends
+				end		-- if check C lies on AB ends
+			end		-- if m1==m2 and c1==c2 check ends here
+			if overlap then
+				-- Put the merged segment in the ith place and remove the jth segment and update x1,y2,x2,y2
+				x1,y1,x2,y2 = mergedSegment.start_x,mergedSegment.start_y,mergedSegment.end_x,mergedSegment.end_y
+				table.remove(segs,i)
+				table.insert(segs,i,mergedSegment)
+				table.remove(segs,j)
+				j = j - 1	-- To compensate for the j increment coming below
+			end
+			j = j + 1
+		end		-- while j <= #segs do ends
+		i = i + 1
+	end		-- while i <= #segs do ends
+	return true
 end
 	
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
@@ -680,16 +1017,12 @@ drawConnector  = function(cnvobj,segs)
 			end
 			if jcst > 1 then
 				-- More than 1 segment connects the starting point of the ith segment so the starting point is a junction
-				if not tu.inArray(junc,{x=segs[i].start_x,y=segs[i].start_y},function(v1,v2)
-						return v1.x == v2.x and v1.y == v2.y
-					end) then
+				if not tu.inArray(junc,{x=segs[i].start_x,y=segs[i].start_y},equalCoordinate) then
 					junc[#junc + 1] = {x=segs[i].start_x,y=segs[i].start_y}
 				end
 			end
 			if jcen > 1 then
-				if not tu.inArray(junc,{x=segs[i].end_x,y=segs[i].end_y},function(v1,v2)
-						return v1.x == v2.x and v1.y == v2.y
-					end)
+				if not tu.inArray(junc,{x=segs[i].end_x,y=segs[i].end_y},equalCoordinate)
 					junc[#junc + 1] = {x=segs[i].end_x,y=segs[i].end_y}
 				end
 			end
@@ -705,8 +1038,14 @@ drawConnector  = function(cnvobj,segs)
 		conn.ids = conn.ids + 1
 		local coor = {}
 		for i = 1,#segs do
-			coor[#coor + 1] = {x = segs[i].start_x,y=segs[i].start_y}
-			coor[#coor + 1] = {x = segs[i].end_x,y=segs[i].end_y}
+			local coor1 = {x = segs[i].start_x,y=segs[i].start_y}
+			local coor2 = {x = segs[i].end_x,y=segs[i].end_y}
+			if not tu.inArray(coor,coor1,equalCoordinate) then
+				coor[#coor + 1] = coor1
+			end
+			if not tu.inArray(coor,coor2,equalCoordinate) then
+				coor[#coor + 1] = coor2
+			end
 			-- Check if the start of the segment lands on any port then connect to it
 			checkAndAddPorts(cnvobj,segs[i].start_x,segs[i].start_y,conn[#conn])
 			-- Check if the end of the segment lands on any port then connect to it
@@ -715,9 +1054,7 @@ drawConnector  = function(cnvobj,segs)
 		-- Add a junctions if any
 		local juncD = conn[#conn].junction
 		for i = 1,#junc do
-			if not tu.inArray(juncD,junc[i],function(v1,v2)
-					return v1.x == v2.x and v1.y == v2.y
-				end) then
+			if not tu.inArray(juncD,junc[i],equalCoordinate) then
 				juncD[#juncD + 1] = junc[i]
 			end
 		end			
@@ -725,156 +1062,9 @@ drawConnector  = function(cnvobj,segs)
 			type = "connector",
 			item = conn[#conn]
 		}
-		-- Now lets check whether there are any shorts to any other connector. The shorts can be on the segment end points
-		local finConn = shortAndMergeConnectors(cnvobj,coor)	-- finConn will end up with the final merged connector
-		
-		-- Now lets check if there are overlapping segments in finConn 
-		segs = finConn.segments
-		local i = 1
-		while i <= #segs do
-			-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
-			local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
-			local overlap,mergedSegment
-			local j = i + 1
-			while j <= #segs do
-			-- Check against all other segments
-				-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
-				local x3,y3,x4,y4 = segTableD[j].start_x,segTableD[j].start_y,segTableD[j].end_x,segTableD[j].end_y
-				-- Check whether the 2 line segments have the same line equation
-				local sameeqn 
-				if x1==x2 and x3==x4 and x1==x3 then
-					sameeqn = true
-				elseif x1~=x2 and x3~=x4 then
-					local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
-					local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
-					if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
-						sameeqn = true
-					end
-				end
-				if sameeqn then
-					overlap = j		-- Assume they overlap
-					-- There are 8 overlapping cases and 4 non overlapping cases
-					--[[
-					1.
-								A-----------B
-					C------D	
-					2.
-						A-----------B
-					C------D	
-					3.
-					  A-----------B
-						C------D	
-					4.
-					  A-----------B
-							  C------D	
-					5.
-						A-----------B
-										C------D	
-					6.
-					  C-----------D
-						A------B	
-					7.
-								A-----------B
-					D------C	
-					8.
-						A-----------B
-					D------C	
-					9.
-					  A-----------B
-						D------C	
-					10.
-					  A-----------B
-							  D------C	
-					11.
-						A-----------B
-										D------C
-					12.
-					  D-----------C
-						A------B	
-					
-					]]
-					if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
-						-- C lies on AB - Cases 3,4,8,9
-						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-							-- D lies on AB - Cases 3 and 9
-							-- AB is the merged segment
-							mergedSegment = segs[i]
-							break
-						else
-							-- C lies on AB but not D- Cases 4 and 8
-							if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
-								-- B lies on AD - Case 4
-								-- AD is the merged segment
-								mergedSegment = {
-									start_x = x1,
-									start_y = y1,
-									end_x = x4,
-									end_y = y4
-								}
-								break
-							else
-								-- B does not lie on AD - Case 8
-								-- BD is the merged segment
-								mergedSegment = {
-									start_x = x2,
-									start_y = y2,
-									end_x = x4,
-									end_y = y4
-								}
-								break
-							end
-						end									
-					else
-						-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
-						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-							-- D lies on AB - Cases 2 and 10
-							if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
-								-- B lies on AC	-- Case 10
-								-- AC is the merged segment
-								mergedSegment = {
-									start_x = x1,
-									start_y = y1,
-									end_x = x3,
-									end_y = y3
-								}
-								break
-							else
-								-- B does not lie on AC	- Case 2
-								-- BC is the merged segment
-								mergedSegment = {
-									start_x = x2,
-									start_y = y2,
-									end_x = x3,
-									end_y = y3
-								}
-								break
-							end
-						else
-							-- D does not lie on AB - Cases 1,5,6,7,11,12
-							if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
-								-- A lies on CD then - Cases 6 and 12
-								-- CD is the merged segment
-								mergedSegment = segTableD[j]
-								break
-							else
-								-- Cases 1,5,7,11
-								overlap = false
-							end
-						end	-- if check D lies on AB ends
-					end		-- if check C lies on AB ends
-				end		-- if m1==m2 and c1==c2 check ends here
-				if overlap then
-					-- Put the merged segment in the ith place and remove the jth segment and update x1,y2,x2,y2
-					x1,y1,x2,y2 = mergedSegment.start_x,mergedSegment.start_y,mergedSegment.end_x,mergedSegment.end_y
-					table.remove(segs,i)
-					table.insert(segs,i,mergedSegment)
-					table.remove(segs,j)
-					j = j - 1	-- To compensate for the j increment coming below
-				end
-				j = j + 1
-			end		-- while j <= #segs do ends
-			i = i + 1
-		end		-- while i <= #segs do ends
+		-- Now lets check whether there are any shorts to any other connector. The shorts can be on the segment end points compiled in coor and then 
+		-- remove any overlaps in the final merged connector
+		removeOverlaps(shortAndMergeConnectors(cnvobj,coor))
 	end
 	-- Setup interactive drawing
 	
