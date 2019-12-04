@@ -472,6 +472,42 @@ local function checkAndAddPorts(cnvobj,X,Y,conn)
 	end
 end
 
+-- Function to check if any ports in the drawn data touch the given connector 'conn'. All touching ports are connected to the connector if not already done
+local function connectOverlapPorts(cnvobj,conn)
+	-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+	local ports = cnvobj.drawn.port
+	local segs = conn.segments
+	for i = 1,#ports do
+		local X,Y = ports[i].x,ports[i].y
+		local allConns,sgmnts = getConnFromXY(cnvobj,X,Y)
+		for j = 1,#allConns do
+			if allConns[j] == conn and not tu.inArray(conn.port,ports[i]) then
+				-- This connector lies on the port
+				-- Add the connector to the port
+				ports[i].conn[#ports[i].conn + 1] = conn
+				-- Add the port to the connector
+				conn.port[#conn.port + 1] = ports[i]
+				-- Check if the port is in between a segment then this segment needs to split
+				local k = sgmnts[j].seg	-- Contains the segment number where the point X,Y lies
+				-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+				if not(segs[k].start_x == X and segs[k].start_y == Y or segs[k].end_x == X and segs[k].end_y == Y) then 
+					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+					table.insert(segs,k+1,{
+						start_x = X,
+						start_y = Y,
+						end_x = segs[k].end_x,
+						end_y = segs[k].end_y
+					})
+					segs[k].end_x = X
+					segs[k].end_y = Y
+				end
+				break
+			end
+		end
+	end	
+	return true
+end
+
 -- Function to check whether segments are valid and if any segments need to be split further or merged and overlaps are removed and junctions are regenerated
 local function repairSegAndJunc(conn)
 	-- First find the dangling nodes. Note that dangling segments are the ones which may merge with other segments
@@ -925,6 +961,7 @@ end		-- function repairSegAndJunc ends here
 	seg = <integer>					-- segment index of the connector
 }
 ]]
+-- If offx and offy are given numbers then this will be a non interactive move
 dragSegment = function(cnvobj,segList,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -937,6 +974,16 @@ dragSegment = function(cnvobj,segList,offx,offy)
 		return nil, "Coordinates not given"
 	end
 	
+	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
+	table.sort(segList,function(one,two)
+			if one.conn.id == two.conn.id then
+				-- this is the same connector
+				return one.seg > two.seg	-- sort with descending segment index
+			else
+				return one.conn.id > two.conn.id
+			end
+		end)
+	
 	if not interactive then
 		-- Take care of grid snapping
 		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
@@ -945,6 +992,37 @@ dragSegment = function(cnvobj,segList,offx,offy)
 		end
 		offx = coorc.snapX(offx, grdx)
 		offy = coorc.snapY(offy, grdy)
+		
+		-- Move each segment
+		for i = 1,#segList do
+			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
+			-- route connector from previous end_x,end_y to the new end_x,end_y
+			local newSegs = {}
+			generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs)
+			-- Add these segments after this current segment
+			for j = #newSegs,1,-1 do
+				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg+1)
+			end
+			-- route connector from previous start_x,start_y to the new start_x,start_y
+			newSegs = {}
+			generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs)
+			for j = #newSegs,1,-1 do
+				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg)
+			end
+			-- Move the segment
+			seg.start_x = seg.start_x + offx
+			seg.start_y = seg.start_y + offy
+			seg.end_x = seg.end_x + offx
+			seg.end_y = seg.end_y + offy
+			-- Connect overlapping ports
+			connectOverlapPorts(cnvobj,segList[i].conn)
+			-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
+			-- remove any overlaps in the final merged connector
+			repairSegAndJunc(shortAndMergeConnectors(cnvobj,{
+					{x = seg.start_x,y=seg.start_y},
+					{x = seg.end_x,y=seg.end_y}
+				}))
+		end
 		
 		return true
 	end
@@ -958,15 +1036,16 @@ dragSegment = function(cnvobj,segList,offx,offy)
 	local oldMCB = cnvobj.cnv.motion_cb
 	
 	local function dragEnd()
-		-- Check whether after drag the ends of the dragged segment are touching other connectors or ports then those get connected to the segment
-		-- First step is to check the end points of the dragged segment and check if they are on a port
+		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
 		for i = 1,#segList do
-			local X,Y = cnvobj.op.oldSegs[i][segList[i].seg].start_x+cnvobj.op.offx,cnvobj.op.oldSegs[i][segList[i].seg].start_y+cnvobj.op.offy
-			-- Check whether after drag X and Y are on a port
-			checkAndAddPorts(cnvobj,X,Y,segList[i].conn)
-			-- Check if X,Y are on a connector
-			X,Y = cnvobj.op.oldSegs[i][segList[i].seg].end_x+cnvobj.op.offx,cnvobj.op.oldSegs[i][segList[i].seg].end_y+cnvobj.op.offy
-			checkAndAddPorts(cnvobj,X,Y,segList[i].conn)
+			connectOverlapPorts(cnvobj,segList[i].conn)
+			-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
+			local seg = segList[i].conn.segments[segList[i].seg]
+			-- remove any overlaps in the final merged connector
+			repairSegAndJunc(shortAndMergeConnectors(cnvobj,{
+					{x = seg.start_x,y=seg.start_y},
+					{x = seg.end_x,y=seg.end_y}
+				}))
 		end
 		
 		-- Reset mode
@@ -975,17 +1054,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
 	end
-	
-	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
-	table.sort(segList,function(one,two)
-			if one.conn.id == two.conn.id then
-				-- this is the same connector
-				return one.seg > two.seg	-- sort with descending segment index
-			else
-				return one.conn.id > two.conn.id
-			end
-		end)
-	
+		
 	cnvobj.op.mode = "DRAGSEG"
 	cnvobj.op.segList = segList
 	cnvobj.op.coor1 = {x=segList[1].conn.segments[segList[1].seg].start_x,y=segList[1].conn.segments[segList[1].seg].start_y}
@@ -1026,15 +1095,18 @@ dragSegment = function(cnvobj,segList,offx,offy)
 		for i = 1,#segList do
 			-- First copy the old segments to the connector
 			segList[i].conn.segments = {}
-			tu.copyTable(cnvobj.op.oldSegs[i],segList[i].conn.segments,true)	-- Copy the eniter oldSegs[i] table back to the connector segments
-			local seg = segList[i].conn.segments[segList[i].seg]
-			-- route connector from previous start_x to the new start_x
+			tu.copyTable(cnvobj.op.oldSegs[i],segList[i].conn.segments,true)	-- Copy the oldSegs[i] table back to the connector segments
+		end
+		for i = 1,#segList do
+			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
+			-- route connector from previous end_x,end_y to the new end_x,end_y
 			local newSegs = {}
-			generateSegments(cnvobj,seg.end_x,seg.end_y,seg.end_x+offx,seg.end_y+offy,newSegs)
-			-- Add these segments before this current segment
+			generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs)
+			-- Add these segments after this current segment
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg+1)
 			end
+			-- route connector from previous start_x,start_y to the new start_x,start_y
 			newSegs = {}
 			generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs)
 			for j = #newSegs,1,-1 do
@@ -1143,7 +1215,13 @@ drawConnector  = function(cnvobj,segs)
 			port={}
 		}
 		conn.ids = conn.ids + 1
+		-- Add the connector to the order array
+		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+			type = "connector",
+			item = conn[#conn]
+		}
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+		connectOverlapPorts(cnvobj,conn)
 		
 		local coor = {}	-- To collect the coordinates of all the segment end points
 		for i = 1,#segs do
@@ -1155,16 +1233,7 @@ drawConnector  = function(cnvobj,segs)
 			if not tu.inArray(coor,coor2,equalCoordinate) then
 				coor[#coor + 1] = coor2
 			end
-			-- Check if the start of the segment lands on any port then connect to it
-			checkAndAddPorts(cnvobj,coor1.x,coor1.y,conn[#conn])
-			-- Check if the end of the segment lands on any port then connect to it
-			checkAndAddPorts(cnvobj,coor2.x,coor2.y,conn[#conn])
 		end
-		-- Add the connector to the order array
-		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-			type = "connector",
-			item = conn[#conn]
-		}
 		-- Now lets check whether there are any shorts to any other connector. The shorts can be on the segment end points compiled in coor and then 
 		-- remove any overlaps in the final merged connector
 		repairSegAndJunc(shortAndMergeConnectors(cnvobj,coor))

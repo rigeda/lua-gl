@@ -29,9 +29,6 @@ end
 
 --- TASKS
 --[[
-* In drawConnector non interactive
-	* Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
-* Finish dragSegment 
 * A connector may connect to a port and then continue to connect to another port. In this case when the object is dragged the connector has to be routed by routing 2 lines. This can be any number of lines
 * After drag object when port shorting is checked if there is a port short then the segment may need to be split to make sure port only connects on segment ends
 * dragObj end check port overlapping with another port and handle that case
