@@ -29,12 +29,14 @@ end
 
 --- TASKS
 --[[
-* Fix overlap segment code to split segment in case there is a junction
+* In drawConnector non interactive
+	* Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+* Finish dragSegment 
 * A connector may connect to a port and then continue to connect to another port. In this case when the object is dragged the connector has to be routed by routing 2 lines. This can be any number of lines
 * After drag object when port shorting is checked if there is a port short then the segment may need to be split to make sure port only connects on segment ends
-* Finish dragSegment 
 * dragObj end check port overlapping with another port and handle that case
 * check that case for moveObj as well
+* Remove cnvobj dependency from generateSegments just pass it grdx and grdy or better yet - stepx and stepy 
 * Finish moveSegment
 * Finish moveConn
 * Finish removeConn
@@ -44,6 +46,7 @@ end
 * Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.
 	* Avoid going through junctions
 	* Ports on the edge of blocking rectangles should be connectable
+	* pathfinding matrix should probably be a lookup table with only values where blocking rectangle is there.
 * Add Text functionality
 * Add arc functionality
 * Canvas scroll, zoom, pan
@@ -110,7 +113,7 @@ objFuncs = {
 		end
 		-- First check if any operation is happenning then end it
 		if cnvobj.op.end and type(cnvobj.op.end) == "function" then
-			cnvobj.op.end()
+			cnvobj.op.finish()
 		end
 		return tu.t2sr(cnvobj.drawn)
 	end,

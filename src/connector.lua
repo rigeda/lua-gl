@@ -4,6 +4,8 @@ local table = table
 local type = type
 local math = math
 local tonumber = tonumber
+local error = error
+local pairs = pairs
 
 local print = print
 
@@ -436,7 +438,7 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 	end
 	-- Remove all the merged connectors from the order array
 	table.sort(orders,function(one,two)		-- Sort orders in descending order
-			one > two)
+			return one > two
 		end)
 	for i = 1,#orders do
 		table.remove(cnvobj.drawn.order,orders[i])
@@ -470,7 +472,7 @@ local function checkAndAddPorts(cnvobj,X,Y,conn)
 	end
 end
 
--- Function to check whether segments are valid and if any segments need to be split further or merged
+-- Function to check whether segments are valid and if any segments need to be split further or merged and overlaps are removed and junctions are regenerated
 local function repairSegAndJunc(conn)
 	-- First find the dangling nodes. Note that dangling segments are the ones which may merge with other segments
 	local s,e = {},{}		-- Starting and ending node dangling segments indexes
@@ -520,12 +522,14 @@ local function repairSegAndJunc(conn)
 		return segs
 	end
 
-	for i = 1,#segs do
+	local i = 1
+	while i <= #segs do
 		-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
 		local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
 		local adang,bdang = s[i],e[i]
 		local overlap,newSegs
-		for j = 1,#segs do 
+		local j = 1
+		while j <= #segs do
 			if i ~= j then
 				-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
 				local x3,y3,x4,y4 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
@@ -653,7 +657,7 @@ local function repairSegAndJunc(conn)
 								if cdang and bdang then
 									newSegs = createSegments({
 											{x1,y1,x4,y4},	-- AD										
-										)}
+										})
 								elseif cdang then
 									newSegs = createSegments({
 											{x1,y1,x2,y2},	-- AB
@@ -680,7 +684,7 @@ local function repairSegAndJunc(conn)
 								if cdang and adang then
 									newSegs = createSegments({
 											{x4,y4,x2,y2},	-- AD										
-										)}
+										})
 								elseif cdang then
 									newSegs = createSegments({
 											{x4,y4,x1,y1},	-- DA
@@ -713,7 +717,7 @@ local function repairSegAndJunc(conn)
 								if bdang and ddang then
 									newSegs = createSegments({
 											{x1,y1,x3,y3},	-- AC										
-										)}
+										})
 								elseif bdang then
 									newSegs = createSegments({
 											{x1,y1,x4,y4},	-- AD
@@ -740,7 +744,7 @@ local function repairSegAndJunc(conn)
 								if adang and ddang then
 									newSegs = createSegments({
 											{x3,y3,x2,y2},	-- CB										
-										)}
+										})
 								elseif adang then
 									newSegs = createSegments({
 											{x3,y3,x4,y4},	-- CD
@@ -772,7 +776,7 @@ local function repairSegAndJunc(conn)
 									if adang and bdang then
 										newSegs = createSegments({
 												{x3,y3,x4,y4},	-- CD										
-											)}
+											})
 									elseif adang then
 										newSegs = createSegments({
 												{x3,y3,x2,y2},	-- CB
@@ -799,7 +803,7 @@ local function repairSegAndJunc(conn)
 									if adang and bdang then
 										newSegs = createSegments({
 												{x4,y4,x3,y3},	-- DC										
-											)}
+											})
 									elseif adang then
 										newSegs = createSegments({
 												{x4,y4,x2,y2},	-- DB
@@ -826,167 +830,93 @@ local function repairSegAndJunc(conn)
 					end		-- if check C lies on AB ends
 				end		-- if sameeqn then ends here
 			end		-- if i ~= j then ends here
-		end		-- for j = 1,#segs do ends
-	end		-- for i = 1,#segs do ends
-end
-
--- Function to check and remove segment overlaps in the segments array of the given connector 'conn'
-local function removeOverlaps(conn)
-	local segs = conn.segments
-	local i = 1
-	while i <= #segs do
-		-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
-		local x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
-		local overlap,mergedSegment
-		local j = i + 1
-		while j <= #segs do
-		-- Check against all other segments
-			-- Let C=x3,y3 and D=x4,y4. So CD is 2nd line segment
-			local x3,y3,x4,y4 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
-			-- Check whether the 2 line segments have the same line equation
-			local sameeqn 
-			if x1==x2 and x3==x4 and x1==x3 then
-				sameeqn = true
-			elseif x1~=x2 and x3~=x4 then
-				local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
-				local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
-				if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
-					sameeqn = true
-				end
-			end
-			if sameeqn then
-				overlap = j		-- Assume they overlap
-				-- There are 8 overlapping cases and 4 non overlapping cases
-				--[[
-				1. (no overlap)
-							A-----------B
-				C------D	
-				2. (overlap) A is already a junction (so this case shouldn't occur) the merge is 3 segments CA, AD and DB
-					A-----------B
-				C------D	
-				3. (overlap) The merge is 3 segments AC CD and DB
-				  A-----------B
-					C------D	
-				4. (overlap) B is already a junction (so this case shouldn't occur). The merge is 3 segments AC, CB and BD
-				  A-----------B
-						  C------D	
-				5. (no overlap)
-					A-----------B
-									C------D	
-				6. (overlap) A and B are already junctions (so this case shouldn't occur). The merge is 3 segments CA, AB and BD
-				  C-----------D
-					A------B	
-				7. (no overlap)
-							A-----------B
-				D------C	
-				8. (overlap) A is already a junction (so this case shouldn't occur) the merge is 3 segments DA, AC and CB
-					A-----------B
-				D------C	
-				9. (overlap) The merge is 3 segments AC CD and DB
-				  A-----------B
-					D------C	
-				10. (overlap) B is already a junction (so this case shouldn't occur). The merge is 3 segments AD, DB and BC
-				  A-----------B
-						  D------C	
-				11. (no overlap)
-					A-----------B
-									D------C
-				12. (overlap) A and B are already junctions (so this case shouldn't occur). The merge is 3 segments DA, AB and BC
-				  D-----------C
-					A------B	
-				
-				]]
-				if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
-					-- C lies on AB - Cases 3,4,8,9
-					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-						-- D lies on AB - Cases 3 and 9
-						if coorc.PointOnLine(x1,y1,x4,y4,x3,y3,0) then
-							-- C lies on AD - Case 3
-							-- Segments are 
-						else
-							-- D lies on AC - Case 9
-						end
-						-- AB is the merged segment
-						mergedSegment = segs[i]
-						break
-					else
-						-- C lies on AB but not D- Cases 4 and 8
-						if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
-							-- B lies on AD - Case 4
-							-- AD is the merged segment
-							mergedSegment = {
-								start_x = x1,
-								start_y = y1,
-								end_x = x4,
-								end_y = y4
-							}
-							break
-						else
-							-- B does not lie on AD - Case 8
-							-- BD is the merged segment
-							mergedSegment = {
-								start_x = x2,
-								start_y = y2,
-								end_x = x4,
-								end_y = y4
-							}
-							break
-						end
-					end									
-				else
-					-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
-					if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
-						-- D lies on AB - Cases 2 and 10
-						if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
-							-- B lies on AC	-- Case 10
-							-- AC is the merged segment
-							mergedSegment = {
-								start_x = x1,
-								start_y = y1,
-								end_x = x3,
-								end_y = y3
-							}
-							break
-						else
-							-- B does not lie on AC	- Case 2
-							-- BC is the merged segment
-							mergedSegment = {
-								start_x = x2,
-								start_y = y2,
-								end_x = x3,
-								end_y = y3
-							}
-							break
-						end
-					else
-						-- D does not lie on AB - Cases 1,5,6,7,11,12
-						if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
-							-- A lies on CD then - Cases 6 and 12
-							-- CD is the merged segment
-							mergedSegment = segTableD[j]
-							break
-						else
-							-- Cases 1,5,7,11
-							overlap = false
-						end
-					end	-- if check D lies on AB ends
-				end		-- if check C lies on AB ends
-			end		-- if m1==m2 and c1==c2 check ends here
 			if overlap then
-				-- Put the merged segment in the ith place and remove the jth segment and update x1,y2,x2,y2
-				x1,y1,x2,y2 = mergedSegment.start_x,mergedSegment.start_y,mergedSegment.end_x,mergedSegment.end_y
+				-- Handle the merge of the new segments here
 				table.remove(segs,i)
-				table.insert(segs,i,mergedSegment)
 				table.remove(segs,j)
-				j = j - 1	-- To compensate for the j increment coming below
+				for k = #newSegs,1,-1 do
+					table.insert(segs,i,newSegs[k])
+				end
+				j = 1	-- Reset j to run with all segments again
 			end
 			j = j + 1
-		end		-- while j <= #segs do ends
+		end		-- while j <= #segs ends
 		i = i + 1
-	end		-- while i <= #segs do ends
+	end		-- for i = 1,#segs do ends
+	-- Now all merging of the overlaps is done
+	-- Now check if any segment needs to split up
+	local donecoor = {}
+	for i = 1,#segs do
+		-- Do the starting coordinate
+		local X,Y = segs[i].start_x,segs[i].start_y
+		if not donecoor[X] then
+			donecoor[X] = {}
+		end
+		if not donecoor[X][Y] then
+			donecoor[X][Y] = 1
+			local conns,segmts = getConnFromXY(X,Y,0)	-- 0 resolution check
+			-- We should just have 1 connector here
+			if #conns > 1 or conns[1] ~= conn then
+				error("Fatal error. Connector other than the current connector found at "..X..","..Y.." in running repairSegAndJunc.")
+			end
+			local j = segmts[1].seg	-- Contains the segment number where the point X,Y lies
+			-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+			if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
+				-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+				table.insert(segs,j+1,{
+					start_x = X,
+					start_y = Y,
+					end_x = segs[j].end_x,
+					end_y = segs[j].end_y
+				})
+				segs[j].end_x = X
+				segs[j].end_y = Y
+			end
+		else
+			donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point
+		end
+		-- Do the end coordinate
+		X,Y = segs[i].end_x,segs[i].end_y
+		if not donecoor[X] then
+			donecoor[X] = {}
+		end
+		if not donecoor[X][Y] then
+			donecoor[X][Y] = 1
+			local conns,segmts = getConnFromXY(X,Y,0)	-- 0 resolution check
+			-- We should just have 1 connector here
+			if #conns > 1 or conns[1] ~= conn then
+				error("Fatal error. Connector other than the current connector found at "..X..","..Y.." in running repairSegAndJunc.")
+			end
+			local j = segmts[1].seg	-- Contains the segment number where the point X,Y lies
+			-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+			if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
+				-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+				table.insert(segs,j+1,{
+					start_x = X,
+					start_y = Y,
+					end_x = segs[j].end_x,
+					end_y = segs[j].end_y
+				})
+				segs[j].end_x = X
+				segs[j].end_y = Y
+			end
+		else
+			donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point
+		end		
+	end
+	-- Figure out the junctions
+	local j = {}
+	for k,v in pairs(donecoor) do
+		for n,m in pairs(v) do
+			if m > 2 then
+				j[#j + 1] = {x=k,y=n}
+			end
+		end
+	end
+	conn.junction = j
 	return true
-end
-	
+end		-- function repairSegAndJunc ends here
+
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
 -- segList is a list of structures like this:
 --[[
@@ -1059,7 +989,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 	cnvobj.op.mode = "DRAGSEG"
 	cnvobj.op.segList = segList
 	cnvobj.op.coor1 = {x=segList[1].conn.segments[segList[1].seg].start_x,y=segList[1].conn.segments[segList[1].seg].start_y}
-	cnvobj.op.end = dragEnd
+	cnvobj.op.finish = dragEnd
 	cnvobj.op.offx = 0
 	cnvobj.op.offy = 0
 	cnvobj.op.oldSegs = {}
@@ -1150,8 +1080,7 @@ drawConnector  = function(cnvobj,segs)
 		if not cnvobj.snapGrid then
 			grdx,grdy = 1,1
 		end
-		local conn = cnvobj.drawn.conn
-		local shorted = {}		-- To store all connector information which get shorted to this new connector whose segments are given in segs
+		local conn = cnvobj.drawn.conn	-- Data structure containing all connectors
 		local junc = {}			-- To store all new created junctions
 		for i = 1,#segs do
 			if not segs[i].start_x or type(segs[i].start_x) ~= "number" then
@@ -1175,19 +1104,17 @@ drawConnector  = function(cnvobj,segs)
 			for j = 1,#segs do
 				if j ~= i then
 					-- the end points of the ith segment should not lie anywhere on the jth segment except its ends
-					local ep	-- is the jth segment connected to one of the end points of the ith segment?
+					local ep = true	-- is the jth segment connected to one of the end points of the ith segment?
 					if segs[i].start_x == segs[j].start_x and segs[i].start_y == segs[j].start_y then
 						jcst = jcst + 1
-						ep = true
 					elseif segs[i].start_x == segs[j].end_x and segs[i].start_y == segs[j].end_y then
 						jcst = jcst + 1
-						ep = true
 					elseif segs[i].end_x == segs[j].end_x and segs[i].end_y == segs[j].end_y then
 						jcen = jcen + 1
-						ep = true
-					elseifif segs[i].end_x == segs[j].start_x and segs[i].end_y == segs[j].start_y then
+					elseif segs[i].end_x == segs[j].start_x and segs[i].end_y == segs[j].start_y then
 						jcen = jcen + 1
-						ep = true
+					else
+						ep = false
 					end
 					if not ep and (coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].start_x, segs[i].start_y, 0)  
 					  or coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].end_x, segs[i].end_y, 0)) then
@@ -1202,7 +1129,7 @@ drawConnector  = function(cnvobj,segs)
 				end
 			end
 			if jcen > 1 then
-				if not tu.inArray(junc,{x=segs[i].end_x,y=segs[i].end_y},equalCoordinate)
+				if not tu.inArray(junc,{x=segs[i].end_x,y=segs[i].end_y},equalCoordinate) then
 					junc[#junc + 1] = {x=segs[i].end_x,y=segs[i].end_y}
 				end
 			end
@@ -1212,11 +1139,13 @@ drawConnector  = function(cnvobj,segs)
 			segments = segs,
 			id=conn.ids + 1,
 			order=#cnvobj.drawn.order+1,
-			junction={},
+			junction=junc,
 			port={}
 		}
 		conn.ids = conn.ids + 1
-		local coor = {}
+		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+		
+		local coor = {}	-- To collect the coordinates of all the segment end points
 		for i = 1,#segs do
 			local coor1 = {x = segs[i].start_x,y=segs[i].start_y}
 			local coor2 = {x = segs[i].end_x,y=segs[i].end_y}
@@ -1227,24 +1156,18 @@ drawConnector  = function(cnvobj,segs)
 				coor[#coor + 1] = coor2
 			end
 			-- Check if the start of the segment lands on any port then connect to it
-			checkAndAddPorts(cnvobj,segs[i].start_x,segs[i].start_y,conn[#conn])
+			checkAndAddPorts(cnvobj,coor1.x,coor1.y,conn[#conn])
 			-- Check if the end of the segment lands on any port then connect to it
-			checkAndAddPorts(cnvobj,segs[i].end_x,segs[i].end_y,conn[#conn])
+			checkAndAddPorts(cnvobj,coor2.x,coor2.y,conn[#conn])
 		end
-		-- Add a junctions if any
-		local juncD = conn[#conn].junction
-		for i = 1,#junc do
-			if not tu.inArray(juncD,junc[i],equalCoordinate) then
-				juncD[#juncD + 1] = junc[i]
-			end
-		end			
+		-- Add the connector to the order array
 		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
 			type = "connector",
 			item = conn[#conn]
 		}
 		-- Now lets check whether there are any shorts to any other connector. The shorts can be on the segment end points compiled in coor and then 
 		-- remove any overlaps in the final merged connector
-		removeOverlaps(shortAndMergeConnectors(cnvobj,coor))
+		repairSegAndJunc(shortAndMergeConnectors(cnvobj,coor))
 	end
 	-- Setup interactive drawing
 	
@@ -1256,6 +1179,8 @@ drawConnector  = function(cnvobj,segs)
 	-- Event 1 = Mouse left click
 	-- Event 2 = Mouse left click after connector start
 	-- Event 3 = Mouse right click or clicking on a port or clicking on a connector
+	
+	-- Backup the old button_cb and motion_cb functions
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 		
@@ -1274,20 +1199,18 @@ drawConnector  = function(cnvobj,segs)
 		checkAndAddPorts(cnvobj,segTable[1].start_x,segTable[1].start_y,conn)
 		-- Get the ports at the end of the connector
 		checkAndAddPorts(cnvobj,segTable[#segTable].end_x,segTable[#segTable].end_y,conn)
+		-- Update the connector id counter
+		cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
+		-- Add the connector to be drawn in the order array
+		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+			type = "connector",
+			item = cnvobj.drawn.conn[cnvobj.op.cIndex]
+		}
 		-- Now check whether the starting point or the ending point was at a connector then this connector needs to be merged with them
-		if not shortAndMergeConnectors(cnvobj,{
+		shortAndMergeConnectors(cnvobj,{
 				{x=segTable[1].start_x,y=segTable[1].start_y},
 				{x=segTable[#segTable].end_x,y=segTable[#segTable].end_y}
-			}) then
-			-- New connector was added in this case
-			cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
-			-- Add the connector to be drawn in the order array
-			cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-				type = "connector",
-				item = cnvobj.drawn.conn[cnvobj.op.cIndex]
-			}
-		end
-		-- Check where the segments cross over ports then connect them to the ports here
+			}) 
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB
@@ -1295,25 +1218,19 @@ drawConnector  = function(cnvobj,segs)
 	end		-- Function endConnector ends here
 	
 	local function startConnector(x,y)
-		cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
-		cnvobj.op.start = {x=x,y=y}	-- snapping is done in generateSegments
-		-- Check whether this lies on any connector then this would be a junction and add segments to that connector
-		-- Note however if x,y is at a crossover where multiple connectors lie it will connect to the connector that was drawn last
 		local conn = cnvobj.drawn.conn
 		local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
 		if not cnvobj.snapGrid then
 			grdx,grdy = 1,1
 		end
 		local X,Y  =  coorc.snapX(x, grdx),coorc.snapY(x, grdy)
-		cnvobj.op.startseg = 1
+		cnvobj.op.startseg = 1		-- segment number from where to generate the segments
 		-- Check if the starting point lays on another connector
-		local allConns,segs = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
-		cnvobj.op.connID = (#allConns > 0 and "MERGE") or ("C"..tostring(cnvobj.drawn.conn.ids + 1))
-		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1		-- Storing this connector in a new connecotr structure. Will merge it with other connectors if required in endConnector
-		-- Add this connector to the merge list
-		--segs[#segs + 1] = {conn=cnvobj.op.cIndex,seg=1}
-		cnvobj.op.merge = segs	-- segs contains the connector number and segment number of all the connectors where X,Y lies
-		cnvobj.op.end = endConnector
+		cnvobj.op.connID = "C"..tostring(cnvobj.drawn.conn.ids + 1)
+		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1		-- Storing this connector in a new connector structure. Will merge it with other connectors if required in endConnector
+		cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
+		cnvobj.op.start = {x=X,y=Y}	-- snapping is done in generateSegments
+		cnvobj.op.finish = endConnector
 		--cnvobj.op.splitseg may also be set in the above loop
 		--cnvobj.op.startseg is set
 	end
@@ -1333,6 +1250,7 @@ drawConnector  = function(cnvobj,segs)
 			end
 		end
 		if button == iup.BUTTON3 and pressed == 1 then
+			-- Event 3 (right click)
 			endConnector()
 		end
 		-- Process any hooks 
@@ -1341,7 +1259,8 @@ drawConnector  = function(cnvobj,segs)
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--connectors
-		if cnvobj.op.mode == "DRAWCONN" and cnvobj.connectorFlag == true then
+		if cnvobj.op.mode == "DRAWCONN" then
+			y = cnvobj.height - y
 			local cIndex = cnvobj.op.cIndex
 			local segStart = cnvobj.op.startseg
 			local startX = cnvobj.op.start.x
