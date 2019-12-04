@@ -6,6 +6,7 @@ local math = math
 local tonumber = tonumber
 local error = error
 local pairs = pairs
+local tostring = tostring
 
 local print = print
 
@@ -24,7 +25,7 @@ end
 -- The connector structure looks like this:
 --[[
 {
-	id = <integer>,		-- unique ID for the connector. Format is C<num> i.e. C followed by a unique number
+	id = <string>,		-- unique ID for the connector. Format is C<num> i.e. C followed by a unique number
 	order = <integer>,	-- Index in the order array
 	segments = {	-- Array of segment structures
 		[i] = {
@@ -472,15 +473,18 @@ local function checkAndAddPorts(cnvobj,X,Y,conn)
 	end
 end
 
--- Function to check if any ports in the drawn data touch the given connector 'conn'. All touching ports are connected to the connector if not already done
-local function connectOverlapPorts(cnvobj,conn)
+-- Function to check if any ports in the drawn data (or if given in the ports array) touch the given connector 'conn'. All touching ports are connected to the connector if not already done
+-- if conn is not given then all connectors are processed
+function connectOverlapPorts(cnvobj,conn,ports)
 	-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
-	local ports = cnvobj.drawn.port
-	local segs = conn.segments
+	ports = ports or cnvobj.drawn.port
+	local segs
 	for i = 1,#ports do
 		local X,Y = ports[i].x,ports[i].y
 		local allConns,sgmnts = getConnFromXY(cnvobj,X,Y)
 		for j = 1,#allConns do
+			conn = conn or allConns[j]
+			segs = conn.segments
 			if allConns[j] == conn and not tu.inArray(conn.port,ports[i]) then
 				-- This connector lies on the port
 				-- Add the connector to the port
@@ -1209,7 +1213,7 @@ drawConnector  = function(cnvobj,segs)
 		-- Create a new connector using the segments
 		conn[#conn + 1] = {
 			segments = segs,
-			id=conn.ids + 1,
+			id="C"..tostring(conn.ids + 1),
 			order=#cnvobj.drawn.order+1,
 			junction=junc,
 			port={}

@@ -11,6 +11,7 @@ local LINE = require("lua-gl.line")
 local ELLIPSE = require("lua-gl.ellipse")
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
+local CONN = require("lua-gl.connector")
 
 local M = {}
 package.loaded[...] = M
@@ -30,7 +31,7 @@ M.FILLEDELLIPSE = ELLIPSE
 -- The object structure looks like this:
 --[[
 {
-	id = <integer>,			-- Unique identification number for the object. Format is O<num> i.e. O followed by a unique number
+	id = <string>,			-- Unique identification number for the object. Format is O<num> i.e. O followed by a unique number
 	shape = <string>,		-- string indicating the type of object. Each object type has its own handler module
 	start_x = <integer>,	-- starting x coordinate of the bounding rectangle
 	start_y = <integer>,	-- starting y coordinate of the bounding rectangle
@@ -99,31 +100,24 @@ groupObjects = function(cnvobj,objList)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
-	local objs = cnvobj.drawn.obj
+	local objs = cnvobj.drawn.obj	-- Data structure of all drawn objects
 	if #objs == 0 then
 		return
 	end
-	local groups = cnvobj.drawn.group
-	local tempTable = objList
-	--print("you ar in group ing with len"..#shapeList)
-	local match = false
+	local groups = cnvobj.drawn.group	-- Data structure of all groups
+	local objToGroup = tu.copyTable(objList,{})	-- Create a copy of the objList so not to modify it
 	for k=1, #objList do
 		for i = #groups,1,-1 do
 			for j = 1,#groups[i] do
 				if objList[k] == groups[i][j] then
-					tempTable = tu.mergeArrays(groups[i],tempTable)
+					objToGroup = tu.mergeArrays(groups[i],objToGroup)
 					table.remove(groups,i)
-					match = true
 					break
 				end
 			end
 		end
 	end
-	if match == true then
-		groups[#groups+1] = tempTable
-	else
-		groups[#groups+1] = objList
-	end
+	groups[#groups+1] = objToGroup
 	-- Sort the group elements in ascending order ranking
 	table.sort(groups[#groups],function(one,two) 
 			return one.order < two.order
@@ -131,16 +125,15 @@ groupObjects = function(cnvobj,objList)
 	-- Update the obj group and collect the order number for each item in the group so they all can be grouped together in the order chain along the object with the highest order
 	local order = cnvobj.drawn.order
 	local grpOrder = {}
-	local grp = groups[#groups]
+	local grp = objToGroup
 	for i = 1,#grp do
-		grp[i].group = grp
-		grpOrder[i] = grp[i].order
+		grp[i].group = grp		-- Set the object's group to grp
+		grpOrder[i] = grp[i].order	-- record the object's order here
 	end
-	table.sort(grpOrder)
 	-- Update drawing order array
 	-- All objects in the group get moved along the object with the highest order
-	local pos = grpOrder[#grpOrder]-1
-	for i = #grp-1,1,-1 do
+	local pos = grpOrder[#grpOrder]-1	-- -1 because we delete the item from order before inserting it just before the highest order object
+	for i = #grp-1,1,-1 do	-- grp is already sorted in ascending order number so grp[#grp] has the highest order. So start with #grp - 1
 		local item = order[grpOrder[i]]
 		-- Move this item to just above the last one
 		table.remove(order,grpOrder[i])
@@ -166,10 +159,10 @@ moveObj = function(cnvobj,objList,offx,offy)
 	elseif not offy or type(offy) ~= "number" then
 		return nil, "Coordinates not given"
 	end
-	local grp = {}
-	local grpsDone = {}
+	local grp = {}	-- To compile the list of objects to move
+	local grpsDone = {}		-- To flag which groups have been checked already
 	
-	-- Combile a list of objects by adding objects in the same group as the given objects
+	-- Compile a list of objects by adding objects in the same group as the given objects
 	for i = 1,#objList do
 		local obj = objList[i]
 		if obj.group then
@@ -201,12 +194,23 @@ moveObj = function(cnvobj,objList,offx,offy)
 			grp[i].start_y = grp[i].start_y + offy
 			grp[i].end_x = grp[i].end_x and (grp[i].end_x + offx)
 			grp[i].end_y = grp[i].end_y and (grp[i].end_y + offy)
-			for j = 1,#grp[i].port do
-				grp[i].port[j].x = grp[i].port[j].x + offx
-				grp[i].port[j].y = grp[i].port[j].y + offy
+			local ports = grp[i].port
+			for j = 1,#ports do
+				ports[j].x = ports[j].x + offx
+				ports[j].y = ports[j].y + offy
 				-- Disconnect any connectors
+				local conns = ports[j].conn	-- table of connectors connected to this port
+				for k = 1,#conns do		-- For every connector check its port table
+					for l = #conns[k].port,1,-1 do
+						-- Check which port matches ports[j] then remove it to disconnect the connector from the port
+						if conns[k].port[l] == ports[j] then
+							table.remove(conns[k].port,l)
+							break
+						end
+					end
+				end
 				-- Connect ports to any overlapping connector on the port
-				grp[i].port[j].conn = cnvobj:getConnFromXY(grp[i].port[j].x,grp[i].port[j].y)
+				CONN.connectOverlapPorts(cnvobj,nil,ports)	-- This takes care of splitting the connector segments as well if needed
 			end
 		end
 		return true
@@ -236,7 +240,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	end
 	
 	cnvobj.op.mode = "MOVEOBJ"	-- Set the mode to drawing object
-	cnvobj.op.end = moveEnd
+	cnvobj.op.finish = moveEnd
 	
 	-- button_CB to handle interactive move ending
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -271,6 +275,8 @@ end
 -- Function to draw a shape on the canvas
 -- shape is the shape that is being drawn
 -- pts is the number of pts of the shape
+-- coords is the table containing the coordinates of the shape the number of coordinates have to be pts
+-- if coords is not a table then this will be an interactive drawing
 drawObj = function(cnvobj,shape,pts,coords)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -282,7 +288,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 		interactive = true
 	end
 	
-	local objs = cnvobj.drawn.obj
+	local objs = cnvobj.drawn.obj	-- All drawn objects data structure
 	
 	if not interactive then
 		for i = 1,#pts do
@@ -310,14 +316,15 @@ drawObj = function(cnvobj,shape,pts,coords)
 		}
 		return true
 	end
+	-- Setup the interactive draw
 	
+	-- Backup the old button_cb and motion_cb functions
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
+	-- Function to end the interactive drawing mode
 	local function drawEnd()
 		-- End the drawing
-		objs[#objs].end_x = x
-		objs[#objs].end_y = y
 		objs.ids = objs.ids + 1
 		-- Add the object to be drawn in the order array
 		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
@@ -329,6 +336,14 @@ drawObj = function(cnvobj,shape,pts,coords)
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB		
 	end
+	
+	-- Object drawing methodology
+	-- Object drawing starts (if 2 pt object) with Event 1. This event may be a mouse event or a keyboard event.
+	-- Connector drawing stops with Event 2 (only for 2 pt object). This event may be a mouse event or a keyboard event.
+	-- For now the events are defined as follows:
+	-- Event 1 = Mouse left click
+	-- Event 2 = Mouse left click after object start
+	
 	-- button_CB to handle object drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		y = cnvobj.height - y
@@ -346,7 +361,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 			-- Start the drawing
 			cnvobj.op.mode = "DRAWOBJ"	-- Set the mode to drawing object
 			cnvobj.op.obj = shape
-			cnvobj.op.end = drawEnd
+			cnvobj.op.finish = drawEnd
 			local t = {}
 			t.id = "O"..tostring(objs.ids + 1)
 			t.shape = shape
@@ -358,6 +373,16 @@ drawObj = function(cnvobj,shape,pts,coords)
 			t.order = #cnvobj.drawn.order + 1
 			t.port = {}
 			objs[#objs + 1] = t
+			if pts == 1 then
+				-- This is the end of the drawing
+				t.end_x = nil
+				t.end_y = nil
+				
+				tu.emptyTable(cnvobj.op)
+				cnvobj.op.mode = "DISP"	-- Default display mode
+				cnvobj.cnv.button_cb = oldBCB
+				cnvobj.cnv.motion_cb = oldMCB	
+			end				
 		elseif button == iup.BUTTON1 and pressed == 0 then
 			drawEnd()
 		end
@@ -593,7 +618,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 	cnvobj.op.grp = grp
 	cnvobj.op.oldOrder = oldOrder
 	cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
-	cnvobj.op.end = dragEnd
+	cnvobj.op.finish = dragEnd
 	
 	-- button_CB to handle object dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -637,4 +662,4 @@ dragObj = function(cnvobj,objList,offx,offy)
 		end
 	end
 	return true
-end,
+end

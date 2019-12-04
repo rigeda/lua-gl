@@ -27,6 +27,8 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
+_VERSION = "B19.12.4"
+
 --- TASKS
 --[[
 * A connector may connect to a port and then continue to connect to another port. In this case when the object is dragged the connector has to be routed by routing 2 lines. This can be any number of lines
@@ -222,7 +224,33 @@ objFuncs = {
 			]]
 		}
 		cnvobj.hook = {ids=0}	-- Array of hook structure. See structure of hook in hooks.lua
-		cnvobj.op = {mode="DISP"}
+		-- .op is a member table used for holding temporary data and setting up modes of operation of the canvas
+		cnvobj.op = {
+			mode="DISP",	-- To indicate the operation mode of the canvas. The following modes are known:
+							-- * DISP = This is the normal mode where the mouse pointer is not associated with anything and it is not in the middle of any operation
+							-- * DRAWCONN = A connector is being drawn in interactive mode
+							-- * DRAGSEG = A segment is being dragged in interative mode
+							-- * MOVEOBJ = An object is being moved in interactive mode
+							-- * DRAGOBJ = An object is being dragged in interactive mode
+							-- * DRAWOBJ = An object is being drawn in interactive mode
+			finish = nil,	-- When set by a function calling that function will end the mode and reset the operation and the operation table back
+			-- DRAWCONN
+			connID = nil,	-- String containing the connector ID during interactive draw connector
+			cIndex = nil,	-- index of the connector in cnvobj.drawn.conn which is being drawn
+			startseg = nil,	-- index of the segment in the connector from which the segments need to be auto routed
+			start = nil,	-- Table containing the X and Y coordinates marking the reference start coordinates
+			-- DRAGSEG
+			segList = nil,	-- list of segments in a structure described in the dragSegment functon documentation
+			coor1 = nil,	-- Initial starting coordinate of the 1st segement in the segList array to serve as reference of the total movement
+			offx = nil,		-- To store the last x offset applied to the segments being moved
+			offy = nil,		-- To store the last y offset applied to the segments being moved
+			oldSegs = nil,	-- To store the old segments table for the all the connectors whose segments are being dragged i.e. in the segList
+			-- MOVEOBJ
+			-- DRAGOBJ
+			-- DRAWOBJ
+			obj = nil		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment
+			
+		}
 		
 		if cnvobj.cnv then
 			function cnvobj.cnv:button_cb(button,pressed,x,y, status)
