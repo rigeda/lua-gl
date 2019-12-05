@@ -78,11 +78,16 @@ getConnFromXY = function(cnvobj,x,y,res)
 	local segs = {}
 	for i = 1,#conns do
 		local segs = conns[i].segments
+		local connAdded
 		for j = 1,#segs do
 			if coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, x, y, res)  then
-				allConns[#allConns + 1] = conns[i]
-				segs[#segs + 1] = {conn = i, seg = j}
-				break
+				if not connAdded then
+					allConns[#allConns + 1] = conns[i]
+					segs[#segs + 1] = {conn = i, seg = {j}}
+					connAdded = true
+				else
+					segs[#segs].seg[#segs[#segs].seg + 1] = j	-- Add all segments that lie on that point
+				end
 			end
 		end
 	end
@@ -335,7 +340,7 @@ local function equalCoordinate(v1,v2)
 	return v1.x == v2.x and v1.y == v2.y
 end
 
--- Function to check whether other connectors exist in the given coordinates (coor) then they are all shorted and merged into 1 connector
+-- Function to check whether other connectors exist in the given coordinates (coor) then they are all shorted and merged into 1 connector which is returned. 
 -- Structure of coor is as follows:
 --[[
 {		-- Array of coordinates
@@ -360,17 +365,21 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 		for j = 1,#segs do
 			segs[j].x = coor[i].x
 			segs[j].y = coor[i].y
+			local entry = {conn = segs[j].conn,x = segs[j].x,y=segs[j].y}
+			for k = 1,#segs[j].seg do
+				entry.seg = segs[j].seg[k]
+				if not tu.inArray(allSegs,entry,function(one,two)
+						return one.conn == two.conn and one.x == two.x and one.y == two.y and one.seg == two.seg
+					end) then
+					allSegs[#allSegs + 1] = entry
+				end
+			end
 		end
-		-- merge segs with allSegs skipping duplicates
-		tu.mergeArrays(segs,allSegs,false,function(v1,v2)
-				return v1.conn == v2.conn and v1.seg==v2.seg 
-			end)
 	end
 	if #allSegs == 1 then
 		-- Nothing to merge
 		return false
 	end
-	-- Now we need to see whether we need to split a segment and which new junctions to create
 	-- 1st sort allSegs with descending order of segment number so that when we split a segment it does not effect the segment number of the lower index segments that need to be split
 	table.sort(allSegs,function(one,two)
 			if one.conn == two.conn then
@@ -379,7 +388,7 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 			else
 				return one.conn > two.conn		-- Sort in descending connector indexes so the previous index is not affected when the connector is merged and deleted
 			end
-		end)
+		end)	-- Now we need to see whether we need to split a segment and which new junctions to create
 	-- Loop to split the required segments
 	for i = 1,#allSegs do
 		local segTable = cnvobj.drawn.conn[allSegs[i].conn].segments
@@ -405,7 +414,7 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 	local maxOrder = connM.order
 	local orders = {maxOrder}	-- Store the orders of all the connectors since they need to be removed from the orders array and only 1 placed finally
 	for i = 1,#allSegs-1 do	-- Loop through all except the master connector
-		if i>1 and allSegs[i].conn ~= allSegs[i-1].conn then
+		if i>1 and allSegs[i].conn ~= allSegs[i-1].conn and allSegs[i].conn ~= allSegs[#allSegs].conn then	-- Check if this is a new connector and not the same as master connector
 			orders[#orders + 1] = conns[allSegs[i].conn].order		-- Store the order
 			if conns[allSegs[i].conn].order > maxOrder then
 				maxOrder = conns[allSegs[i].conn].order				-- Get the max order of all the connectors which will be used for the master connector
@@ -413,7 +422,7 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 			-- Copy the segments over
 			local segTableS = conns[allSegs[i].conn].segments
 			for i = 1,#segTableS do
-				-- Note no need to check segment overlap here since the autorouting should never create overlapping segments
+				-- Note no need to check segment overlap here since different connectors will not have overlapping segments
 				segTableD[#segTableD + 1] = segTableS[i]
 			end
 			-- Copy and update the ports
@@ -424,6 +433,13 @@ local shortAndMergeConnectors = function(cnvobj,coor)
 					portD[#portD + 1] = portS[i]
 					-- Update the port to refer to the connM connector
 					portS[i].conn[#portS[i].conn + 1] = connM
+				end
+				-- Remove the conns[allSegs[i].conn] connector from the portS[i].conn array
+				for j = 1,#portS[i].conn do
+					if portS[i].conn[j] == conns[allSegs[i].conn] then
+						table.remove(portS[i].conn,j)
+						break
+					end
 				end
 			end
 			-- Copy the junctions
@@ -492,18 +508,20 @@ function connectOverlapPorts(cnvobj,conn,ports)
 				-- Add the port to the connector
 				conn.port[#conn.port + 1] = ports[i]
 				-- Check if the port is in between a segment then this segment needs to split
-				local k = sgmnts[j].seg	-- Contains the segment number where the point X,Y lies
-				-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
-				if not(segs[k].start_x == X and segs[k].start_y == Y or segs[k].end_x == X and segs[k].end_y == Y) then 
-					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-					table.insert(segs,k+1,{
-						start_x = X,
-						start_y = Y,
-						end_x = segs[k].end_x,
-						end_y = segs[k].end_y
-					})
-					segs[k].end_x = X
-					segs[k].end_y = Y
+				for l = 1,#sgmnts[j].seg do
+					local k = sgmnts[j].seg[l]	-- Contains the segment number where the point X,Y lies
+					-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+					if not(segs[k].start_x == X and segs[k].start_y == Y or segs[k].end_x == X and segs[k].end_y == Y) then 
+						-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+						table.insert(segs,k+1,{
+							start_x = X,
+							start_y = Y,
+							end_x = segs[k].end_x,
+							end_y = segs[k].end_y
+						})
+						segs[k].end_x = X
+						segs[k].end_y = Y
+					end
 				end
 				break
 			end
@@ -934,18 +952,20 @@ local function repairSegAndJunc(cnvobj,conn)
 			if #conns > 1 or conns[1] ~= conn then
 				error("Fatal error. Connector other than the current connector found at "..X..","..Y.." in running repairSegAndJunc.")
 			end
-			local j = segmts[1].seg	-- Contains the segment number where the point X,Y lies
-			-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
-			if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
-				-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-				table.insert(segs,j+1,{
-					start_x = X,
-					start_y = Y,
-					end_x = segs[j].end_x,
-					end_y = segs[j].end_y
-				})
-				segs[j].end_x = X
-				segs[j].end_y = Y
+			for k = 1,#segmts[1].seg do
+				local j = segmts[1].seg[k]	-- Contains the segment number where the point X,Y lies
+				-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+				if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
+					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+					table.insert(segs,j+1,{
+						start_x = X,
+						start_y = Y,
+						end_x = segs[j].end_x,
+						end_y = segs[j].end_y
+					})
+					segs[j].end_x = X
+					segs[j].end_y = Y
+				end
 			end
 		else
 			donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point
@@ -962,18 +982,20 @@ local function repairSegAndJunc(cnvobj,conn)
 			if #conns > 1 or conns[1] ~= conn then
 				error("Fatal error. Connector other than the current connector found at "..X..","..Y.." in running repairSegAndJunc.")
 			end
-			local j = segmts[1].seg	-- Contains the segment number where the point X,Y lies
-			-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
-			if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
-				-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-				table.insert(segs,j+1,{
-					start_x = X,
-					start_y = Y,
-					end_x = segs[j].end_x,
-					end_y = segs[j].end_y
-				})
-				segs[j].end_x = X
-				segs[j].end_y = Y
+			for k = 1,#segmts[1].seg do
+				local j = segmts[1].seg[k]	-- Contains the segment number where the point X,Y lies
+				-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+				if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
+					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+					table.insert(segs,j+1,{
+						start_x = X,
+						start_y = Y,
+						end_x = segs[j].end_x,
+						end_y = segs[j].end_y
+					})
+					segs[j].end_x = X
+					segs[j].end_y = Y
+				end
 			end
 		else
 			donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point

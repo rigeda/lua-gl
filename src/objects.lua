@@ -538,7 +538,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 					cnvobj:generateSegments(connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
 				end
 				-- Check whether after drag the ports are touching other connectors then those get connected to the port
-				local allConns,segs = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
+				local allConns = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
 				for k = 1,#allConns do
 					-- Check if this connector is already connected to the port
 					local found
@@ -600,7 +600,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 			for j = 1,#portT do
 				local conn = portT[j].conn
 				-- Check whether after drag the ports are touching other connectors then those get connected to the port
-				local allConns,segs = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
+				local allConns = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
 				for k = 1,#allConns do
 					-- Check if this connector is already connected to the port
 					local found
