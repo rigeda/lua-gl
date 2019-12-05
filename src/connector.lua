@@ -1139,9 +1139,51 @@ end
 -- The result will be N (>1) connectors that are returned as an array 
 -- The order of the connectors is not set nor they are put in the order array
 -- The connectors are also not placed in the cnvobj.drawn.conn array
--- The original connector is left untouched
+-- The original connector is not modified but the ports it connects to has the entry for it removed
 local function splitConnectorAtCoor(cnvobj,conn,coor)
+	-- First check if coor is in the middle of a segment. If it is then split the segment to make coor at the end
+	local X,Y = coor.x,coor.y
+	local allConns,sgmnts = getConnFromXY(cnvobj,X,Y)
+	local segs = conn.segments
+	for j = 1,#allConns do
+		if allConns[j] == conn then
+			-- Check all the segments that lie on X,Y
+			for l = 1,#sgmnts[j].seg do
+				local k = sgmnts[j].seg[l]	-- Contains the segment number where the point X,Y lies
+				-- Check whether any of the end points match X,Y
+				if not(segs[k].start_x == X and segs[k].start_y == Y or segs[k].end_x == X and segs[k].end_y == Y) then 
+					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+					table.insert(segs,k+1,{
+						start_x = X,
+						start_y = Y,
+						end_x = segs[k].end_x,
+						end_y = segs[k].end_y
+					})
+					segs[k].end_x = X
+					segs[k].end_y = Y
+				end
+			end
+			segs = sgmnts[j].seg
+			break	-- The connector has only 1 entry in allConns as returned by getConnFromXY
+		end
+	end
+	
 	local connA = {}		-- Initialize the connector array
+	local segsDone = {}
+	-- Function to find and return all segments connected to x,y ignoring segments already in segsDone
+	local function findSegs(segs,x,y)
+		local list = {}
+		for i = 1,#segs do
+			if not segsDone[segs[i]] then
+				if segs[i].start_x == x and segs[i].start_y == y or segs[i].end_x == x and segs[i].end_y == y then
+					list[#list + 1] = segs[i]
+				end
+			end
+		end
+		return list
+	end
+	-- Get all the segments connected to X,Y
+	segs = findSegs(coor.x,coor.y)
 end
 
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
