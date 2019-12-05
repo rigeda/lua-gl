@@ -47,6 +47,7 @@ end
 }
 ]]
 -- The connector structure is located in the array cnvobj.drawn.conn
+-- Note a connector never crosses a port. If a port is placed on a connector the connector is split into 2 connectors, one on each side of the port.
 
 -- Returns the connector structure given the connector ID
 getConnFromID = function(cnvobj,connID)
@@ -1018,7 +1019,7 @@ end		-- function repairSegAndJunc ends here
 -- The result will be 2 connectors that are returned (connector on the start_x,start_y side of segment returned first)
 -- The order of the connectors is not set nor they are put in the order array
 -- The original connector is left untouched
-local function splitConnector(cnvobj,conn,segIndex)
+local function splitConnectorAtSeg(cnvobj,conn,segIndex)
 	local conn1 = {
 		id = conn.id,
 		order = nil,
@@ -1132,6 +1133,15 @@ local function splitConnector(cnvobj,conn,segIndex)
 	repairSegAndJunc(cnvobj,conn1)
 	repairSegAndJunc(cnvobj,conn2)
 	return conn1,conn2
+end
+
+-- Function to split a connector into N connectors at the given Coordinate. If the coordinate is in the middle of a segment then the segment is split first and then the connector is split
+-- The result will be N (>1) connectors that are returned as an array 
+-- The order of the connectors is not set nor they are put in the order array
+-- The connectors are also not placed in the cnvobj.drawn.conn array
+-- The original connector is left untouched
+local function splitConnectorAtCoor(cnvobj,conn,coor)
+	local connA = {}		-- Initialize the connector array
 end
 
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
