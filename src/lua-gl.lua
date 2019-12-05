@@ -31,6 +31,8 @@ _VERSION = "B19.12.4"
 
 --- TASKS
 --[[
+* getConnFromXY should return all segments that match even for a single connector!
+* in connector.lua check wherever segment was split due to port we need to split the connector instead
 * A connector may connect to a port and then continue to connect to another port. In this case when the object is dragged the connector has to be routed by routing 2 lines. This can be any number of lines
 * After drag object when port shorting is checked if there is a port short then the segment may need to be split to make sure port only connects on segment ends
 * dragObj end check port overlapping with another port and handle that case
@@ -246,6 +248,7 @@ objFuncs = {
 			offy = nil,		-- To store the last y offset applied to the segments being moved
 			oldSegs = nil,	-- To store the old segments table for the all the connectors whose segments are being dragged i.e. in the segList
 			-- MOVEOBJ
+			coor1 = nil,	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 			-- DRAGOBJ
 			-- DRAWOBJ
 			obj = nil		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment

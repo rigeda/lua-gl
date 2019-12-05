@@ -5,6 +5,7 @@ local table = table
 local math = math
 local pairs = pairs
 local tostring = tostring
+local iup = iup
 
 local RECT = require("lua-gl.rectangle")
 local LINE = require("lua-gl.line")
@@ -12,6 +13,7 @@ local ELLIPSE = require("lua-gl.ellipse")
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 local CONN = require("lua-gl.connector")
+
 
 local M = {}
 package.loaded[...] = M
@@ -80,6 +82,7 @@ getObjFromXY = function(cnvobj,x,y)
 	return allObjs
 end
 
+-- Function just offsets the objects (in grp array) and associated port coordinates. It does not handle the port connections which have to be updated
 local shiftObjList = function(grp,offx,offy)
 	for i = 1,#grp do
 		grp[i].start_x = grp[i].start_x + offx
@@ -146,8 +149,8 @@ groupObjects = function(cnvobj,objList)
 end
 
 -- Function to move a list of objects provided as a id list with the given offset offx,offy which are added to the coordinates
--- if offx is not a number but evaluates to true then the move is done interactively
--- objList is a list of object structures of the objects to be dragged
+-- if offx is not a number or not given then the move is done interactively
+-- objList is a list of object structures of the objects to be moved
 moveObj = function(cnvobj,objList,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -209,9 +212,10 @@ moveObj = function(cnvobj,objList,offx,offy)
 						end
 					end
 				end
-				-- Connect ports to any overlapping connector on the port
-				CONN.connectOverlapPorts(cnvobj,nil,ports)	-- This takes care of splitting the connector segments as well if needed
+				ports[j].conn = {}	-- Delete all the connectors from the port
 			end
+			-- Connect ports to any overlapping connector on the port
+			CONN.connectOverlapPorts(cnvobj,nil,ports)	-- This takes care of splitting the connector segments as well if needed
 		end
 		return true
 	end
@@ -225,13 +229,26 @@ moveObj = function(cnvobj,objList,offx,offy)
 	local oldBCB = cnvobj.cnv.button_cb
 	
 	local function moveEnd()
-		-- Connect the ports
+		-- Disconnect connectors connected to the ports and reconnect any connectors touching the current port positions
 		for i = 1,#grp do
-			for j = 1,#grp[i].port do
+			-- Move the object coordinates with their port coordinates
+			local ports = grp[i].port
+			for j = 1,#ports do
 				-- Disconnect any connectors
-				-- Connect ports to any overlapping connector on the port
-				grp[i].port[j].conn = cnvobj:getConnFromXY(grp[i].port[j].x,grp[i].port[j].y)
+				local conns = ports[j].conn	-- table of connectors connected to this port
+				for k = 1,#conns do		-- For every connector check its port table
+					for l = #conns[k].port,1,-1 do
+						-- Check which port matches ports[j] then remove it to disconnect the connector from the port
+						if conns[k].port[l] == ports[j] then
+							table.remove(conns[k].port,l)
+							break
+						end
+					end
+				end
+				ports[j].conn = {}	-- Delete all the connectors from the port
 			end
+			-- Connect ports to any overlapping connector on the port
+			CONN.connectOverlapPorts(cnvobj,nil,ports)	-- This takes care of splitting the connector segments as well if needed
 		end
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
@@ -241,6 +258,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	cnvobj.op.mode = "MOVEOBJ"	-- Set the mode to drawing object
 	cnvobj.op.finish = moveEnd
+	cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 	
 	-- button_CB to handle interactive move ending
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -252,7 +270,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 			moveEnd()
 		end
 		-- Process any hooks 
-		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,xo,yo,status})
+		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y,status})
 	end
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
@@ -405,6 +423,7 @@ end	-- end drawObj function
 
 -- Function to drag objects (dragging implies connector connections are maintained)
 -- objList is a list of object structures of the objects to be dragged
+-- if offx is not a number or not given then the move is done interactively
 dragObj = function(cnvobj,objList,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -435,7 +454,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 	if #grp == 0 then
 		return nil,"No objects to drag"
 	end
-	-- Sort the group elements in ascending order ranking
+	-- Sort the group elements in ascending order ranking (Should already be true because its done by groupObjects)
 	table.sort(grp,function(one,two) 
 			return one.order < two.order
 	end)
@@ -445,8 +464,8 @@ dragObj = function(cnvobj,objList,offx,offy)
 	for i = 1,#grp do	-- For every object in the group that is moving
 		local portT = grp[i].port	
 		for j = 1,#portT do		-- check every port for the object
-			local conn = portT[j].conn
-			local enx,eny = portT[j].x,portT[j].y
+			local conn = portT[j].conn	-- Connector table of the port
+			local enx,eny = portT[j].x,portT[j].y	-- This will be the end point where the segments connect to
 			for k = 1,#conn do		-- for all connectors connected to this port of this object
 				-- Find the 1st junction or if none the starting point of the connector
 				local segTable = conn[k].segments

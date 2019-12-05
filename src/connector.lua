@@ -281,7 +281,7 @@ function generateSegments(cnvobj, startX,startY,x, y,segments)
 	
 	if srcX == destX and srcY == destY then
 		-- No distance yet so no segments should be generated
-		return
+		return true
 	end
    
     local shortestPathLen, shortestPathString = BFS(findMatrix(cnvobj), srcX, srcY, destX, destY, matrix_width, matrix_height)
@@ -473,7 +473,7 @@ local function checkAndAddPorts(cnvobj,X,Y,conn)
 	end
 end
 
--- Function to check if any ports in the drawn data (or if given in the ports array) touch the given connector 'conn'. All touching ports are connected to the connector if not already done
+-- Function to check if any ports in the drawn data (or, if given, in the ports array) touch the given connector 'conn'. All touching ports are connected to the connector if not already done
 -- if conn is not given then all connectors are processed
 function connectOverlapPorts(cnvobj,conn,ports)
 	-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
@@ -513,40 +513,84 @@ function connectOverlapPorts(cnvobj,conn,ports)
 end
 
 -- Function to check whether segments are valid and if any segments need to be split further or merged and overlaps are removed and junctions are regenerated
-local function repairSegAndJunc(conn)
+-- This function does not touch the ports of the connector nor check their validity
+local function repairSegAndJunc(cnvobj,conn)
+	
+	-- Function to check whether 2 line segments have the same line equation or not
+	local function sameeqn(x1,y1,x2,y2,x3,y3,x4,y4)
+		local sameeqn 
+		if x1==x2 and x3==x4 and x1==x3 then
+			-- equation is x = c for both lines
+			sameeqn = true
+		elseif x1~=x2 and x3~=x4 then
+			-- equation x = c is not true for both lines
+			local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
+			local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
+			if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
+				sameeqn = true
+			end
+		end
+		return sameeqn
+	end
 	-- First find the dangling nodes. Note that dangling segments are the ones which may merge with other segments
+	-- Dangling end point is defined as one which satisfies the following:
+	-- * The end point does not match the end points of any other segment or
+	-- * The end point matches the end point of only 1 segment with the same line equation
+	-- AND
+	-- * The end point does not lie on a port
 	local s,e = {},{}		-- Starting and ending node dangling segments indexes
 	local segs = conn.segments
 	for i = 1,#segs do
 		local sx,sy,ex,ey = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
-		local founds,founde
+		local founds,founde = {c = 0},{c = 0}
 		for j = 1,#segs do
 			if j ~= i then
 				local sx1,sy1,ex1,ey1 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
 				if sx == sx1 and sy == sy1 or sx == ex1 and sy == ey1 then
-					founds = true
-					if founde then break end
+					founds.c = founds.c + 1
+					founds.x1 = sx1
+					founds.y1 = sy1
+					founds.x2 = ex1
+					founds.y2 = ey1
 				end
 				if ex == sx1 and ey == sy1 or ex == ex1 and ey == ey1 then
-					founde = true
-					if founds then break end
+					founde.c = founde.c + 1
+					founde.x1 = sx1
+					founde.y1 = sy1
+					founde.x2 = ex1
+					founde.y2 = ey1
 				end
 			end
 		end
-		if not founds then
+		if founds.c < 2 then
+			-- Starting node connects to 1 or 0 segments
+			local chkPorts = true
+			if founds.c == 1 then
+				if not sameeqn(sx,sy,ex,ey,founds.x1,founds.y1,founds.x2,founds.y2) then
+					chkPorts = false
+				end
+			end
 			-- Starting node is dangling check if it connects to any port
-			if #cnvobj:getPortFromXY(sx,sy) == 0 then
+			if chkPorts and #cnvobj:getPortFromXY(sx,sy) == 0 then
 				s[i] = true
 			end
 		end
-		if not founde then
+		if founde.c < 2 then
+			-- Ending node connects to 1 or 0 segments
+			local chkPorts = true
+			if founde.c == 1 then
+				if not sameeqn(sx,sy,ex,ey,founde.x1,founde.y1,founde.x2,founde.y2) then
+					chkPorts = false
+				end
+			end
 			-- Ending node is dangling, check if it connects to any port
 			if #cnvobj:getPortFromXY(ex,ey) == 0 then
 				e[i] = true
 			end
 		end
 	end
-	-- Now check for overlaps of the dangling segments with others
+	-- Function to create segments given the coordinate pairs
+	-- Segment is only created if its length is > 0
 	local function createSegments(coors)
 		local segs = {}
 		for i =1,#coors do
@@ -562,6 +606,7 @@ local function repairSegAndJunc(conn)
 		return segs
 	end
 
+	-- Now check for overlaps of the dangling segments with others
 	local i = 1
 	while i <= #segs do
 		-- Let A = x1,y1 and B=x2,y2. So AB is 1 line segment
@@ -575,17 +620,7 @@ local function repairSegAndJunc(conn)
 				local x3,y3,x4,y4 = segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y
 				local cdang,ddang = s[j],e[j]
 				-- Check whether the 2 line segments have the same line equation
-				local sameeqn 
-				if x1==x2 and x3==x4 and x1==x3 then
-					sameeqn = true
-				elseif x1~=x2 and x3~=x4 then
-					local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
-					local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
-					if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
-						sameeqn = true
-					end
-				end
-				if sameeqn then
+				if sameeqn(x1,y1,x2,y2,x3,y3,x4,y4) then
 					overlap = j		-- Assume they overlap
 					-- There are 8 overlapping cases and 4 non overlapping cases
 					--[[
@@ -957,6 +992,126 @@ local function repairSegAndJunc(conn)
 	return true
 end		-- function repairSegAndJunc ends here
 
+-- Function to split a connector into 2 connectors at the given segment index 'segIndex'
+-- The result will be 2 connectors that are returned (connector on the start_x,start_y side of segment returned first)
+-- The order of the connectors is not set nor they are put in the order array
+-- The original connector is left untouched
+local function splitConnector(cnvobj,conn,segIndex)
+	local conn1 = {
+		id = conn.id,
+		order = nil,
+		segments = {},
+		port = {},
+		junction = {}
+	}
+	local conn2 = {
+		id = "C"..tostring(cnvobj.drawn.conn.ids + 1)
+		order = nil,
+		segments = {},
+		port = {},
+		junction = {}
+	}
+	cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
+	-- Check if there is another path around the segment then splitting is not possible
+	local segs = conn.segments
+	local segsDone = {}
+	local endPoints = {}		-- To collect all the endpoint coordinates of segments collected in segsDone
+	segsDone[segs[segIndex]] = true
+	local ex,ey = segs[segIndex].end_x,segs[segIndex].end_y
+	local segPath = {}		-- To store the path of segments taken while searching for a path to coordinates ex and ey
+	segPath[1] = {
+		x = segs[segIndex].start_x,
+		y = segs[segIndex].start_y,
+		i = 0		-- segment index that will be traversed
+	}
+	-- Function to find and return all segments connected to x,y ignoring segments already in segsDone
+	local function findSegs(x,y)
+		local list = {}
+		for i = 1,#segs do
+			if not segsDone[segs[i]] then
+				if segs[i].start_x == x and segs[i].start_y == y or segs[i].end_x == x and segs[i].end_y == y then
+					list[#list + 1] = segs[i]
+				end
+			end
+		end
+		return list
+	end
+	segPath[1].segs = findSegs(segPath[1].x,segPath[1].y)	-- get all segments connected at this step
+	-- Create the segment traversal algorithm (i is the step index corresponding to the index of segPath)
+	local found
+	local i = 1
+	while i > 0 do
+		--[=[
+		-- No need to remove the segment from segsDone since traversing through there did not yield the path
+		if segs[segPath[i].i] then
+			-- remove the last segment from the 
+			segsDone[segs[segPath[i].i]] = nil
+		end
+		]=]
+		segPath[i].i = segPath[i].i + 1
+		if segPath[i].i > #segPath[i].segs then
+			-- This level is exhausted. Go up a level and look at the next segment
+			table.remove(segPath,i)	-- Remove this step
+			i = i - 1
+		else
+			-- We have segments that can be traversed
+			local sgmnt = segs[segPath[i].i]
+			if sgmnt.start_x == ex and sgmnt.start_y == ey or sgmnt.end_x == ex and sgmnt.end_y == ey then
+				-- found the other point
+				found = true
+				break
+			end
+			-- Traverse this segment
+			segsDone[sgmnt] = true
+			i = i + 1
+			segPath[i] = {i = 0}
+			if sgmnt.start_x == segPath[i].x and sgmnt.start_y == segPath[i].y then
+				segPath[i].x = sgmnt.end_x
+				segPath[i].y = sgmnt.end_y
+				if not endPoints[sgmnt.end_x] then
+					endPoints[sgmnt.end_x] = {}
+				end
+				endPoints[sgmnt.end_x][sgmnt.end_y] = true
+			else
+				segPath[i].x = sgmnt.start_x
+				segPath[i].y = sgmnt.start_y
+				if not endPoints[sgmnt.start_x] then
+					endPoints[sgmnt.start_x] = {}
+				end
+				endPoints[sgmnt.start_x][sgmnt.start_y] = true
+			end
+			segPath[i].segs = findSegs(segPath[i].x,segPath[i].y)
+		end
+	end		-- while i > 0 ends here
+	if found then 
+		return nil, "Cannot split connector since its connected around the segment."
+	end
+	-- Now segsDone has all the segments on one side of the connector specifically the start_x, start_y side.
+	for k,v in pairs(segsDone) do
+		conn1.segments[#conn1.segments+1] = k
+	end
+	for i = 1,#segs do
+		if not segsDone[segs[i]] then
+			conn2.segments[#conn2.segments + 1] = segs[i]
+		end
+	end
+	-- Now distribute the ports
+	for i = 1,#conn.port do
+		if endPoints[conn.port[i].x][conn.port[i].y] then
+			-- this port goes in conn1
+			conn1.port[#conn1.port + 1] = conn.port[i]
+		else
+			-- This port goes in conn2
+			conn2.port[#conn1.port + 1] = conn.port[i]
+		end
+	end
+	
+	-- Now run repairSegAndJunc on both connectors to regenerate their junctions and merge any segments that can be merged
+	repairSegAndJunc(cnvobj,conn1)
+	repairSegAndJunc(cnvobj,conn2)
+	return conn1,conn2
+end
+
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
 -- segList is a list of structures like this:
 --[[
@@ -1022,7 +1177,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			connectOverlapPorts(cnvobj,segList[i].conn)
 			-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
 			-- remove any overlaps in the final merged connector
-			repairSegAndJunc(shortAndMergeConnectors(cnvobj,{
+			repairSegAndJunc(cnvobj,shortAndMergeConnectors(cnvobj,{
 					{x = seg.start_x,y=seg.start_y},
 					{x = seg.end_x,y=seg.end_y}
 				}))
@@ -1046,7 +1201,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
 			local seg = segList[i].conn.segments[segList[i].seg]
 			-- remove any overlaps in the final merged connector
-			repairSegAndJunc(shortAndMergeConnectors(cnvobj,{
+			repairSegAndJunc(cnvobj,shortAndMergeConnectors(cnvobj,{
 					{x = seg.start_x,y=seg.start_y},
 					{x = seg.end_x,y=seg.end_y}
 				}))
@@ -1240,7 +1395,7 @@ drawConnector  = function(cnvobj,segs)
 		end
 		-- Now lets check whether there are any shorts to any other connector. The shorts can be on the segment end points compiled in coor and then 
 		-- remove any overlaps in the final merged connector
-		repairSegAndJunc(shortAndMergeConnectors(cnvobj,coor))
+		repairSegAndJunc(cnvobj,shortAndMergeConnectors(cnvobj,coor))
 	end
 	-- Setup interactive drawing
 	
