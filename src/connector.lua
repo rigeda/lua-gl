@@ -1015,131 +1015,12 @@ local function repairSegAndJunc(cnvobj,conn)
 	return true
 end		-- function repairSegAndJunc ends here
 
--- Function to split a connector into 2 connectors at the given segment index 'segIndex'
--- The result will be 2 connectors that are returned (connector on the start_x,start_y side of segment returned first)
--- The order of the connectors is not set nor they are put in the order array
--- The original connector is left untouched
-local function splitConnectorAtSeg(cnvobj,conn,segIndex)
-	local conn1 = {
-		id = conn.id,
-		order = nil,
-		segments = {},
-		port = {},
-		junction = {}
-	}
-	local conn2 = {
-		id = "C"..tostring(cnvobj.drawn.conn.ids + 1)
-		order = nil,
-		segments = {},
-		port = {},
-		junction = {}
-	}
-	cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
-	-- Check if there is another path around the segment then splitting is not possible
-	local segs = conn.segments
-	local segsDone = {}
-	local endPoints = {}		-- To collect all the endpoint coordinates of segments collected in segsDone
-	segsDone[segs[segIndex]] = true
-	local ex,ey = segs[segIndex].end_x,segs[segIndex].end_y
-	local segPath = {}		-- To store the path of segments taken while searching for a path to coordinates ex and ey
-	segPath[1] = {
-		x = segs[segIndex].start_x,
-		y = segs[segIndex].start_y,
-		i = 0		-- segment index that will be traversed
-	}
-	-- Function to find and return all segments connected to x,y ignoring segments already in segsDone
-	local function findSegs(x,y)
-		local list = {}
-		for i = 1,#segs do
-			if not segsDone[segs[i]] then
-				if segs[i].start_x == x and segs[i].start_y == y or segs[i].end_x == x and segs[i].end_y == y then
-					list[#list + 1] = segs[i]
-				end
-			end
-		end
-		return list
-	end
-	segPath[1].segs = findSegs(segPath[1].x,segPath[1].y)	-- get all segments connected at this step
-	-- Create the segment traversal algorithm (i is the step index corresponding to the index of segPath)
-	local found
-	local i = 1
-	while i > 0 do
-		--[=[
-		-- No need to remove the segment from segsDone since traversing through there did not yield the path
-		if segs[segPath[i].i] then
-			-- remove the last segment from the 
-			segsDone[segs[segPath[i].i]] = nil
-		end
-		]=]
-		segPath[i].i = segPath[i].i + 1
-		if segPath[i].i > #segPath[i].segs then
-			-- This level is exhausted. Go up a level and look at the next segment
-			table.remove(segPath,i)	-- Remove this step
-			i = i - 1
-		else
-			-- We have segments that can be traversed
-			local sgmnt = segs[segPath[i].i]
-			if sgmnt.start_x == ex and sgmnt.start_y == ey or sgmnt.end_x == ex and sgmnt.end_y == ey then
-				-- found the other point
-				found = true
-				break
-			end
-			-- Traverse this segment
-			segsDone[sgmnt] = true
-			i = i + 1
-			segPath[i] = {i = 0}
-			if sgmnt.start_x == segPath[i].x and sgmnt.start_y == segPath[i].y then
-				segPath[i].x = sgmnt.end_x
-				segPath[i].y = sgmnt.end_y
-				if not endPoints[sgmnt.end_x] then
-					endPoints[sgmnt.end_x] = {}
-				end
-				endPoints[sgmnt.end_x][sgmnt.end_y] = true
-			else
-				segPath[i].x = sgmnt.start_x
-				segPath[i].y = sgmnt.start_y
-				if not endPoints[sgmnt.start_x] then
-					endPoints[sgmnt.start_x] = {}
-				end
-				endPoints[sgmnt.start_x][sgmnt.start_y] = true
-			end
-			segPath[i].segs = findSegs(segPath[i].x,segPath[i].y)
-		end
-	end		-- while i > 0 ends here
-	if found then 
-		return nil, "Cannot split connector since its connected around the segment."
-	end
-	-- Now segsDone has all the segments on one side of the connector specifically the start_x, start_y side.
-	for k,v in pairs(segsDone) do
-		conn1.segments[#conn1.segments+1] = k
-	end
-	for i = 1,#segs do
-		if not segsDone[segs[i]] then
-			conn2.segments[#conn2.segments + 1] = segs[i]
-		end
-	end
-	-- Now distribute the ports
-	for i = 1,#conn.port do
-		if endPoints[conn.port[i].x][conn.port[i].y] then
-			-- this port goes in conn1
-			conn1.port[#conn1.port + 1] = conn.port[i]
-		else
-			-- This port goes in conn2
-			conn2.port[#conn1.port + 1] = conn.port[i]
-		end
-	end
-	
-	-- Now run repairSegAndJunc on both connectors to regenerate their junctions and merge any segments that can be merged
-	repairSegAndJunc(cnvobj,conn1)
-	repairSegAndJunc(cnvobj,conn2)
-	return conn1,conn2
-end
-
 -- Function to split a connector into N connectors at the given Coordinate. If the coordinate is in the middle of a segment then the segment is split first and then the connector is split
 -- The result will be N (>1) connectors that are returned as an array 
 -- The order of the connectors is not set nor they are put in the order array
 -- The connectors are also not placed in the cnvobj.drawn.conn array
 -- The original connector is not modified but the ports it connects to has the entry for it removed
+-- The id of the 1st connector in the returned list is the same as that of the given connector. If the connector could not be split there will be only 1 connector in the returned list which can directly replace the given connector in the cnvobj.drawn.conn array and the order array after initializint its order key
 local function splitConnectorAtCoor(cnvobj,conn,coor)
 	-- First check if coor is in the middle of a segment. If it is then split the segment to make coor at the end
 	local X,Y = coor.x,coor.y
@@ -1163,15 +1044,14 @@ local function splitConnectorAtCoor(cnvobj,conn,coor)
 					segs[k].end_y = Y
 				end
 			end
-			segs = sgmnts[j].seg
 			break	-- The connector has only 1 entry in allConns as returned by getConnFromXY
 		end
 	end
 	
 	local connA = {}		-- Initialize the connector array
-	local segsDone = {}
+	local segsDone = {}		-- Data structure to store segments in the path for each starting segment
 	-- Function to find and return all segments connected to x,y ignoring segments already in segsDone
-	local function findSegs(segs,x,y)
+	local function findSegs(segs,x,y,segsDone)
 		local list = {}
 		for i = 1,#segs do
 			if not segsDone[segs[i]] then
@@ -1183,7 +1063,146 @@ local function splitConnectorAtCoor(cnvobj,conn,coor)
 		return list
 	end
 	-- Get all the segments connected to X,Y
-	segs = findSegs(coor.x,coor.y)
+	local csegs = findSegs(segs,X,Y,{})	-- Get the segments connected to X,Y
+	-- Now from each of the segments found check if there is a path through the segments to the ends of the other segments in csegs
+	local j = 1
+	while j <= #csegs do
+		local segPath = {}		-- To store the path of segments taken while searching for a path to coordinates ex and ey
+		local endPoints = {}		-- To collect all the endpoint coordinates of segments collected in segsDone
+		segsDone[j] = {}
+		segsDone[j][csegs[j]] = true	-- Add the 1st segment as traversed
+		if csegs[j].start_x == X and csegs[j].start_y == Y then
+			segPath[1] = {			-- 1st step in the path initialized
+				x = csegs[j].end_x,
+				y = csegs[j].end_y,
+				i = 0		-- segment index that will be traversed
+			}
+		else
+			segPath[1] = {			-- 1st step in the path initialized
+				x = csegs[j].start_x,
+				y = csegs[j]._y,
+				i = 0		-- segment index that will be traversed
+			}			
+		end
+		
+		segPath[1].segs = findSegs(segs,segPath[1].x,segPath[1].y,segsDone[j])	-- get all segments connected at this step
+		-- Create the segment traversal algorithm (i is the step index corresponding to the index of segPath)
+		local found
+		local i = 1
+		while i > 0 do
+			--[=[
+			-- No need to remove the segment from segsDone since traversing through there did not yield the path
+			if segs[segPath[i].i] then
+				-- remove the last segment from the 
+				segsDone[segs[segPath[i].i]] = nil
+			end
+			]=]
+			segPath[i].i = segPath[i].i + 1
+			if segPath[i].i > #segPath[i].segs then
+				-- This level is exhausted. Go up a level and look at the next segment
+				table.remove(segPath,i)	-- Remove this step
+				i = i - 1
+			else
+				-- We have segments that can be traversed
+				local sgmnt = segPath.segs[segPath[i].i]
+				-- Check the end points of this new segment with the end points of other members in csegs
+				local k = j + 1
+				while k <= #csegs do
+					local ex,ey
+					if csegs[k].start_x == X and csegs[k].start_y == Y then
+						ex,ey = csegs[k].end_x,csegs[k].end_y
+					else
+						ex,ey = csegs[k].start_x,csegs[k].start_y
+					end
+					if sgmnt.start_x == ex and sgmnt.start_y == ey or sgmnt.end_x == ex and sgmnt.end_y == ey then
+						-- found the other point in the kth starting segment so segment j cannot split with segment k
+						-- Add the kth segment to the segsDone structure 
+						segsDone[j][csegs[k]] = true
+						-- Merge the kth segment with the jth segment (remove it from the csegs table)
+						table.remove(csegs,k)
+						k = k - 1	-- To compensate for the removed segment
+					end
+					k = k + 1
+				end		-- while k <= #csegs ends here
+				-- Traverse this segment
+				segsDone[j][sgmnt] = true
+				-- Store the endPoints
+				if not endPoints[sgmnt.end_x] then
+					endPoints[sgmnt.end_x] = {}
+				end
+				if not endPoints[sgmnt.end_x][sgmnt.end_y] then
+					endPoints[sgmnt.end_x][sgmnt.end_y] = 1
+				else
+					endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
+				end
+				if not endPoints[sgmnt.start_x] then
+					endPoints[sgmnt.start_x] = {}
+				end
+				if not endPoints[sgmnt.start_x][sgmnt.start_y] then
+					endPoints[sgmnt.start_x][sgmnt.start_y] = 1
+				else
+					endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
+				end
+				
+				i = i + 1
+				segPath[i] = {i = 0}
+				if sgmnt.start_x == segPath[i].x and sgmnt.start_y == segPath[i].y then
+					segPath[i].x = sgmnt.end_x
+					segPath[i].y = sgmnt.end_y
+				else
+					segPath[i].x = sgmnt.start_x
+					segPath[i].y = sgmnt.start_y
+				end
+				segPath[i].segs = findSegs(segs,segPath[i].x,segPath[i].y,segsDone[j])
+			end
+		end		-- while i > 0 ends here
+		-- Now segsDone has all the segments that connect to the csegs[j] starting connector. So we can form 1 connector using these
+		connA[#connA + 1] = {
+			id = nil,
+			order = nil,
+			segments = {},
+			port = {},
+			junction = {}
+		}
+		if j == 1 then
+			connA[#connA].id = conn.id
+		else
+			connA[#connA].id = "C"..tostring(cnvobj.drawn.conn.ids + 1)
+			cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
+		end
+		-- Fill in the segments
+		for k,v in pairs(segsDone[j]) do
+			connA[#connA].segments[#connA[#connA].segments + 1] = k
+		end
+		-- Fill in the ports
+		for i = 1,#conn.port do
+			if endPoints[conn.port[i].x] and endPoints[conn.port[i].x][conn.port[i].y] then
+				-- this port goes in conn1
+				connA[#connA].port[#connA.port + 1] = conn.port[i]
+				-- Remove conn from conn.port[i] and add connA[#connA]
+				local pconn = conn.port[i].conn
+				for k = 1,#pconn do
+					if pconn[k] == conn then
+						table.remove(pconn,k)
+						break
+					end
+				end
+				pconn[#pconn + 1] = connA[#connA]
+			end
+		end
+		-- Now regenerate the junctions
+		local jn = {}
+		for x,yt in pairs(endPoints) do
+			for y,num in pairs(yt) do
+				if num > 2 then	-- greater than 2 segments were at this point
+					jn[#jn + 1] = {x=x,y=y}
+				end
+			end
+		end
+		connA[#connA].junction = jn
+		j = j + 1
+	end		-- while j <= #csegs do ends
+	return connA
 end
 
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
