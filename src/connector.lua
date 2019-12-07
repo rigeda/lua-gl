@@ -8,11 +8,11 @@ local error = error
 local pairs = pairs
 local tostring = tostring
 
-local print = print
-
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 
+-- Only for debug
+--local print = print
 
 local M = {}
 package.loaded[...] = M
@@ -66,6 +66,20 @@ getConnFromID = function(cnvobj,connID)
 	return nil,"No connector found"
 end
 
+-- Function to return the list of all connectors and at the vicinity measured by res. res=0 means x,y should be on the connector
+-- If res is not given then it is taken as the minimum of grid_x/2 and grid_y/2
+-- Returns the list of all the connectors
+-- Also returns a list of tables containing more information. Each table is:
+--[[
+{
+	conn = <integer>,	-- index of the connector in cnvobj.drawn.conn
+	seg = {				-- array of indices of segments that were found on x,y for the connector
+		<integer>,
+		<inteher>,
+		...
+	}
+}
+]]
 getConnFromXY = function(cnvobj,x,y,res)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -341,12 +355,34 @@ local function equalCoordinate(v1,v2)
 	return v1.x == v2.x and v1.y == v2.y
 end
 
+-- Function to fix the order of all the items in the order table
 local function fixOrder(cnvobj)
 	-- Fix the order of all the items
 	for i = 1,#cnvobj.drawn.order do
 		cnvobj.drawn.order[i].item.order = i
 	end
 	return true
+end
+
+-- Function to check whether 2 line segments have the same line equation or not
+-- The 1st line segment is from x1,y1 to x2,y2
+-- The 2nd line segment is from x3,y3 to x4,y4
+local function sameeqn(x1,y1,x2,y2,x3,y3,x4,y4)
+	local seqn 
+	if x1==x2 and x3==x4 and x1==x3 then
+		-- equation is x = c for both lines
+		seqn = true
+	elseif x1~=x2 and x3~=x4 then
+		-- equation x = c is not true for both lines
+		-- round till 0.01 resolution
+		local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
+		local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
+		-- Check slopes are equal and the y-intercept are the same
+		if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
+			seqn = true
+		end
+	end
+	return seqn
 end
 
 -- Function to find the dangling nodes. 
@@ -357,24 +393,6 @@ end
 -- * The end point does not lie on a port
 -- It returns 2 tables s,e. Segment ith has starting node dangling if s[i] == true and has ending node dangling if e[i] == true
 local function findDangling(cnvobj,segs,chkports)
-	-- Function to check whether 2 line segments have the same line equation or not
-	-- The 1st line segment is from x1,y1 to x2,y2
-	-- The 2nd line segment is from x3,y3 to x4,y4
-	local function sameeqn(x1,y1,x2,y2,x3,y3,x4,y4)
-		local seqn 
-		if x1==x2 and x3==x4 and x1==x3 then
-			-- equation is x = c for both lines
-			seqn = true
-		elseif x1~=x2 and x3~=x4 then
-			-- equation x = c is not true for both lines
-			local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
-			local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
-			if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
-				seqn = true
-			end
-		end
-		return seqn
-	end
 	local s,e = {},{}		-- Starting and ending node dangling segments indexes
 	for i = 1,#segs do
 		local sx,sy,ex,ey = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
@@ -400,10 +418,14 @@ local function findDangling(cnvobj,segs,chkports)
 		end
 		if founds.c < 2 then
 			-- Starting node connects to 1 or 0 segments
-			local chkPorts = chkports and true
+			local chkPorts = true
 			if founds.c == 1 then
 				if not sameeqn(sx,sy,ex,ey,founds.x1,founds.y1,founds.x2,founds.y2) then
-					chkPorts = false
+					if not chkports then
+						s[i] = true
+					else
+						chkPorts = false
+					end
 				end
 			end
 			-- Starting node is dangling check if it connects to any port
@@ -416,11 +438,15 @@ local function findDangling(cnvobj,segs,chkports)
 			local chkPorts = true
 			if founde.c == 1 then
 				if not sameeqn(sx,sy,ex,ey,founde.x1,founde.y1,founde.x2,founde.y2) then
-					chkPorts = false
+					if not chkports then
+						e[i] = true
+					else
+						chkPorts = false
+					end
 				end
 			end
 			-- Ending node is dangling, check if it connects to any port
-			if #cnvobj:getPortFromXY(ex,ey) == 0 then
+			if chkPorts and #cnvobj:getPortFromXY(ex,ey) == 0 then
 				e[i] = true		-- segment i ending point is dangling
 			end
 		end
@@ -439,7 +465,7 @@ local function repairSegAndJunc(cnvobj,conn)
 	-- AND
 	-- * The end point does not lie on a port
 	local segs = conn.segments
-	local s,e = findDangling(cnvobj,segs,true)
+	local s,e = findDangling(cnvobj,segs,true)	-- find dangling with port check enabled
 	-- Function to create segments given the coordinate pairs
 	-- Segment is only created if its length is > 0
 	-- coors is an array of coordinates. Each entry has the following table:
@@ -447,7 +473,7 @@ local function repairSegAndJunc(cnvobj,conn)
 	local function createSegments(coors)
 		local segs = {}
 		for i =1,#coors do
-			if not(coors[i][1] == coors[i][3] and coors[i][2] == coors[i][4]) then
+			if not(coors[i][1] == coors[i][3] and coors[i][2] == coors[i][4]) then	-- check if both the end points are the same coordinate
 				segs[#segs + 1] = {
 					start_x = coors[i][1],
 					start_y = coors[i][2],
@@ -547,7 +573,7 @@ local function repairSegAndJunc(cnvobj,conn)
 										})
 								end
 							else
-								-- D lies on AC - Case 9
+								-- C does not lie on AD - Case 9
 					--[[
 					9. (overlap) The merge is 3 segments AD, DC and CB. If C and D are dangling then merged is AB. If D is dangling then merged are AC and CB. If C is dangling then merged are AD and DB
 					  A-----------B
@@ -702,9 +728,9 @@ local function repairSegAndJunc(cnvobj,conn)
 					  C-----------D
 						A------B	]]
 									if adang and bdang then
-										newSegs = createSegments({
-												{x3,y3,x4,y4},	-- CD										
-											})
+										newSegs = {
+											segs[j]				-- CD
+										}
 									elseif adang then
 										newSegs = createSegments({
 												{x3,y3,x2,y2},	-- CB
@@ -751,7 +777,7 @@ local function repairSegAndJunc(cnvobj,conn)
 									end											
 								end
 							else
-								-- Cases 1,5,7,11
+								-- Cases 1,5,7,11 - no overlap
 								overlap = false
 							end
 						end	-- if check D lies on AB ends
@@ -760,12 +786,22 @@ local function repairSegAndJunc(cnvobj,conn)
 			end		-- if i ~= j then ends here
 			if overlap then
 				-- Handle the merge of the new segments here
-				table.remove(segs,i)
-				table.remove(segs,j)
-				for k = #newSegs,1,-1 do
-					table.insert(segs,i,newSegs[k])
+				local pos
+				if i > j then
+					table.remove(segs,i)
+					table.remove(segs,j)
+					pos = i - 1
+					i = i - 1  	-- to compensate for the i increment
+				else
+					table.remove(segs,j)
+					table.remove(segs,i)
+					pos = i
 				end
-				j = 1	-- Reset j to run with all segments again
+				-- Insert all the new segments at the pos position
+				for k = #newSegs,1,-1 do
+					table.insert(segs,pos,newSegs[k])
+				end
+				j = 0	-- Reset j to run with all segments again
 			end
 			j = j + 1
 		end		-- while j <= #segs ends
