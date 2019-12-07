@@ -341,6 +341,14 @@ local function equalCoordinate(v1,v2)
 	return v1.x == v2.x and v1.y == v2.y
 end
 
+local function fixOrder(cnvobj)
+	-- Fix the order of all the items
+	for i = 1,#cnvobj.drawn.order do
+		cnvobj.drawn.order[i].item.order = i
+	end
+	return true
+end
+
 -- Function to find the dangling nodes. 
 -- Dangling end point is defined as one which satisfies the following:
 -- * The end point does not match the end points of any other segment or
@@ -944,9 +952,7 @@ local shortAndMergeConnectors = function(cnvobj,conn)
 	-- Put the connector at the right place in the order
 	table.insert(cnvobj.drawn.order,{type="connector",item=connM},maxOrder-#orders + 1)
 	-- Fix the order of all the items
-	for i = 1,#cnvobj.drawn.order do
-		cnvobj.drawn.order[i].item.order = i
-	end
+	fixOrder(cnvobj)
 	
 	-- Now add the junctions if required
 	for i = 1,#coor do
@@ -966,7 +972,8 @@ end
 -- The order of the connectors is not set nor they are put in the order array
 -- The connectors are also not placed in the cnvobj.drawn.conn array
 -- The original connector is not modified but the ports it connects to has the entry for it removed
--- The id of the 1st connector in the returned list is the same as that of the given connector. If the connector could not be split there will be only 1 connector in the returned list which can directly replace the given connector in the cnvobj.drawn.conn array and the order array after initializint its order key
+-- The function also does not check whether the ports associated with the connector are valid nor does it look for new ports that may be touching the connector. It simply divides the ports into the new resulting connectors based on their coordinates and the coordinates of the end points of the segments
+-- The id of the 1st connector in the returned list is the same as that of the given connector. If the connector could not be split there will be only 1 connector in the returned list which can directly replace the given connector in the cnvobj.drawn.conn array and the order array after initializing its order key
 local function splitConnectorAtCoor(cnvobj,conn,coor)
 	-- First check if coor is in the middle of a segment. If it is then split the segment to make coor at the end
 	local X,Y = coor.x,coor.y
@@ -1181,6 +1188,34 @@ function connectOverlapPorts(cnvobj,conn,ports)
 				end
 				if split then
 					-- Split the connector across all the segments that lie on the port
+					local splitConn = splitConnectorAtCoor(cnvobj,conn,{x=X,y=Y})	-- To get the list of connectors after splitting the connector at this point
+					-- Place the connectors at the spot in cnvobj.drawn.conn where conn was
+					local l = sgmnts[j].conn	-- index of the connector in cnvobj.drawn.conn
+					table.remove(cnvobj.drawn.conn,l)
+					-- Remove conn from order and place the connectors at that spot
+					local ord = conn.order
+					table.remove(cnvobj.drawn.order,l)
+					-- Connect the port to each of the returned connectors
+					for k = 1,#splitConn do
+						local sp = splitConn[k].port
+						-- Add the port to the connector port array
+						sp[#sp + 1] = ports[i]
+						-- Add the connector to the port connector array
+						ports[i].conn[#ports[i].conn + 1] = splitConn[k]
+						-- Place the connector at the original connector spot
+						table.insert(cnvobj.drawn.conn,l,splitConn[k])
+						-- Place the connectors at the order spot of the original connector
+						table.insert(cnvobj.drawn.conn,ord,{type="connector",item=splitConn[k]})
+					end
+					-- Fix the indexes of other items in sgmnts
+					for k = 1,#sgmnts do
+						if sgmnts[k].conn > l then
+							-- This will have to increase by #splitConn - 1
+							sgmnts[k].conn = sgmnts[k].conn + #splitConn - 1
+						end
+					end
+					-- Fix order of all items
+					fixOrder(cnvobj)
 				else
 					-- Just add the port to the connector
 					-- Add the connector to the port
@@ -1188,25 +1223,8 @@ function connectOverlapPorts(cnvobj,conn,ports)
 					-- Add the port to the connector
 					conn.port[#conn.port + 1] = ports[i]
 				end
-				-- Check if the port is in between a segment then this segment needs to split
-				for l = 1,#sgmnts[j].seg do
-					local k = sgmnts[j].seg[l]	-- Contains the segment number where the point X,Y lies
-					-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
-					if not(segs[k].start_x == X and segs[k].start_y == Y or segs[k].end_x == X and segs[k].end_y == Y) then 
-						-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-						table.insert(segs,k+1,{
-							start_x = X,
-							start_y = Y,
-							end_x = segs[k].end_x,
-							end_y = segs[k].end_y
-						})
-						segs[k].end_x = X
-						segs[k].end_y = Y
-					end
-				end
-				break
-			end
-		end
+			end		-- if allConns[j] == conn and not tu.inArray(conn.port,ports[i]) then ends here
+		end		-- for j = 1,#allConns do ends here
 	end	
 	return true
 end
