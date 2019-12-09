@@ -31,10 +31,7 @@ _VERSION = "B19.12.4"
 
 --- TASKS
 --[[
-* getConnFromXY should return all segments that match even for a single connector!
 * What happens when you move a port away from  a point that split a connector into 2 they  shoul d recombine!
-* in connector.lua check wherever segment was split due to port we need to split the connector instead
-* A connector may connect to a port and then continue to connect to another port. In this case when the object is dragged the connector has to be routed by routing 2 lines. This can be any number of lines
 * After drag object when port shorting is checked if there is a port short then the segment may need to be split to make sure port only connects on segment ends
 * dragObj end check port overlapping with another port and handle that case
 * check that case for moveObj as well

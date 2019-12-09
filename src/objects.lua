@@ -96,6 +96,7 @@ local shiftObjList = function(grp,offx,offy)
 			portT[j].y = portT[j].y + offy
 		end
 	end
+	return true
 end
 
 -- Function to group a bunch of objects listed in objList
@@ -109,9 +110,9 @@ groupObjects = function(cnvobj,objList)
 	end
 	local groups = cnvobj.drawn.group	-- Data structure of all groups
 	local objToGroup = tu.copyTable(objList,{})	-- Create a copy of the objList so not to modify it
-	for k=1, #objList do
-		for i = #groups,1,-1 do
-			for j = 1,#groups[i] do
+	for k=1, #objList do	-- Check each object if it is a member of a group
+		for i = #groups,1,-1 do		-- Iterate over all groups
+			for j = 1,#groups[i] do		-- check each object in the group
 				if objList[k] == groups[i][j] then
 					objToGroup = tu.mergeArrays(groups[i],objToGroup)
 					table.remove(groups,i)
@@ -146,9 +147,10 @@ groupObjects = function(cnvobj,objList)
 	for i = 1,#order do
 		order[i].item.order = i
 	end
+	return true
 end
 
--- Function to move a list of objects provided as a id list with the given offset offx,offy which are added to the coordinates
+-- Function to move a list of objects provided as list of objects with the given offset offx,offy which are added to the coordinates
 -- if offx is not a number or not given then the move is done interactively
 -- objList is a list of object structures of the objects to be moved
 moveObj = function(cnvobj,objList,offx,offy)
