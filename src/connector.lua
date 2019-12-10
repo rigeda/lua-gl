@@ -901,105 +901,152 @@ local function repairSegAndJunc(cnvobj,conn)
 	return true
 end		-- function repairSegAndJunc ends here
 
--- Function to look at the given connector conn and short an merge it with any other connector its segments end points touch
--- All the touching connectors are merged into 1 connector and all data structures updated appropriately
--- Order of the resulting connector will be the highest order of all the merged conectors
--- The connector ID of the resultant connector is the highest connector ID of all the connectors
-local shortAndMergeConnectors = function(cnvobj,conn)
-	local coor = {}
-	-- collect all the segment end points
-	for i = 1,#conn.segments do
-		tu.mergeArrays({
-				{
-					x = conn.segments[i].start_x,
-					y = conn.segments[i].start_y
-				},
-				{
-					x = conn.segments[i].end_x,
-					y = conn.segments[i].end_y
-				}				
-			},coor,nil,equalCoordinate)
-	end
-	-- Get all the connectors on the given coor
-	local allSegs = {}		-- To store the list of all segs structures returned for all coordinates in coor. A segs structure is one returned by getConnFromXY as the second argument where it has 2 keys: 'conn' contains the index of the connector at X,Y in the cnvobj.drawn.conn array and 'seg' key contains the array of indexes of the segments of that connector which are at X,Y coordinate
-	for i = 1,#coor do
-		local allConns,segs = getConnFromXY(cnvobj,coor[i].x,coor[i].y,0)	-- 0 resolution check
-		tu.mergeArrays(segs,allSegs,nil,function(one,two)
-				return one.conn == two.conn
-			end)	-- Just collect the unique connectors
-	end		-- for i = 1,#coor ends here
-	-- Now allSegs has data about all the connectors that are present at coordinates in coor and also all their segment numbers
-	-- Check if more than one connector in allSegs
-	if #allSegs == 1 then
-		-- only 1 connector and nothing to merge
-		return true
-	end
-	-- Sort allSegs with descending connector index so the previous index is not affected when the connector is merged and deleted
-	table.sort(allSegs,function(one,two)
-			return one.conn > two.conn		
-		end)	-- Now we need to see whether we need to split a segment and which new junctions to create
-	local connM = cnvobj.drawn.conn[allSegs[#allSegs].conn]		-- The master connector where all connectors are merged (Taken as last one in allSegs since that will have the lowest index all others with higher indexes will be removed and connM index will not be affected
-	-- The destination arrays
-	local segTableD = connM.segments
-	local portD = connM.port
-	local juncD = connM.junction
-	-- All connector data structure
-	local conns = cnvobj.drawn.conn
-	local maxOrder = connM.order		-- To store the maximum order of all the connectors
-	local orders = {maxOrder}	-- Store the orders of all the connectors since they need to be removed from the orders array and only 1 placed finally
-	for i = 1,#allSegs-1 do	-- Loop through all except the master connector
-		orders[#orders + 1] = conns[allSegs[i].conn].order		-- Store the order
-		if conns[allSegs[i].conn].order > maxOrder then
-			maxOrder = conns[allSegs[i].conn].order				-- Get the max order of all the connectors which will be used for the master connector
+do 
+	-- Function to look at the given connector conn and short an merge it with any other connector its segments end points touch
+	-- All the touching connectors are merged into 1 connector and all data structures updated appropriately
+	-- Order of the resulting connector will be the highest order of all the merged conectors
+	-- The connector ID of the resultant connector is the highest connector ID of all the connectors
+	-- Returns the final merged connector together with the list of connector ids that were merged (including the merged connector - which is at the last spot in the list)
+	local shortAndMergeConnector = function(cnvobj,conn)
+		local coor = {}
+		-- collect all the segment end points
+		for i = 1,#conn.segments do
+			tu.mergeArrays({
+					{
+						x = conn.segments[i].start_x,
+						y = conn.segments[i].start_y
+					},
+					{
+						x = conn.segments[i].end_x,
+						y = conn.segments[i].end_y
+					}				
+				},coor,nil,equalCoordinate)
 		end
-		-- Copy the segments over
-		local segTableS = conns[allSegs[i].conn].segments
-		tu.mergeArrays(segTableS,segTableD,nil,function(one,two)	-- Function to check if one and two are equivalent segments
-				return (one.start_x == two.start_x and one.start_y == two.start_y and
-					one.end_x == two.end_x and one.end_y == two.end_y) or
-					(one.start_x == two.end_x and one.start_y == two.end_y and
-					one.end_x == two.start_x and one.end_y == two.start_y)
-			end)
-		-- Copy and update the ports
-		local portS = conns[allSegs[i].conn].port
-		for k = 1,#portS do
-			-- Check if this port already exists
-			if not tu.inArray(portD,portS[k]) then
-				portD[#portD + 1] = portS[k]
-				-- Update the port to refer to the connM connector
-				portS[k].conn[#portS[k].conn + 1] = connM
+		-- Get all the connectors on the given coor
+		local allSegs = {}		-- To store the list of all segs structures returned for all coordinates in coor. A segs structure is one returned by getConnFromXY as the second argument where it has 2 keys: 'conn' contains the index of the connector at X,Y in the cnvobj.drawn.conn array and 'seg' key contains the array of indexes of the segments of that connector which are at X,Y coordinate
+		for i = 1,#coor do
+			local allConns,segs = getConnFromXY(cnvobj,coor[i].x,coor[i].y,0)	-- 0 resolution check
+			tu.mergeArrays(segs,allSegs,nil,function(one,two)
+					return one.conn == two.conn
+				end)	-- Just collect the unique connectors
+		end		-- for i = 1,#coor ends here
+		-- Now allSegs has data about all the connectors that are present at coordinates in coor and also all their segment numbers
+		-- Check if more than one connector in allSegs
+		if #allSegs == 1 then
+			-- only 1 connector and nothing to merge
+			return true
+		end
+		-- Sort allSegs with descending connector index so the previous index is not affected when the connector is merged and deleted
+		table.sort(allSegs,function(one,two)
+				return one.conn > two.conn		
+			end)	-- Now we need to see whether we need to split a segment and which new junctions to create
+		local connM = cnvobj.drawn.conn[allSegs[#allSegs].conn]		-- The master connector where all connectors are merged (Taken as last one in allSegs since that will have the lowest index all others with higher indexes will be removed and connM index will not be affected
+		-- The destination arrays
+		local segTableD = connM.segments
+		local portD = connM.port
+		local juncD = connM.junction
+		-- All connector data structure
+		local conns = cnvobj.drawn.conn
+		local maxOrder = connM.order		-- To store the maximum order of all the connectors
+		local orders = {maxOrder}	-- Store the orders of all the connectors since they need to be removed from the orders array and only 1 placed finally
+		for i = 1,#allSegs-1 do	-- Loop through all except the master connector
+			orders[#orders + 1] = conns[allSegs[i].conn].order		-- Store the order
+			if conns[allSegs[i].conn].order > maxOrder then
+				maxOrder = conns[allSegs[i].conn].order				-- Get the max order of all the connectors which will be used for the master connector
 			end
-			-- Remove the conns[allSegs[i].conn] connector from the portS[i].conn array since that connector is going to go away
-			for j = 1,#portS[k].conn do
-				if portS[k].conn[j] == conns[allSegs[i].conn] then
-					table.remove(portS[k].conn,j)
-					break
+			-- Copy the segments over
+			local segTableS = conns[allSegs[i].conn].segments
+			tu.mergeArrays(segTableS,segTableD,nil,function(one,two)	-- Function to check if one and two are equivalent segments
+					return (one.start_x == two.start_x and one.start_y == two.start_y and
+						one.end_x == two.end_x and one.end_y == two.end_y) or
+						(one.start_x == two.end_x and one.start_y == two.end_y and
+						one.end_x == two.start_x and one.end_y == two.start_y)
+				end)
+			-- Copy and update the ports
+			local portS = conns[allSegs[i].conn].port
+			for k = 1,#portS do
+				-- Check if this port already exists
+				if not tu.inArray(portD,portS[k]) then
+					portD[#portD + 1] = portS[k]
+					-- Update the port to refer to the connM connector
+					portS[k].conn[#portS[k].conn + 1] = connM
+				end
+				-- Remove the conns[allSegs[i].conn] connector from the portS[i].conn array since that connector is going to go away
+				for j = 1,#portS[k].conn do
+					if portS[k].conn[j] == conns[allSegs[i].conn] then
+						table.remove(portS[k].conn,j)
+						break
+					end
 				end
 			end
+			-- Copy the junctions
+			local juncS = conns[allSegs[i].conn].junction
+			tu.mergeArrays(juncS,juncD,nil,equalCoordinate)
 		end
-		-- Copy the junctions
-		local juncS = conns[allSegs[i].conn].junction
-		tu.mergeArrays(juncS,juncD,nil,equalCoordinate)
+		-- Create a list of connector IDs that were merged
+		local mergedIDs = {}
+		-- Remove all the merged connectors from the connectors array
+		for i = 1,#allSegs-1 do
+			mergedIDs[#mergedIDs + 1] = conns[allSegs[i].conn].id
+			table.remove(conns,allSegs[i].conn)
+		end
+		mergedIDs[#mergedIDs + 1] = connM.id
+		-- Remove all the merged connectors from the order array
+		table.sort(orders)
+		for i = #orders,1,-1 do
+			table.remove(cnvobj.drawn.order,orders[i])
+		end
+		-- Set the order to the highest
+		connM.order = maxOrder
+		-- Put the connector at the right place in the order
+		table.insert(cnvobj.drawn.order,{type="connector",item=connM},maxOrder-#orders + 1)
+		-- Fix the order of all the items
+		fixOrder(cnvobj)
+		
+		return connM,mergedIDs	-- Merging done
 	end
-	-- Remove all the merged connectors from the connectors array
-	for i = 1,#allSegs-1 do
-		table.remove(conns,allSegs[i].conn)
+
+	-- Function to short and merge a list of connectors. It calls shortAndMergeConnector repeatedly and takes care if the current connector was already merged to a previous connector then it does it again to see if the it does any more merging
+	-- Returns the full merge map which shows all the merging mappings that happenned
+	function shortAndMergeConnectors(cnvobj,conns)
+		local mergeMap = {}
+		for i = 1,#conns do
+			-- First check the merged map if this connector was already done
+			local done
+			for j = 1,#mergeMap do
+				for k = 1,#mergeMap[j][2] do
+					if mergeMap[j][2][k] == conns[i].id then
+						done = true
+						break
+					end
+				end
+				if done then break end
+			end
+			if not done then
+				mergeMap[#mergeMap + 1] = {shortAndMergeConnector(cnvobj,conns[i])}
+				while #mergeMap[#mergeMap][2] > 1 do
+					mergeMap[#mergeMap + 1] = {shortAndMergeConnector(cnvobj,mergeMap[#mergeMap][1])}
+				end
+			end			
+		end
+		-- Now run repairSegAndJunc on all the merged connectors
+		for i = 1,#mergeMap do
+			local found
+			for j = i + 1,#mergeMap do
+				for k = 1,#mergeMap[j][2] do
+					if mergeMap[j][2][k] == mergeMap[i][1].id then
+						found = true
+						break
+					end
+				end
+				if found then break end
+			end
+			if not found then
+				repairSegAndJunc(cnvobj,mergeMap[i][1])
+			end
+		end
+		return mergeMap
 	end
-	-- Remove all the merged connectors from the order array
-	table.sort(orders)
-	for i = #orders,1,-1 do
-		table.remove(cnvobj.drawn.order,orders[i])
-	end
-	-- Set the order to the highest
-	connM.order = maxOrder
-	-- Put the connector at the right place in the order
-	table.insert(cnvobj.drawn.order,{type="connector",item=connM},maxOrder-#orders + 1)
-	-- Fix the order of all the items
-	fixOrder(cnvobj)
-	
-	-- Run repairSegAndJunc on the connector
-	repairSegAndJunc(cnvobj,connM)
-	return connM	-- Merging done
 end
 
 -- Function to split a connector into N connectors at the given Coordinate. If the coordinate is in the middle of a segment then the segment is split first and then the connector is split
@@ -1331,11 +1378,9 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			if i == #segList or segList[i+1].conn ~= segList[i].conn then
 				-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
 				-- remove any overlaps in the final merged connector
-				local connM = shortAndMergeConnectors(cnvobj,segList[i].conn)
-				repairSegAndJunc(cnvobj,connM)
-		
+				local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})
 				-- Connect overlapping ports
-				connectOverlapPorts(cnvobj,connM)
+				connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 			end
 		end
 		return true
@@ -1356,11 +1401,9 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			if i == #segList or segList[i+1].conn ~= segList[i].conn then
 				-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
 				-- remove any overlaps in the final merged connector
-				local connM = shortAndMergeConnectors(cnvobj,segList[i].conn)
-				repairSegAndJunc(cnvobj,connM)
-		
+				local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})
 				-- Connect overlapping ports
-				connectOverlapPorts(cnvobj,connM)
+				connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 			end
 		end
 		
@@ -1537,11 +1580,9 @@ drawConnector  = function(cnvobj,segs)
 		}
 		-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
 		-- remove any overlaps in the final merged connector
-		local connM = shortAndMergeConnectors(cnvobj,conn[#conn])
-		repairSegAndJunc(cnvobj,connM)
-
+		local mergeMap = shortAndMergeConnectors(cnvobj,{conn[#conn]})
 		-- Connect overlapping ports
-		connectOverlapPorts(cnvobj,connM)
+		connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 		return true
 	end
 	-- Setup interactive drawing
@@ -1570,8 +1611,6 @@ drawConnector  = function(cnvobj,segs)
 		-- This is because routing avoids ports unless it is the ending point		
 		local conn = cnvobj.drawn.conn[cnvobj.op.cIndex]
 		local segTable = conn.segments
-		-- Connect the connector to any ports it touches now
-		connectOverlapPorts(cnvobj,conn)
 		-- Update the connector id counter
 		cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
 		-- Add the connector to be drawn in the order array
@@ -1579,11 +1618,11 @@ drawConnector  = function(cnvobj,segs)
 			type = "connector",
 			item = cnvobj.drawn.conn[cnvobj.op.cIndex]
 		}
-		-- Now check whether the starting point or the ending point was at a connector then this connector needs to be merged with them
-		shortAndMergeConnectors(cnvobj,{
-				{x=segTable[1].start_x,y=segTable[1].start_y},
-				{x=segTable[#segTable].end_x,y=segTable[#segTable].end_y}
-			}) 
+		-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
+		-- remove any overlaps in the final merged connector
+		local mergeMap = shortAndMergeConnectors(cnvobj,{conn})
+		-- Connect overlapping ports
+		connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB

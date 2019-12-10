@@ -150,7 +150,7 @@ groupObjects = function(cnvobj,objList)
 	return true
 end
 
--- Function to move a list of objects provided as list of objects with the given offset offx,offy which are added to the coordinates
+-- Function to move a list of objects provided with the given offset offx,offy which are added to the coordinates
 -- if offx is not a number or not given then the move is done interactively
 -- objList is a list of object structures of the objects to be moved
 moveObj = function(cnvobj,objList,offx,offy)
@@ -193,6 +193,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 		end
 		offx = coorc.snapX(offx, grdx)
 		offy = coorc.snapY(offy, grdy)
+		local allConns = {}
+		local allPorts = {}
 		for i = 1,#grp do
 			-- Move the object coordinates with their port coordinates
 			grp[i].start_x = grp[i].start_x + offx
@@ -213,12 +215,16 @@ moveObj = function(cnvobj,objList,offx,offy)
 							break
 						end
 					end
+					allConns[#allConns + 1] = conns[k]
 				end
 				ports[j].conn = {}	-- Delete all the connectors from the port
+				allPorts[#allPorts + 1] = ports[j]
 			end
-			-- Connect ports to any overlapping connector on the port
-			CONN.connectOverlapPorts(cnvobj,nil,ports)	-- This takes care of splitting the connector segments as well if needed
 		end
+		-- Short and Merge all the connectors that were connected to ports
+		CONN.shortAndMergeConnectors(cnvobj,allConns)
+		-- Connect ports to any overlapping connector on the port
+		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -232,6 +238,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	local function moveEnd()
 		-- Disconnect connectors connected to the ports and reconnect any connectors touching the current port positions
+		local allConns = {}
+		local allPorts = {}
 		for i = 1,#grp do
 			-- Move the object coordinates with their port coordinates
 			local ports = grp[i].port
@@ -246,12 +254,16 @@ moveObj = function(cnvobj,objList,offx,offy)
 							break
 						end
 					end
+					allConns[#allConns + 1] = conns[k]
 				end
 				ports[j].conn = {}	-- Delete all the connectors from the port
+				allPorts[#allPorts + 1] = ports[j]
 			end
-			-- Connect ports to any overlapping connector on the port
-			CONN.connectOverlapPorts(cnvobj,nil,ports)	-- This takes care of splitting the connector segments as well if needed
 		end
+		-- Short and Merge all the connectors that were connected to ports
+		CONN.shortAndMergeConnectors(cnvobj,allConns)
+		-- Connect ports to any overlapping connector on the port
+		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB
@@ -311,6 +323,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 	local objs = cnvobj.drawn.obj	-- All drawn objects data structure
 	
 	if not interactive then
+		-- Validate the coords table
 		for i = 1,#pts do
 			if not coords[i].x or type(coords[i].x) ~= "number" or not coords[i].y or type(coords[i].y) ~= "number" then
 				return nil, "Coordinates not given"
@@ -378,33 +391,32 @@ drawObj = function(cnvobj,shape,pts,coords)
 		y = coorc.snapY(y, grdy)
 		
 		if button == iup.BUTTON1 and pressed == 1 then
-			-- Start the drawing
-			cnvobj.op.mode = "DRAWOBJ"	-- Set the mode to drawing object
-			cnvobj.op.obj = shape
-			cnvobj.op.finish = drawEnd
-			local t = {}
-			t.id = "O"..tostring(objs.ids + 1)
-			t.shape = shape
-			t.start_x = x
-			t.start_y = y
-			t.end_x = x
-			t.end_y = y 
-			t.group = nil
-			t.order = #cnvobj.drawn.order + 1
-			t.port = {}
-			objs[#objs + 1] = t
-			if pts == 1 then
-				-- This is the end of the drawing
-				t.end_x = nil
-				t.end_y = nil
-				
-				tu.emptyTable(cnvobj.op)
-				cnvobj.op.mode = "DISP"	-- Default display mode
-				cnvobj.cnv.button_cb = oldBCB
-				cnvobj.cnv.motion_cb = oldMCB	
-			end				
-		elseif button == iup.BUTTON1 and pressed == 0 then
-			drawEnd()
+			if cnvobj.op.mode ~= "DRAWCONN" then
+				drawEnd()
+			else
+				-- Start the drawing
+				cnvobj.op.mode = "DRAWOBJ"	-- Set the mode to drawing object
+				cnvobj.op.obj = shape
+				cnvobj.op.finish = drawEnd
+				local t = {}
+				t.id = "O"..tostring(objs.ids + 1)
+				t.shape = shape
+				t.start_x = x
+				t.start_y = y
+				t.end_x = x
+				t.end_y = y 
+				t.group = nil
+				t.order = #cnvobj.drawn.order + 1
+				t.port = {}
+				objs[#objs + 1] = t
+				if pts == 1 then
+					-- This is the end of the drawing
+					t.end_x = nil
+					t.end_y = nil
+					
+					drawEnd()
+				end				
+			end
 		end
 		-- Process any hooks 
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,xo,yo,status})
@@ -456,7 +468,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 	if #grp == 0 then
 		return nil,"No objects to drag"
 	end
-	-- Sort the group elements in ascending order ranking (Should already be true because its done by groupObjects)
+	-- Sort the group elements in ascending order ranking
 	table.sort(grp,function(one,two) 
 			return one.order < two.order
 	end)
@@ -464,7 +476,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 	-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
 	local connSrc = {}	-- To store the x,y coordinate for each connector from which rerouting has to be applied and also store the segments that need to be removed
 	for i = 1,#grp do	-- For every object in the group that is moving
-		local portT = grp[i].port	
+		local portT = grp[i].port	-- The port table of the object
 		for j = 1,#portT do		-- check every port for the object
 			local conn = portT[j].conn	-- Connector table of the port
 			local enx,eny = portT[j].x,portT[j].y	-- This will be the end point where the segments connect to
@@ -492,8 +504,8 @@ dragObj = function(cnvobj,objList,offx,offy)
 							-- This segment is not traversed
 							if segTable[l].end_x == x and segTable[l].end_y == y then
 								found = false
-								x,y = segTable[l].start_x,segTable[l].start_y
-								checkedSegs[l] = true
+								x,y = segTable[l].start_x,segTable[l].start_y	-- Set x,y to the other end to traverse this segment
+								checkedSegs[l] = true		-- add it to the segments traversed
 								checkedSegsCount = checkedSegsCount + 1
 								break
 							elseif segTable[l].start_x == x and segTable[l].start_y == y then
@@ -508,11 +520,16 @@ dragObj = function(cnvobj,objList,offx,offy)
 				end
 				connSrc[conn[k].id] = {x=x,y=y,segs=checkedSegs,segsCount = checkedSegsCount}		-- Source point to use for routing of the connector
 				-- Move the traversed segments to the end of the segments array
+				local segs = {}
 				for l,_ in pairs(connSrc[conn[k].id].segs) do
-					local item = conn[k].segments[l]
-					table.remove(conn[k].segments,l)	-- Remove
-					table.insert(conn[k].segments,item)	-- Insert at end
+					segs[#segs + 1] = l
 				end				
+				table.sort(segs)	
+				for l = #segs,1,-1 do		-- traverse in descending order to not change indexes of the lower segments
+					local item = conn[k].segments[segs[l]]
+					table.remove(conn[k].segments,segs[l])	-- Remove
+					table.insert(conn[k].segments,item)	-- Insert at end
+				end
 			end		-- For k (connector table) ends here
 		end		-- For j (port table) ends here
 	end		-- for i (group) ends here
