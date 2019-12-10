@@ -1009,6 +1009,9 @@ do
 	-- Function to short and merge a list of connectors. It calls shortAndMergeConnector repeatedly and takes care if the current connector was already merged to a previous connector then it does it again to see if the it does any more merging
 	-- Returns the full merge map which shows all the merging mappings that happenned
 	function shortAndMergeConnectors(cnvobj,conns)
+		if not cnvobj or type(cnvobj) ~= "table" then
+			return nil,"Not a valid lua-gl object"
+		end
 		local mergeMap = {}
 		for i = 1,#conns do
 			-- First check the merged map if this connector was already done
@@ -1245,6 +1248,9 @@ end
 -- To connect the port to the connector unless the port lies on a dangling end the connector is split at the port so that the connector never crosses the port
 -- Before calling this function it is optional to remove the connector's ports or not. Removing them makes sure only touching ports in the end are connected to the connector. 
 function connectOverlapPorts(cnvobj,conn,ports)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
 	-- Check all the ports in the drawn structure/given ports array and see if any port lies on this connector then connect to it by splitting it
 	ports = ports or cnvobj.drawn.port
 	local segs

@@ -31,9 +31,6 @@ _VERSION = "B19.12.4"
 
 --- TASKS
 --[[
-* After drag object when port shorting is checked if there is a port short then the segment may need to be split to make sure port only connects on segment ends
-* dragObj end check port overlapping with another port and handle that case
-* check that case for moveObj as well
 * Remove cnvobj dependency from generateSegments just pass it grdx and grdy or better yet - stepx and stepy 
 * Finish moveSegment
 * Finish moveConn

@@ -1,6 +1,8 @@
 -- Module to handle the ports structure
 local type = type
 local math = math
+local tostring = tostring
+local table = table
 
 local coorc = require("lua-gl.CoordinateCalc")
 
@@ -52,6 +54,7 @@ getPortFromID = function(cnvobj,portID)
 			return ports[i]
 		end
 	end
+	return nil,"No matching port found"
 end
 
 -- Add a port to an object
@@ -111,4 +114,63 @@ removePort = function(cnvobj,portID)
 			break
 		end
 	end
+	return true
+end
+
+-- Function to check if any ports in the drawn data port array (or, if given, in the ports array) touch any other ports. All touching ports are connected with a connector if not already connected
+-- A connector between overlapping ports will be a connector with no segments
+connectOverlapPorts = function(cnvobj,ports)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	ports = ports or cnvobj.drawn.port
+	local allPorts = cnvobj.drawn.port
+	
+	for i = 1,#ports  do		-- Check for every port in the list
+		for j = 1,#allPorts do
+			if allPorts[j] ~= ports[i] then
+				if ports[i].x == allPorts[j].x and ports[i].y == allPorts[j].y then
+					-- These ports overlap
+					-- Check if they connect through a connector
+					local conns = ports[i].conn
+					local found
+					for k = 1,#conns do
+						-- Check if this connector also connected to allPorts[j]
+						local connPorts = conns[k].port
+						for l = 1,#connPorts do
+							if connPorts[l] == allPorts[j] then
+								found = true
+								break
+							end
+						end
+						if found then break end
+					end
+					if not found then
+						-- Connect the ports through a connector
+						local conn = cnvobj.drawn.conn
+						-- Create a new connector using the segments
+						conn[#conn + 1] = {
+							segments = {},		-- No segments
+							id="C"..tostring(conn.ids + 1),
+							order=#cnvobj.drawn.order+1,
+							junction={},
+							port={
+								ports[i],
+								allPorts[j]
+							}
+						}
+						conn.ids = conn.ids + 1
+						-- Add the connector to the order array
+						cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+							type = "connector",
+							item = conn[#conn]
+						}
+						-- Add the connector to the ports
+						conns[#conns + 1] = conn[#conn]
+						allPorts[j].conn[#allPorts[j].conn + 1] = conn[#conn]
+					end		-- if not found then ends
+				end		-- if ports[i].x == allPorts[j].x and ports[i].y == allPorts[j].y then ends
+			end		-- if allPorts[j] ~= ports[i] then ends
+		end		-- for j = 1,#allPorts do ends
+	end		-- for i = 1,#ports  do ends
 end

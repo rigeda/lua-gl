@@ -13,6 +13,7 @@ local ELLIPSE = require("lua-gl.ellipse")
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 local CONN = require("lua-gl.connector")
+local PORTS = require("lua-gl.ports")
 
 
 local M = {}
@@ -225,6 +226,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 		CONN.shortAndMergeConnectors(cnvobj,allConns)
 		-- Connect ports to any overlapping connector on the port
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+		PORTS.connectOverlapPorts(cnvobj,allPorts)
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -264,6 +267,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 		CONN.shortAndMergeConnectors(cnvobj,allConns)
 		-- Connect ports to any overlapping connector on the port
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+		PORTS.connectOverlapPorts(cnvobj,allPorts)
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB
@@ -543,6 +548,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		offx = coorc.snapX(offx, grdx)
 		offy = coorc.snapY(offy, grdy)
 		shiftObjList(grp,offx,offy)
+		local allPorts = {}
 		-- Now redo the connectors
 		for i = 1,#grp do
 			local portT = grp[i].port
@@ -554,30 +560,15 @@ dragObj = function(cnvobj,objList,offx,offy)
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					cnvobj:generateSegments(connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					CONN.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
 				end
-				-- Check whether after drag the ports are touching other connectors then those get connected to the port
-				local allConns = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
-				for k = 1,#allConns do
-					-- Check if this connector is already connected to the port
-					local found
-					for l = 1,#conn do
-						if conn[l] == allConns[k] then
-							found = true
-							break
-						end
-					end
-					if not found then
-						-- Add the connector to the port structure
-						conn[#conn + 1] = allConns[k]
-						-- Add the port to the connector structure
-						allConns[k].port[#allConns[k].port + 1] = conn[#conn]
-					end
-				end
+				allPorts[#allPorts + 1] = portT[j]
 			end
 		end
-		
-		
+		-- Check whether after drag the ports are touching other connectors then those get connected to the port
+		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+		PORTS.connectOverlapPorts(cnvobj,allPorts)
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -609,37 +600,21 @@ dragObj = function(cnvobj,objList,offx,offy)
 	local function dragEnd()
 		-- End the drag at this point
 		-- Reset the orders back
+		local allPorts = {}
 		for i = 1,#grp do
 			local item = cnvobj.drawn.order[grp[i].order]
 			table.remove(cnvobj.drawn.order,grp[i].order)
 			table.insert(cnvobj.drawn.order,item,oldOrder[i])
-			
-			-- Check whether after drag the ports are touching other connectors then those get connected to the port
 			local portT = grp[i].port
 			for j = 1,#portT do
-				local conn = portT[j].conn
-				-- Check whether after drag the ports are touching other connectors then those get connected to the port
-				local allConns = cnvobj:getConnFromXY(portT[j].x,portT[j].y,0)	-- 0 resolution search
-				for k = 1,#allConns do
-					-- Check if this connector is already connected to the port
-					local found
-					for l = 1,#conn do
-						if conn[l] == allConns[k] then
-							found = true
-							break
-						end
-					end
-					if not found then
-						-- Add the connector to the port structure
-						conn[#conn + 1] = allConns[k]
-						-- Add the port to the connector structure
-						allConns[k].port[#allConns[k].port + 1] = conn[#conn]
-					end
-				end
-				-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-				-- If there is no connector then now there is a new connector (with no segments of course) between the 2 ports
+				allPorts[#allPorts + 1] = portT[j]
 			end
+			
 		end
+		-- Check whether after drag the ports are touching other connectors then those get connected to the port
+		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+		PORTS.connectOverlapPorts(cnvobj,allPorts)
 		-- Update the order number for all items
 		for i = 1,#order do
 			order[i].item.order = i
@@ -694,7 +669,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					cnvobj:generateSegments(connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					CONN.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
 				end
 			end
 		end
