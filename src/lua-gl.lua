@@ -18,6 +18,7 @@ local conn = require("lua-gl.connector")
 local hooks = require("lua-gl.hooks")
 local tu = require("tableUtils")
 local CC = require("lua-gl.canvas")
+local router = require("lua-gl.router")
 
 local M = {}
 package.loaded[...] = M
@@ -31,24 +32,21 @@ _VERSION = "B19.12.4"
 
 --- TASKS
 --[[
+* Create routing Matrix object - Update code to update routing matrix in functions
+* Update generateSegments to work with routing matrix object
+* Update the canvas module with the new data structure methodology
+* Finish loading of saved structure.
 * Remove cnvobj dependency from generateSegments just pass it grdx and grdy or better yet - stepx and stepy 
 * Finish moveSegment
 * Finish moveConn
 * Finish removeConn
 * Finish removeObj
-* Finish loading of saved structure.
-* Update the canvas module with the new data structure methodology
-* Maintain the pathfinding matrix in cnvobj and update immediately if any blocking rectangle is added or moved or grid changed. Do not generate everytime a connector path is calculated.
-	* Avoid going through junctions
-	* Ports on the edge of blocking rectangles should be connectable
-	* pathfinding matrix should probably be a lookup table with only values where blocking rectangle is there.
 * Add Text functionality
 * Add arc functionality
 * Canvas scroll, zoom, pan
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
-11. Connector labeling
-12. Have to add export/print
-
+* Connector labeling
+* Have to add export/print
 ]]
 
 
@@ -248,6 +246,7 @@ objFuncs = {
 			obj = nil		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment
 			
 		}
+		cnvobj.rM = router.newRoutingMatrix(cnvobj)
 		
 		if cnvobj.cnv then
 			function cnvobj.cnv:button_cb(button,pressed,x,y, status)
