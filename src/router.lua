@@ -1,6 +1,9 @@
 
 local setmetatable = setmetatable
 local type = type
+local table = table
+
+local tu = require("tableUtils")
 
 local M = {}
 package.loaded[...] = M
@@ -32,136 +35,98 @@ function newRoutingMatrix(cnvobj)
 		return nil,"Not a valid lua-gl object"
 	end
 	
-	local rm = {cnvobj = cnvobj}	-- routing Matrix table
+	local rm = {
+		cnvobj = cnvobj,
+		minX = 0,
+		maxX = 0,
+		minY = 0,
+		maxY = 0
+	}	-- routing Matrix table
 	setmetatable(rm,rmMeta)
 	return rm
 end
 
 -- BFS algorithm implementation
-local BFS
-do
-	local Point = {}
+-- function to find the shortest path and string between 
+-- a given source cell to a destination cell. 
+-- rM is the routing Matrix object
+-- srcX and srcY are the starting coordinates
+-- destX and destY are the ending coordinates
+-- stepX and stepY are the increments to apply to X and Y to get to the next coordinate in the X and Y directions
+function BFS(rM,srcX,srcY,destX,destY,stepX,stepY) 
+	local minX,minY,maxX,maxY
 
-	local queueNode  = {}
-	local matrix_width, matrix_height = 0, 0
-
-	local function isValid(row, col) 
-		if (row > 0) and (row <= matrix_width) and (col > 0) and (col <= matrix_height) then
+	-- Setup the Matrix width and height according to the min and max in the routing matrix
+	minX = rM.minX - stepX
+	minY = rM.minY - stepY
+	maxX = rM.maxX + stepX
+	maxY = rM.maxY + stepY
+	
+	local function valid(X, Y) 
+		if X >= minX and X <= maxX and Y >= minY and Y <= maxY then
 			return true
 		end
 	end 
-	  
+	
 	-- These arrays are used to get row and column 
 	-- numbers of 4 neighbours of a given cell 
-	local rowNum = {-1, 0, 0, 1}; 
-	local colNum = {0, -1, 1, 0}; 
-	  
-	-- function to find the shortest path and string between 
-	-- a given source cell to a destination cell. 
-	function BFS(mat, srcX,srcY,destX, destY, mWidth, mHeight) 
-	   
-		-- check source and destination cell 
-		-- of the matrix have value 1 
-		matrix_width, matrix_height = mWidth, mHeight
-		if not isValid(srcX,srcY) or not isValid(destX, destY) or mat[srcX][srcY]==0 or mat[destX][destY]==0 then 
-			return
-		end
-
-		local visited = {}
-		for i=1, matrix_width do 
-			visited[i] = {}
-			for j=1, matrix_height do 
-				visited[i][j] = false
-			end
-		end
-		  
-		-- Mark the source cell as visited 
-		visited[srcX][srcY] = true; 
-	  
-		-- Create a queue for BFS 
-		local q = {}
-
-		-- Distance of source cell is 0 
-		str = ""
-	   
-		s = {srcX, srcY, 0, str}
-		table.insert(q,s)  -- Enqueue source cell 
-	  
-		-- Do a BFS starting from source cell 
-		while #q > 0 do 
-			
-			-- If we have reached the destination cell, 
-			-- we are done 
-			if (q[1][1] == destX and q[1][2] == destY) then
-				return q[1][3], q[1][4]; 
-			end
-			-- Otherwise dequeue the front cell in the queue 
-			-- and enqueue its adjacent cells 
-
-			local pt = tu.copyTable(q[1],{})
-			
-			table.remove(q,1); 
-			
-			for i=1, 4 do
-			   
-				srcX = pt[1] + rowNum[i]
-				srcY = pt[2] + colNum[i]
-			   
-				-- if adjacent cell is valid, has path and 
-				-- not visited yet, enqueue it. 
-			   
-				
-				if isValid(srcX, srcY)==1 and mat[srcX][srcY]==1 and not visited[srcX][srcY] then
-					-- mark cell as visited and enqueue it 
-					visited[srcX][srcY] = true
-					if i==1 then
-						str = pt[4].."U"
-					elseif i==2 then
-						str = pt[4].."L"
-					elseif i==3 then
-						str = pt[4].."R"
-					elseif i==4 then
-						str = pt[4].."D"
-					end
-					
-					local Adjcell = { srcX, srcY, pt[3] + 1, str}; 
-				  
-					table.insert(q, Adjcell)
-				end
-			end
-		end 
-	  
-		-- Return -1 if destination cannot be reached 
-		return -1; 
-	end
-	  
-	-- Driver program to test above function 
-
-	--[[mat =  { 
-			{ 1, 0, 1, 1, 1, 1, 0, 1, 1, 1 }, 
-			{ 1, 0, 0, 0, 1, 1, 1, 0, 1, 1 }, 
-			{ 1, 1, 1, 1, 1, 1, 0, 1, 0, 1 }, 
-			{ 0, 0, 1, 0, 1, 0, 0, 0, 0, 1 }, 
-			{ 1, 1, 1, 0, 1, 1, 1, 0, 1, 0 }, 
-			{ 1, 0, 1, 1, 1, 1, 0, 1, 0, 0 }, 
-			{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1 }, 
-			{ 1, 0, 1, 1, 1, 1, 0, 1, 1, 1 }, 
-			{ 1, 1, 0, 0, 0, 0, 1, 0, 0, 1 } } 
-	  
-		
-		sourceX , sourceY = 1, 1 
-		destX, destY= 6, 5
-	  
-		dist, strin= BFS(mat, sourceX, sourceY, destX, destY, 9, 10); 
-	  
-		if (dist ~= INT_MAX) then
-			print("Shortest Path is ", dist, strin) 
-		else
-			print("Shortest Path doesn't exist") 
-		end
-	]]
-	  
+	local delX = {-stepX, 0, 0, stepX}
+	local delY = {0, -stepY, stepY, 0} 
+	local stepStr = {"L","U","D","R"}
 	
+	local visited = {}	-- To mark the visited coordinates
+	  
+	-- Mark the source cell as visited 
+	visited[srcX][srcY] = true; 
+  
+	-- Create a queue for BFS where the nodes from where exploration has not been fully completed are placed
+	local q = {}
+
+	-- Distance of source cell is 0 
+	local str = ""	-- Path string
+   
+	table.insert(q,{srcX, srcY, 0, str})  -- Enqueue source cell 
+  
+	-- Do a BFS starting from source cell 
+	while #q > 0 do 
+		
+		-- If we have reached the destination cell we are done 
+		-- Since this is a que (FIFO) so we always check the 1st element 
+		if (q[1][1] == destX and q[1][2] == destY) then
+			return q[1][3], q[1][4]; 
+		end
+		-- Otherwise dequeue the front cell in the queue 
+		-- and enqueue its adjacent cells 
+
+		local pt = q[1]
+		
+		table.remove(q,1); 
+		
+		for i=1, 4 do
+			-- Coordinates for the adjacent cell
+			srcX = pt[1] + delX[i]
+			srcY = pt[2] + delY[i]
+		   
+			-- if adjacent cell is valid, has path and 
+			-- not visited yet, enqueue it. 
+			if not visited[srcX] then
+				visited[srcX] = {}
+			end
+			
+			
+			if valid(srcX, srcY) and rM[srcX][srcY]==1 and not visited[srcX][srcY] then
+				-- mark cell as visited and enqueue it 
+				visited[srcX][srcY] = true
+				-- Add the step string
+				str = pt[4]..stepStr[i]					
+				-- Add the adjacent cell
+				table.insert(q, { srcX, srcY, pt[3] + 1, str})
+			end
+		end		-- for i=1, 4 do ends 
+	end		-- while #q > 0 do  ends
+  
+	-- Return -1 if destination cannot be reached 
+	return nil,"Cannot reach destination" 
 end
 
 -- Function to represent the canvas area as a matrix of obstacles to use for BFS path searching
