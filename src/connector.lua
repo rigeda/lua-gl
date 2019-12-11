@@ -10,6 +10,7 @@ local tostring = tostring
 
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
+local router = require("lua-gl.router")
 
 -- Only for debug
 --local print = print
