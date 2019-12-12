@@ -29,7 +29,7 @@ function PointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
     return math.abs(A - (A1 + A2 + A3 + A4)) < 5 
 end
 
--- Checks whether the point x,y lies inside the rectangle bounded by the diagnol points x1,y1 and x2,y2 with the fuzzy resolution of res
+-- Checks whether the point x,y lies inside the rectangle bounded by the midpoints of 2 opposite side at x1,y1 and x2,y2 with the fuzzy resolution of res which controls the rectangle height
 function PointOnLine(x1, y1, x2, y2, x, y, res)
     local rect = {}
     local dx = x1- x2

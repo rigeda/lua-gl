@@ -2,6 +2,7 @@
 local setmetatable = setmetatable
 local type = type
 local table = table
+local pairs = pairs
 
 local tu = require("tableUtils")
 
@@ -17,15 +18,52 @@ end
 local rmMeta = {
 	__index = {
 		addSegment = function(rm,key,x1,y1,x2,y2)
+			if x1 == x2 then
+				-- This segment is horizontal
+				rm.hsegs[key] ={x1 = x1,x2=x2,y1=y1,y2=y2}
+			elseif y1 == y2 then
+				-- This segment is vertical
+				rm.vsegs[key] ={x1 = x1,x2=x2,y1=y1,y2=y2}
+			end
+			-- Add the end points
+			rm.segendpts[key] = {x1 = x1,x2=x2,y1=y1,y2=y2}
+			return true
 		end,
 		removeSegment = function(rm,key)
+			rm.hsegs[key] = nil
+			rm.vsegs[key] = nil
+			rm.segendpts[key] = nil
+			return true
 		end,
 		addBlockRectangle = function(rm,key,x1,y1,x2,y2)
+			rm.blksegs[key] = {x1=x1,y1=y1,x2=x2,y2=y2}
+			return true
 		end,
 		removeBlockingRectangle = function(rm,key)
+			rm.blksegs[key] = nil
 		end,
-		stepAllowed = function(rm,x1,y1,x2,y2)
-		end
+		addPort = function(rm,key,x,y)
+			rm.ports[key] = {x=x,y=y}
+			return true
+		end,
+		removePort = function(rm,key)
+			rm.ports[key] = nil
+		end,
+		validStep = function(rm,x1,y1,x2,y2,dstX,dstY)
+			-- Function to check whether a step from x1,y1 to x2,y2 is allowed. 
+			-- dstX and dstY is the final destination
+			-- The rules are as follows:
+			--[[
+				# Check whether we are crossing a blocking segment, stepping on it or none. Crossing a blocking segment is not allowed. Stepping may be allowed if it is a port and final destination.
+				# Check if x2,y2 is a port and x2==dstX and y2=dstY. x2,y2 can only be a port if it is the destination and not crossing a blocking segment
+				# Check if stepping on segment end points. If it is not the destination then it is not allowed.
+				# Check if this is a horizontal move then it should not be overlapping any horizontal segment
+				# Check if this is a vertical move then it should not be overlapping any vertical segment
+			]]
+			for k,v in pairs(rm.blksegs) do
+				
+			end
+		end,
 	}
 }
 
@@ -40,7 +78,12 @@ function newRoutingMatrix(cnvobj)
 		minX = 0,
 		maxX = 0,
 		minY = 0,
-		maxY = 0
+		maxY = 0,
+		hsegs = {},		-- To store horizontal segments
+		vsegs = {},		-- To store vertical segments
+		blksegs = {},	-- To store blocking segments
+		segendpts = {},	-- To store the end points of segments where we cannot go through
+		ports = {}		-- To store the ports
 	}	-- routing Matrix table
 	setmetatable(rm,rmMeta)
 	return rm
@@ -114,7 +157,7 @@ function BFS(rM,srcX,srcY,destX,destY,stepX,stepY)
 			end
 			
 			
-			if valid(srcX, srcY) and rM[srcX][srcY]==1 and not visited[srcX][srcY] then
+			if valid(srcX, srcY) and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
 				-- mark cell as visited and enqueue it 
 				visited[srcX][srcY] = true
 				-- Add the step string
@@ -127,48 +170,6 @@ function BFS(rM,srcX,srcY,destX,destY,stepX,stepY)
   
 	-- Return -1 if destination cannot be reached 
 	return nil,"Cannot reach destination" 
-end
-
--- Function to represent the canvas area as a matrix of obstacles to use for BFS path searching
-local function findMatrix(cnvobj)
-	local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
-	if not cnvobj.snapGrid then
-		grdx,grdy = 1,1
-	end
-	
-    local matrix = {}
-	
-	-- Shortlist all blocking rectangles
-	local br = {}
-	local objs = cnvobj.drawn.obj
-	for i = 1,#objs do
-		if objs[i].shape == "BLOCKINGRECT" then
-			br[#br + 1] =objs[i]
-		end
-	end
-	
-    local matrix_width = math.floor(cnvobj.width/grdx) + 1
-    local matrix_height = math.floor(cnvobj.height/grdy) + 1
-    for i=1, matrix_width  do
-        matrix[i] = {}
-        for j=1, matrix_height do 
-            local x = (i-1)*grdx
-            local y = (j-1)*grdy
-			matrix[i][j]=1	-- 1 where the connector can route
-			-- Check if x,y lies in any blocking rectangle
-			for k = 1,#br do
-				local x1, y1 = br[k].start_x, br[k].start_y
-				local x3, y3 = br[k].end_x , br[k].end_y
-				local x2, y2, x4, y4 = x1, y3, x3, y1
-
-				if coorc.PointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y) then
-					matrix[i][j]=0	-- 0 where the connector cannot route
-					break
-				end
-			end
-        end
-    end
-    return matrix
 end
 
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
