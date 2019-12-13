@@ -32,11 +32,11 @@ _VERSION = "B19.12.4"
 
 --- TASKS
 --[[
-* Create routing Matrix object - Update code to update routing matrix in functions
 * Update generateSegments to work with routing matrix object
+* Remove cnvobj dependency from generateSegments just pass it grdx and grdy or better yet - stepx and stepy 
+* Create routing Matrix object - Update code to update routing matrix in functions
 * Update the canvas module with the new data structure methodology
 * Finish loading of saved structure.
-* Remove cnvobj dependency from generateSegments just pass it grdx and grdy or better yet - stepx and stepy 
 * Finish moveSegment
 * Finish moveConn
 * Finish removeConn
@@ -247,6 +247,7 @@ objFuncs = {
 			
 		}
 		cnvobj.rM = router.newRoutingMatrix(cnvobj)
+		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that
 		
 		if cnvobj.cnv then
 			function cnvobj.cnv:button_cb(button,pressed,x,y, status)

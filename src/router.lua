@@ -3,6 +3,9 @@ local setmetatable = setmetatable
 local type = type
 local table = table
 local pairs = pairs
+local min = math.min
+local max = math.max
+local floor = math.floor
 
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
@@ -19,21 +22,18 @@ end
 local rmMeta = {
 	__index = {
 		addSegment = function(rm,key,x1,y1,x2,y2)
-			if x1 == x2 then
+			if y1 == y2 then
 				-- This segment is horizontal
 				rm.hsegs[key] ={x1 = x1,x2=x2,y1=y1,y2=y2}
-			elseif y1 == y2 then
+			elseif x1 == x2 then
 				-- This segment is vertical
 				rm.vsegs[key] ={x1 = x1,x2=x2,y1=y1,y2=y2}
 			end
-			-- Add the end points
-			rm.segendpts[key] = {x1 = x1,x2=x2,y1=y1,y2=y2}
 			return true
 		end,
 		removeSegment = function(rm,key)
 			rm.hsegs[key] = nil
 			rm.vsegs[key] = nil
-			rm.segendpts[key] = nil
 			return true
 		end,
 		addBlockRectangle = function(rm,key,x1,y1,x2,y2)
@@ -76,7 +76,7 @@ local rmMeta = {
 			]]
 			for k,v in pairs(rm.blksegs) do
 				-- Segment 1 is x1,y1 x1,y2 of blksegs
-				local intersect = coorc.doIntersect(v.x1,v.y1,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
+				local intersect = coorc.doIntersect(v.x1,v.y1,v.x1,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
 				-- doIntersect:
 				-- Returns 5 if they intersect
 				-- Returns 1 if p2 lies on p1 q1
@@ -91,13 +91,61 @@ local rmMeta = {
 					-- This has to be a port and final destination
 					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
 				end
-				if rm.ports[x2][y2] then
+				-- Segment 2 is x1,y1 x2,y1 of blksegs
+				intersect = coorc.doIntersect(v.x1,v.y1,v.x2,v.y1,x1,y1,x2,y2) -- p1,q1,p2,q2
+				if intersect and intersect > 2 then	-- 3,4,5 are not allowed i.e. crossing the blk segment (5), blk segment end lies on the step line (3,4)
+					return false
+				end
+				if intersect then	-- case 1 and 2
+					-- This has to be a port and final destination
+					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+				end
+				-- Segment 3 is x1,y2 x2,y2 of blksegs
+				intersect = coorc.doIntersect(v.x1,v.y2,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
+				if intersect and intersect > 2 then	-- 3,4,5 are not allowed i.e. crossing the blk segment (5), blk segment end lies on the step line (3,4)
+					return false
+				end
+				if intersect then	-- case 1 and 2
+					-- This has to be a port and final destination
+					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+				end
+				-- Segment 4 is x2,y1 x2,y2 of blksegs
+				intersect = coorc.doIntersect(v.x2,v.y1,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
+				if intersect and intersect > 2 then	-- 3,4,5 are not allowed i.e. crossing the blk segment (5), blk segment end lies on the step line (3,4)
+					return false
+				end
+				if intersect then	-- case 1 and 2
+					-- This has to be a port and final destination
+					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+				end				
+			end
+			if rm.ports[x2][y2] then
+				return x2 == dstX and y2 == dstY
+			end
+			-- Go through the segments
+			local vmove = x1 == x2
+			local hmove = y1 == y2
+			for k,v in pairs(rm.vsegs) do
+				if v.x1 == x2 and (v.y1 == y2  or v.y2 == y2) then
+					-- stepping on end point (only allowed if that is the destination)
 					return x2 == dstX and y2 == dstY
 				end
-				
-				
-				
+				if vmove and v.x1 == x1 and y2 > min(v.y1,v.y2) and y < max(v.y1,v.y2) then
+					-- cannot do vertical move on a vertical segment
+					return false
+				end
 			end
+			for k,v in pairs(rm.hsegs) do 
+				if v.y1 == y2 and (v.x1 == x2 or v.x2 == x2) then
+					-- stepping on end point (only allowed if that is the destination)
+					return x2 == dstX and y2 == dstY
+				end
+				if hmove and v.y1 == y1 and x2 > min(v.x1,v.x2) and y < max(v.x1,v.x2) then
+					-- cannot do horizontal move on a horizontal segment
+					return false
+				end
+			end
+			return true	-- step is allowed
 		end,
 	}
 }
@@ -117,7 +165,6 @@ function newRoutingMatrix(cnvobj)
 		hsegs = {},		-- To store horizontal segments
 		vsegs = {},		-- To store vertical segments
 		blksegs = {},	-- To store blocking segments
-		segendpts = {},	-- To store the end points of segments where we cannot go through
 		ports = {}		-- To store the ports
 	}	-- routing Matrix table
 	setmetatable(rm,rmMeta)
@@ -131,19 +178,16 @@ end
 -- srcX and srcY are the starting coordinates
 -- destX and destY are the ending coordinates
 -- stepX and stepY are the increments to apply to X and Y to get to the next coordinate in the X and Y directions
-function BFS(rM,srcX,srcY,destX,destY,stepX,stepY) 
-	local minX,minY,maxX,maxY
+local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
 
 	-- Setup the Matrix width and height according to the min and max in the routing matrix
-	minX = rM.minX - stepX
-	minY = rM.minY - stepY
-	maxX = rM.maxX + stepX
-	maxY = rM.maxY + stepY
+	minX = minX or (rM.minX - stepX)
+	minY = minY or (rM.minY - stepY)
+	maxX = maxX or (rM.maxX + stepX)
+	maxY = maxY or (rM.maxY + stepY)
 	
 	local function valid(X, Y) 
-		if X >= minX and X <= maxX and Y >= minY and Y <= maxY then
-			return true
-		end
+		return X >= minX and X <= maxX and Y >= minY and Y <= maxY 
 	end 
 	
 	-- These arrays are used to get row and column 
@@ -209,7 +253,7 @@ end
 
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
 -- The new segments are added to the end of the segments array passed to it
-function generateSegments(cnvobj, startX,startY,x, y,segments)
+function generateSegments(cnvobj, X,Y,x, y,segments)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -219,11 +263,13 @@ function generateSegments(cnvobj, startX,startY,x, y,segments)
 	end
     local matrix_width = math.floor(cnvobj.width/grdx) + 1
     local matrix_height = math.floor(cnvobj.height/grdy) + 1
+	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
+	local maxX
     
     --srcX is sourceX in binary matrix and startX is exact start point of connector on canvas
     --destX is destinationX in binrary matrix and x is exact end point of connector on canvas
-    local srcX  =  coorc.snapX(startX, grdx)/grdx + 1
-    local srcY  =  coorc.snapY(startY, grdy)/grdy + 1
+    local srcX  =  coorc.snapX(X, grdx)/grdx + 1
+    local srcY  =  coorc.snapY(Y, grdy)/grdy + 1
     local destX =  coorc.snapX(x, grdx)/grdx + 1
     local destY =  coorc.snapY(y, grdy)/grdy + 1
 	
