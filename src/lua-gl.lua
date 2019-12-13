@@ -43,7 +43,7 @@ _VERSION = "B19.12.4"
 * Finish removeObj
 * Add Text functionality
 * Add arc functionality
-* Canvas scroll, zoom, pan
+* Canvas scroll, zoom, pan and coordinate translation
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
 * Connector labeling
 * Have to add export/print
@@ -248,6 +248,11 @@ objFuncs = {
 		}
 		cnvobj.rM = router.newRoutingMatrix(cnvobj)
 		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that
+		--[[
+		cnvobj.size = {}	
+		cnvobj.size.width = cnvobj.cnv.rastersize:match("(%d%d*)x%d*")
+		cnvobj.size.height = cnvobj.cnv.rastersize:match("%d%d*x(%d%d*)")
+		]]
 		
 		if cnvobj.cnv then
 			function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -331,10 +336,11 @@ new = function(para)
 		cnvobj[k] = v
 	end
 	  
-	objFuncs.erase(cnvobj)
-	-- Create the canvas element
 	cnvobj.cnv = iup.canvas{}		-- iup canvas where all drawing will happen
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
+	
+	objFuncs.erase(cnvobj)
+	-- Create the canvas element
 	
 	-- Setup the callback functions
 	function cnvobj.cnv.map_cb()

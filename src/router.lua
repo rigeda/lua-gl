@@ -18,6 +18,19 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
+local function fillLimits(rm,x,y)
+	if x < rm.minX then
+		rm.minX = x
+	elseif x > rm.maxX then
+		rm.maxX = x
+	end
+	if y < rm.minY then
+		rm.minY = y
+	elseif y > rm.maxY then
+		rm.maxY = y
+	end
+end
+
 -- routing matrix metatable
 local rmMeta = {
 	__index = {
@@ -29,6 +42,8 @@ local rmMeta = {
 				-- This segment is vertical
 				rm.vsegs[key] ={x1 = x1,x2=x2,y1=y1,y2=y2}
 			end
+			fillLimits(rm,x1,y1)
+			fillLimits(rm,x2,y2)
 			return true
 		end,
 		removeSegment = function(rm,key)
@@ -38,6 +53,8 @@ local rmMeta = {
 		end,
 		addBlockRectangle = function(rm,key,x1,y1,x2,y2)
 			rm.blksegs[key] = {x1=x1,y1=y1,x2=x2,y2=y2}
+			fillLimits(rm,x1,y1)
+			fillLimits(rm,x2,y2)
 			return true
 		end,
 		removeBlockingRectangle = function(rm,key)
@@ -52,6 +69,7 @@ local rmMeta = {
 			end
 			rm.ports[key] = {x=x,y=y}
 			rm.ports[x][y] = rm.ports[x][y] + 1
+			fillLimits(rm,x,y)
 			return true
 		end,
 		removePort = function(rm,key)
@@ -261,27 +279,27 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 	if not cnvobj.snapGrid then
 		grdx,grdy = 1,1
 	end
-    local matrix_width = math.floor(cnvobj.width/grdx) + 1
-    local matrix_height = math.floor(cnvobj.height/grdy) + 1
 	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
-	local maxX
+	local maxX = cnvobj.size and floor(cnvobj.size.width/2)
+	local minY = cnvobj.size and -floor(cnvobj.size.height/2)
+	local maxY = cnvobj.size and floor(cnvobj.size.height/2)
     
-    --srcX is sourceX in binary matrix and startX is exact start point of connector on canvas
-    --destX is destinationX in binrary matrix and x is exact end point of connector on canvas
-    local srcX  =  coorc.snapX(X, grdx)/grdx + 1
-    local srcY  =  coorc.snapY(Y, grdy)/grdy + 1
-    local destX =  coorc.snapX(x, grdx)/grdx + 1
-    local destY =  coorc.snapY(y, grdy)/grdy + 1
+	-- The start and end points
+    local srcX  =  coorc.snapX(X, grdx)/grdx
+    local srcY  =  coorc.snapY(Y, grdy)/grdy
+    local destX =  coorc.snapX(x, grdx)/grdx
+    local destY =  coorc.snapY(y, grdy)/grdy
 	
 	if srcX == destX and srcY == destY then
 		-- No distance yet so no segments should be generated
 		return true
 	end
+	local rM = cnvobj.rM
    
-    local shortestPathLen, shortestPathString = BFS(findMatrix(cnvobj), srcX, srcY, destX, destY, matrix_width, matrix_height)
+    local shortestPathLen, shortestPathString = BFS(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
     
 	if not shortestPathLen then
-        return 
+        return nil,"Cannot reach destination" 
     end
 	
     local shortestpathTable = {}
@@ -312,8 +330,8 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 		segments[i] = {}
 	   -- cnvobj.connector[connectorID].segments[i].ID = segLen + 1
 		if i==#segments+1 then
-			segments[i].start_x = (srcX-1)*grdx
-			segments[i].start_y = (srcY-1)*grdy
+			segments[i].start_x = srcX
+			segments[i].start_y = srcY
 		else
 			segments[i].start_x = segments[i-1].end_x  
 			segments[i].start_y = segments[i-1].end_y
