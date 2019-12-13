@@ -5,6 +5,7 @@ local table = table
 local pairs = pairs
 
 local tu = require("tableUtils")
+local coorc = require("lua-gl.CoordinateCalc")
 
 local M = {}
 package.loaded[...] = M
@@ -43,11 +44,24 @@ local rmMeta = {
 			rm.blksegs[key] = nil
 		end,
 		addPort = function(rm,key,x,y)
+			if not rm.ports[x] then
+				rm.ports[x] = {}
+			end
+			if not rm.ports[x][y] then
+				rm.ports[x][y] = 0
+			end
 			rm.ports[key] = {x=x,y=y}
+			rm.ports[x][y] = rm.ports[x][y] + 1
 			return true
 		end,
 		removePort = function(rm,key)
+			local x,y = rm.ports[key].x,rm.ports[key].y
 			rm.ports[key] = nil
+			rm.ports[x][y] = rm.ports[x][y] - 1
+			if rm.ports[x][y] == 0 then
+				rm.ports[x][y] = nil
+			end
+			return true
 		end,
 		validStep = function(rm,x1,y1,x2,y2,dstX,dstY)
 			-- Function to check whether a step from x1,y1 to x2,y2 is allowed. 
@@ -61,6 +75,27 @@ local rmMeta = {
 				# Check if this is a vertical move then it should not be overlapping any vertical segment
 			]]
 			for k,v in pairs(rm.blksegs) do
+				-- Segment 1 is x1,y1 x1,y2 of blksegs
+				local intersect = coorc.doIntersect(v.x1,v.y1,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
+				-- doIntersect:
+				-- Returns 5 if they intersect
+				-- Returns 1 if p2 lies on p1 q1
+				-- Returns 2 if q2 lies on p1 q1
+				-- Returns 3 if p1 lies on p2 q2 
+				-- Returns 4 if q1 lies on p2 q2
+				-- Returns false if no intersection				
+				if intersect and intersect > 2 then	-- 3,4,5 are not allowed i.e. crossing the blk segment (5), blk segment end lies on the step line (3,4)
+					return false
+				end
+				if intersect then	-- case 1 and 2
+					-- This has to be a port and final destination
+					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+				end
+				if rm.ports[x2][y2] then
+					return x2 == dstX and y2 == dstY
+				end
+				
+				
 				
 			end
 		end,

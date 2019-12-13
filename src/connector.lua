@@ -89,6 +89,7 @@ getConnFromXY = function(cnvobj,x,y,res)
 	if #conns == 0 then
 		return {}
 	end
+	local pS = res == 0 and coorc.pointOnSegment or coorc.pointNearSegment
 	res = res or math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
 	local allConns = {}
 	local segs = {}
@@ -96,7 +97,7 @@ getConnFromXY = function(cnvobj,x,y,res)
 		local segs = conns[i].segments
 		local connAdded
 		for j = 1,#segs do
-			if coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, x, y, res)  then
+			if pS(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, x, y, res)  then
 				if not connAdded then
 					allConns[#allConns + 1] = conns[i]
 					segs[#segs + 1] = {conn = i, seg = {j}}
@@ -300,11 +301,11 @@ local function repairSegAndJunc(cnvobj,conn)
 						A------B	
 					
 					]]
-					if coorc.PointOnLine(x1,y1,x2,y2,x3,y3,0) then	
+					if coorc.pointOnSegment(x1,y1,x2,y2,x3,y3) then	
 						-- C lies on AB - Cases 3,4,8,9
-						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+						if coorc.pointOnSegment(x1,y1,x2,y2,x4,y4) then
 							-- D lies on AB - Cases 3 and 9
-							if coorc.PointOnLine(x1,y1,x4,y4,x3,y3,0) then
+							if coorc.pointOnSegment(x1,y1,x4,y4,x3,y3) then
 								-- C lies on AD - Case 3
 					--[[
 					3. (overlap) The merge is 3 segments AC CD and DB. If C and D are dangling then merged is AB. If C is dangling then merged are AD and DB. If D is dangling then merged are AC and CB
@@ -361,7 +362,7 @@ local function repairSegAndJunc(cnvobj,conn)
 							end
 						else
 							-- C lies on AB but not D- Cases 4 and 8
-							if coorc.PointOnLine(x1,y1,x4,y4,x2,y2,0) then
+							if coorc.pointOnSegment(x1,y1,x4,y4,x2,y2) then
 								-- B lies on AD - Case 4
 					--[[
 					4. (overlap) The merge is 3 segments AC, CB and BD. If B and C are dangling then merged is AD. If C is dangling then merged is AB, BD. If B is dangling then merged are AC and CD
@@ -419,9 +420,9 @@ local function repairSegAndJunc(cnvobj,conn)
 						end		-- if D lies on AB check					
 					else	-- if C lies on AB check
 						-- C does not lie on AB - Cases 1,2,5,6,7,10,11,12
-						if coorc.PointOnLine(x1,y1,x2,y2,x4,y4,0) then
+						if coorc.pointOnSegment(x1,y1,x2,y2,x4,y4) then
 							-- D lies on AB - Cases 2 and 10
-							if coorc.PointOnLine(x1,y1,x3,y3,x2,y2,0) then
+							if coorc.pointOnSegment(x1,y1,x3,y3,x2,y2) then
 								-- B lies on AC	-- Case 10
 					--[[
 					10. (overlap) The merge is 3 segments AD, DB and BC. If B and D are dangling then merged is AC. If B is dangling then merged are AD and DC. If D is dangling then merged are AB and BC
@@ -478,9 +479,9 @@ local function repairSegAndJunc(cnvobj,conn)
 							end		-- if B lies on AC check
 						else	-- if D lies on AB check
 							-- D does not lie on AB nor does C - Cases 1,5,6,7,11,12
-							if coorc.PointOnLine(x3,y3,x4,y4,x1,y1,0) then
+							if coorc.pointOnSegment(x3,y3,x4,y4,x1,y1) then
 								-- A lies on CD then - Cases 6 and 12
-								if coorc.PointOnLine(x3,y3,x2,y2,x1,y1,0) then
+								if coorc.pointOnSegment(x3,y3,x2,y2,x1,y1) then
 									-- A lies on CB - Case 6
 					--[[
 					6. (overlap) The merge is 3 segments CA, AB and BD. If A and B are dangling then merged is CD. If A is dangling then merged are CB and BD. If B is dangling then merged are CA and AD
@@ -1311,8 +1312,8 @@ drawConnector  = function(cnvobj,segs)
 					else
 						ep = false
 					end
-					if not ep and (coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].start_x, segs[i].start_y, 0)  
-					  or coorc.PointOnLine(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].end_x, segs[i].end_y, 0)) then
+					if not ep and (coorc.pointOnSegment(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].start_x, segs[i].start_y)  
+					  or coorc.pointOnSegment(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].end_x, segs[i].end_y)) then
 						return nil, "The end point of a segment touches a mid point of another segment."	-- This is not allowed since that segment should have been split into 2 segments
 					end
 				end

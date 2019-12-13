@@ -23,15 +23,15 @@ function checkXY(obj, x, y, res)
 	local x2, y2, x4, y4 = x1, y3, x3, y1
 
 	if obj.shape == "RECT" then
-		local i1 = coorc.PointOnLine(x1,y1,x2,y2,x,y,res)
-		local i2 = coorc.PointOnLine(x2,y2,x3,y3,x,y,res)
-		local i3 = coorc.PointOnLine(x3,y3,x4,y4,x,y,res)
-		local i4 = coorc.PointOnLine(x4,y4,x1,y1,x,y,res)
+		local i1 = coorc.pointNearSegment(x1,y1,x2,y2,x,y,res)
+		local i2 = coorc.pointNearSegment(x2,y2,x3,y3,x,y,res)
+		local i3 = coorc.pointNearSegment(x3,y3,x4,y4,x,y,res)
+		local i4 = coorc.pointNearSegment(x4,y4,x1,y1,x,y,res)
 
 		if i1 or i2 or i3 or i4 then
 			return true
 		end
 	else
-		return coorc.PointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
+		return coorc.pointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
 	end
 end				
