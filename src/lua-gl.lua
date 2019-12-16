@@ -100,7 +100,7 @@ objFuncs = {
 			return nil,"Not a valid lua-gl object"
 		end
 		-- First check if any operation is happenning then end it
-		if cnvobj.op.end and type(cnvobj.op.end) == "function" then
+		if cnvobj.op.finish and type(cnvobj.op.finish) == "function" then
 			cnvobj.op.finish()
 		end
 		return tu.t2sr(cnvobj.drawn)
@@ -237,7 +237,7 @@ objFuncs = {
 			-- MOVEOBJ
 			coor1 = nil,	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 			-- DRAGOBJ
-			segsToRemove = nil	-- to store the segments generated after every motion_cb
+			segsToRemove = nil,	-- to store the segments generated after every motion_cb
 			-- DRAWOBJ
 			obj = nil		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment
 			

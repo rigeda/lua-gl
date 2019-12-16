@@ -5,7 +5,22 @@ require("iupluacd")
 
 LGL = require("lua-gl")
 
-TableUtils = require("tableUtils")
+iup.ImageLibOpen()
+
+-------------<<<<<<<<<<< ##### LuaTerminal ##### >>>>>>>>>>>>>-------------
+require("iuplua_scintilla")
+LT = require("LuaTerminal")
+LT.USESCINTILLA = true
+
+-- Create terminal
+newterm = LT.newTerm(_ENV,true,"testlog.txt")
+
+--print("newterm: ", newterm)
+LTbox = iup.vbox{newterm}
+
+LTdlg = iup.dialog{LTbox; title="LuaTerminal", size="QUARTERxQUARTER"}
+LTdlg:showxy(iup.RIGHT, iup.LEFT)
+-------------<<<<<<<<<<< ##### LuaTerminal End ##### >>>>>>>>>>>>>-------------
 
 --*************** Main (Part 1/2) ******************************
 

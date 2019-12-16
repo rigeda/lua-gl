@@ -312,7 +312,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 		U = -1,
 		D = 1,
 		L = 0,
-		R = 0s
+		R = 0,
 	}
 	
 	-- Now generate the segments
