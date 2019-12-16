@@ -2,6 +2,7 @@ require("iuplua")
 require("iupluaimglib")
 require("cdlua")
 require("iupluacd")
+require("submodsearcher")
 
 LGL = require("lua-gl")
 
@@ -24,14 +25,10 @@ LTdlg:showxy(iup.RIGHT, iup.LEFT)
 
 --*************** Main (Part 1/2) ******************************
 
-cnvobj = LGL.new{ grid_x = 40, grid_y = 40, width = 700, height = 400, gridVisibility = true}
-
-toggle1 = iup.toggle{title ="snapGrid", action = snapGrid}
-toggle2 = iup.toggle{title ="gridVisibility", action = gridVisibility}
-label =  iup.text{ expande="HORIZONTAL", multiline = "YES", value = "Guide box"}
+cnvobj = LGL.new{ grid_x = 40, grid_y = 40, width = 900, height = 600, gridVisibility = true}
 
 --********************* Callbacks *************
-
+--[[
 
 function Line_button()
   cnvobj:drawObj("LINE")
@@ -187,6 +184,8 @@ hbox = iup.hbox{
     }
 }
 
+
+
 dlg = iup.dialog{
    
     iup.vbox{
@@ -196,7 +195,9 @@ dlg = iup.dialog{
     },
     title="lua-gl",
 }
-dlg:showxy(iup.CENTER, iup.CENTER)
+
+]]
+GUI.mainDlg:showxy(iup.CENTER, iup.CENTER)
 
 if iup.MainLoopLevel()==0 then
     iup.MainLoop()
