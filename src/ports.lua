@@ -1,6 +1,8 @@
 -- Module to handle the ports structure
 local type = type
-local math = math
+local floor = math.floor
+local min = math.min
+local abs = math.abs
 local tostring = tostring
 local table = table
 
@@ -34,10 +36,10 @@ getPortFromXY = function(cnvobj, x, y)
 	if #ports == 0 then
 		return {}
 	end
-	local res = math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	local res = floor(min(cnvobj.grid_x,cnvobj.grid_y)/2)
 	local allPorts = {}
 	for i = 1, #ports do
-		if math.abs(ports[i].x - x) <= res and math.abs(cnvobj.port[i].y - y) <= res then
+		if abs(ports[i].x - x) <= res and math.abs(cnvobj.port[i].y - y) <= res then
 				allPorts[#allPorts + 1] = ports[i]
 		end
 	end
@@ -91,7 +93,9 @@ addPort = function(cnvobj,x,y,objID)
 	}
 	
 	-- Link the port table to the object
-	obj.port[#obj.port + 1] = cnvobj.drawn.port[index]		
+	obj.port[#obj.port + 1] = cnvobj.drawn.port[index]	
+	-- Add the port to the routing matrix
+	cnvobj.rM:addPort(cnvobj.drawn.port[index],x,y)
 	return true
 end
 
@@ -110,6 +114,8 @@ removePort = function(cnvobj,portID)
 					break
 				end
 			end
+			-- remove the port from the routing matrix
+			cnvobj.rM:removePort(ports[i])
 			table.remove(ports,i)
 			break
 		end

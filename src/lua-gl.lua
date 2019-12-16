@@ -1,7 +1,6 @@
 local table = table
 local pairs = pairs
 local print = print
-local iup = iup
 local error = error
 local pcall = pcall
 local type = type
@@ -28,14 +27,10 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B19.12.4"
+_VERSION = "B19.12.15"
 
 --- TASKS
 --[[
-* Update generateSegments to work with routing matrix object
-* Remove cnvobj dependency from generateSegments just pass it grdx and grdy or better yet - stepx and stepy 
-* Create routing Matrix object - Update code to update routing matrix in functions
-* Update the canvas module with the new data structure methodology
 * Finish loading of saved structure.
 * Finish moveSegment
 * Finish moveConn
@@ -242,6 +237,7 @@ objFuncs = {
 			-- MOVEOBJ
 			coor1 = nil,	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 			-- DRAGOBJ
+			segsToRemove = nil	-- to store the segments generated after every motion_cb
 			-- DRAWOBJ
 			obj = nil		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment
 			
@@ -336,7 +332,7 @@ new = function(para)
 		cnvobj[k] = v
 	end
 	  
-	cnvobj.cnv = iup.canvas{}		-- iup canvas where all drawing will happen
+	cnvobj.cnv = CC.newCanvas()
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	
 	objFuncs.erase(cnvobj)

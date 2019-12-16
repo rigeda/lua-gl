@@ -1,14 +1,28 @@
 -- Module containing all graphical and user interface manipulation functions for IUP canvas
 
-local snap = require("snap")
 local iup = iup 
-local print = print
 local cd = cd
 local math = math
 
+local RECT = require("lua-gl.rectangle")
+local LINE = require("lua-gl.line")
+local ELLIPSE = require("lua-gl.ellipse")
+local coorc = require("lua-gl.CoordinateCalc")
+
 local M = {}
-package.loaded[...] = M 
-local _ENV = M
+package.loaded[...] = M
+if setfenv and type(setfenv) == "function" then
+	setfenv(1,M)	-- Lua 5.1
+else
+	_ENV = M		-- Lua 5.2+
+end
+
+M.RECT = RECT
+M.FILLEDRECT = RECT
+M.BLOCKINGRECT = RECT
+M.LINE = LINE
+M.ELLIPSE = ELLIPSE
+M.FILLEDELLIPSE = ELLIPSE
 
 function mapCB(cnvobj)
 	local cd_Canvas = cd.CreateCanvas(cd.IUP, cnvobj.cnv)
@@ -37,6 +51,10 @@ function update(cnvobj)
 	iup.Update(cnvobj.cnv)
 end
 
+function newCanvas()
+	return iup.canvas{}
+end
+
 -- to draw grid
 function drawGrid(cd_canvas,cnvobj)
     local w,h = cnvobj.width, cnvobj.height
@@ -54,100 +72,39 @@ function drawGrid(cd_canvas,cnvobj)
     end
 end
 
-  --Used to Draw Shape
-function  DrawShape(cnv, start_x, start_y, end_x, end_y, shape, cnvobj)
-  
-    cnv:Foreground(cd.EncodeColor(0, 0, 255))
-
-    if (shape == "LINE") then
-      cnv:Line(start_x, start_y, end_x, end_y)
-    elseif (shape == "RECT") then   
-      cnv:Rect(start_x, end_x, start_y, end_y)
-    elseif (shape == "FILLEDRECT") then
-      cnv:Box(start_x, end_x, start_y, end_y)
-    elseif (shape == "ELLIPSE") then
-      cnv:Arc(math.floor((end_x + start_x) / 2), math.floor((end_y + start_y) / 2), math.abs(end_x - start_x), math.abs(end_y - start_y), 0, 360)
-    elseif (shape == "FILLEDELLIPSE") then
-      cnv:Sector(math.floor((end_x + start_x) / 2), math.floor((end_y + start_y) / 2), math.abs(end_x - start_x), math.abs(end_y - start_y), 0, 360)
-    elseif (shape == "BLOCKINGRECT") then
-      if(cnvobj.showBlockingRect==true) then
-        cnv:Rect(start_x, end_x, start_y, end_y)
-      end
-    end
-end
-
 function  render(cnvobj)
-  canvas = cnvobj.cnv
-  local cd_bcanvas = cnvobj.cdbCanvas
-  grid_x = cnvobj.grid_x
-  grid_y = cnvobj.grid_y 
-  local canvas_width, canvas_height = cnvobj.width, cnvobj.height
-    
-  cd_bcanvas:Activate()
-  cd_bcanvas:Background(cd.EncodeColor(255, 255, 255))
-  cd_bcanvas:Clear()
-    
-  if cnvobj.gridVisibility then
-    drawGrid(cd_bcanvas,cnvobj)
-  end
-  -- for drawn shapes
-  if #cnvobj.drawnEle > 0 then
-    for i=1, #cnvobj.drawnEle do
-      DrawShape(cd_bcanvas, cnvobj.drawnEle[i].start_x, cnvobj.drawnEle[i].start_y, cnvobj.drawnEle[i].end_x, cnvobj.drawnEle[i].end_y, cnvobj.drawnEle[i].shape, cnvobj)
-    end
-  end
-  -- for loaded shapes
-  if cnvobj.loadedEle.drawnEle then
-    if #cnvobj.loadedEle.drawnEle > 0 then
-      for i=1, #cnvobj.loadedEle.drawnEle do
-        DrawShape(cd_bcanvas, cnvobj.loadedEle.drawnEle[i].start_x, cnvobj.loadedEle.drawnEle[i].start_y, cnvobj.loadedEle.drawnEle[i].end_x, cnvobj.loadedEle.drawnEle[i].end_y, cnvobj.loadedEle.drawnEle[i].shape, cnvobj)
-      end
-    end
-  end
-  --for loaded connector
-  if cnvobj.loadedEle.connector then
-    if #cnvobj.loadedEle.connector > 0 then
-      for i = 1, #cnvobj.loadedEle.connector do
-        if #cnvobj.loadedEle.connector[i].segments > 0 then
-          for j = 1, #cnvobj.loadedEle.connector[i].segments do 
-            DrawShape(cd_bcanvas,cnvobj.loadedEle.connector[i].segments[j].start_x, cnvobj.loadedEle.connector[i].segments[j].start_y, cnvobj.loadedEle.connector[i].segments[j].end_x, cnvobj.loadedEle.connector[i].segments[j].end_y, "LINE", cnvobj)
-          end
-        end
-      end
-    end
-  end
-  
-  if #cnvobj.activeEle > 0 then
-    for i=1, #cnvobj.activeEle do
-      DrawShape(cd_bcanvas, cnvobj.activeEle[i].start_x, cnvobj.activeEle[i].start_y, cnvobj.activeEle[i].end_x, cnvobj.activeEle[i].end_y, cnvobj.activeEle[i].shape, cnvobj)
-    end
-  end
+	local canvas = cnvobj.cnv
+	local cd_bcanvas = cnvobj.cdbCanvas
+	local grid_x = cnvobj.grid_x
+	local grid_y = cnvobj.grid_y 
+	local canvas_width, canvas_height = cnvobj.width, cnvobj.height
 
-  if #cnvobj.connector > 0 then
-    for i = 1, #cnvobj.connector do
-      if #cnvobj.connector[i].segments > 0 then
-        for j = 1, #cnvobj.connector[i].segments do 
-          DrawShape(cd_bcanvas,cnvobj.connector[i].segments[j].start_x, cnvobj.connector[i].segments[j].start_y, cnvobj.connector[i].segments[j].end_x, cnvobj.connector[i].segments[j].end_y, "LINE", cnvobj)
-        end
-      end
-    end
-  end
+	cd_bcanvas:Activate()
+	cd_bcanvas:Background(cd.EncodeColor(255, 255, 255))
+	cd_bcanvas:Clear()
 
-  if cnvobj.drawing == "START" or cnvobj.drawing == "CONNECTOR" then
-    if cnvobj.motion then
-      local start_x = canvas.start_x
-      local start_y = canvas.start_y
-      local end_x = canvas.end_x
-      local end_y = canvas.end_y
-      if cnvobj.snapGrid == true then  
-        start_x =snap.Sx(start_x, grid_x)
-        start_y = snap.Sy(start_y, grid_y)
-        end_x = snap.Sx(end_x, grid_x)
-        end_y = snap.Sy(end_y, grid_y)
-      end
-      DrawShape(cd_bcanvas, start_x, start_y, end_x, end_y, cnvobj.shape, cnvobj)
-    end
-  end
-  cd_bcanvas:Flush()
+	if cnvobj.gridVisibility then
+		drawGrid(cd_bcanvas,cnvobj)
+	end
+	-- Now loop through the order array to draw every element in order
+	local order = cnvobj.order
+	for i = 1,#order do
+		local item = order[i].item
+		if order.type == "object" then
+			-- This is an object
+			canvas:Foreground(cd.EncodeColor(0, 0, 255))
+			if M[item.shape] and M[item.shape].draw then
+				M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,item.start_x,item.start_y,item.end_x,item.end_y)
+			end
+		else
+			-- This is a connector
+			canvas:Foreground(cd.EncodeColor(0, 0, 255))
+			local segs = item.segments
+			for j = 1,#segs do
+				LINE.draw(cnvobj,cd_bcanvas,"LINE",segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
+			end
+		end
+	end
+	cd_bcanvas:Flush()
 end
 

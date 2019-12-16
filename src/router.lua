@@ -302,43 +302,39 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
         return nil,"Cannot reach destination" 
     end
 	
-    local shortestpathTable = {}
-    for i=1, #shortestPathString do
-		local c = str:sub(i,i)
-        if c:upper() == "U" then
-            shortestpathTable[i] = 1
-        elseif c:upper() == "L" then
-            shortestpathTable[i] = 2
-        elseif c:upper() == "R" then
-            shortestpathTable[i] = 3
-        else
-            shortestpathTable[i] = 4
-        end
+	local xstep = {
+		U = 0,
+		D = 0,
+		L = -1,
+		R = 1
+	}
+	local ystep = {
+		U = -1,
+		D = 1,
+		L = 0,
+		R = 0s
+	}
+	
+	-- Now generate the segments
+	local i = 1
+	while i <= #shortestPathString do
+		local c = shortestPathString:sub(i,i)	-- Get the character at position i
+		-- Now count how many of them are repeated
+		local st = shortestPathString:find("[^"..c.."]",i+1)
+		local t = {}
+		if i == 1 then
+			t.start_x = srcX
+			t.start_y = srcY
+		else
+			t.start_x = segments[#segments].end_x
+			t.start_y = segments[#segments].end_y
+		end
+		t.end_x = t.start_x + grdx* (st-i)*xstep[c]
+		t.end_y = t.start_y + grdy* (st-i)*ystep[c]
+		segments[#segments + 1] = t
+		-- Add the segment to routing matrix with t as the key
+		rM:addSegment(t,t.start_x,t.start_y,t.end_x,t.end_y)
     end
 	
-    --[[str = ""
-    for k,v in pairs(shortestpathTable) do
-        str = str..v.." "
-    end
-    print(str)]]
-
-    local rowNum = {-1, 0, 0, 1}; 
-    local colNum = {0, -1, 1, 0}; 
-
-    
-	for i=#segments+1, #segments + shortestPathLen do
-		segments[i] = {}
-	   -- cnvobj.connector[connectorID].segments[i].ID = segLen + 1
-		if i==#segments+1 then
-			segments[i].start_x = srcX
-			segments[i].start_y = srcY
-		else
-			segments[i].start_x = segments[i-1].end_x  
-			segments[i].start_y = segments[i-1].end_y
-		end
-		segments[i].end_x = math.floor(segments[i].start_x + (rowNum[shortestpathTable[i]])*grdx)
-		segments[i].end_y = math.floor(segments[i].start_y + (colNum[shortestpathTable[i]])*grdy)   
-	end
-	print("total seg in this connector"..#segments)
 	return true
 end

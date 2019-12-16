@@ -2,10 +2,13 @@
 
 local type = type
 local table = table
-local math = math
 local pairs = pairs
 local tostring = tostring
 local iup = iup
+
+-- Math Library
+local min = math.min
+local floor = math.floor
 
 local RECT = require("lua-gl.rectangle")
 local LINE = require("lua-gl.line")
@@ -40,7 +43,7 @@ M.FILLEDELLIPSE = ELLIPSE
 	start_y = <integer>,	-- starting y coordinate of the bounding rectangle
 	end_x = <integer>,		-- ending x coordinate of the bounding rectangle
 	end_y = <integer>,		-- ending y coordinate of the bounding rectange
-	group = <array or nil>,			-- Pointer to the array of object structures present in the group. nil if this object not in any group
+	group = <array or nil>,	-- Pointer to the array of object structures present in the group. nil if this object not in any group
 	port = <array>,			-- Array of port structures associated with the object
 	order = <integer>		-- Index in the order array
 }
@@ -73,7 +76,7 @@ getObjFromXY = function(cnvobj,x,y)
 	if #objs == 0 then
 		return {}
 	end
-	local res = math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	local res = floor(min(cnvobj.grid_x,cnvobj.grid_y)/2)
 	local allObjs = {}
 	for i = 1,#objs do
 		if M[objs[i].shape] and M[objs[i].shape].checkXY(objs[i],x,y,res) then
@@ -84,17 +87,25 @@ getObjFromXY = function(cnvobj,x,y)
 end
 
 -- Function just offsets the objects (in grp array) and associated port coordinates. It does not handle the port connections which have to be updated
-local shiftObjList = function(grp,offx,offy)
+local shiftObjList = function(grp,offx,offy,rm)
 	for i = 1,#grp do
 		grp[i].start_x = grp[i].start_x + offx
 		grp[i].start_y = grp[i].start_y + offy
 		grp[i].end_x = grp[i].end_x and (grp[i].end_x + offx)
 		grp[i].end_y = grp[i].end_y and (grp[i].end_y + offy)
+		-- If blocking rectangle then remove from routing matrix and add the new postion
+		if grp[i].shape == "BLOCKINGRECT" then
+			rm:removeBlockingRect(grp[i])
+			rm:addBlockingRect(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
+		end
 		-- Update port coordinates
 		local portT = grp[i].port
 		for j = 1,#portT do
+			rm:removePort(portT[j])	-- Remove the port from the routing matrix
 			portT[j].x = portT[j].x + offx
 			portT[j].y = portT[j].y + offy
+			-- Place the port in the routing matrix in the new position
+			rm:addPort(portT[j],portT[j].x,portT[j].y)
 		end
 	end
 	return true
@@ -167,6 +178,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	end
 	local grp = {}	-- To compile the list of objects to move
 	local grpsDone = {}		-- To flag which groups have been checked already
+	local rm = cnvobj.rM
 	
 	-- Compile a list of objects by adding objects in the same group as the given objects
 	for i = 1,#objList do
@@ -202,10 +214,18 @@ moveObj = function(cnvobj,objList,offx,offy)
 			grp[i].start_y = grp[i].start_y + offy
 			grp[i].end_x = grp[i].end_x and (grp[i].end_x + offx)
 			grp[i].end_y = grp[i].end_y and (grp[i].end_y + offy)
+			-- If blocking rectangle then remove from routing matrix and add the new postion
+			if grp[i].shape == "BLOCKINGRECT" then
+				rm:removeBlockingRect(grp[i])
+				rm:addBlockingRect(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
+			end
 			local ports = grp[i].port
 			for j = 1,#ports do
+				rm:removePort(ports[j])	-- Remove the port from the routing matrix
 				ports[j].x = ports[j].x + offx
 				ports[j].y = ports[j].y + offy
+				-- Place the port in the routing matrix in the new position
+				rm:addPort(ports[j],ports[j].x,ports[j].y)
 				-- Disconnect any connectors
 				local conns = ports[j].conn	-- table of connectors connected to this port
 				for k = 1,#conns do		-- For every connector check its port table
@@ -244,7 +264,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 		local allConns = {}
 		local allPorts = {}
 		for i = 1,#grp do
-			-- Move the object coordinates with their port coordinates
+			-- Object and ports move is already done in motion_cb
+			-- Disconnect the connectors
 			local ports = grp[i].port
 			for j = 1,#ports do
 				-- Disconnect any connectors
@@ -303,7 +324,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		x = coorc.snapX(x, grdx)
 		y = coorc.snapY(y, grdy)
 		local offx,offy = (x-refX)+cnvobj.op.coor1.x-grp[1].start_x,(y-refY)+cnvobj.op.coor1.y-grp[1].start_y
-		shiftObjList(grp,offx,offy)
+		shiftObjList(grp,offx,offy,rm)
 	end
 	
 	return true
@@ -326,6 +347,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 	end
 	
 	local objs = cnvobj.drawn.obj	-- All drawn objects data structure
+	local rm = cnvobj.rM
 	
 	if not interactive then
 		-- Validate the coords table
@@ -352,6 +374,10 @@ drawObj = function(cnvobj,shape,pts,coords)
 			type = "object",
 			item = objs[#objs]
 		}
+		-- If blocking rectangle then add to routing matrix
+		if shape == "BLOCKINGRECT" then
+			rm:addBlockingRect(t,t.start_x,t.start_y,t.end_x,t.end_y)
+		end		
 		return true
 	end
 	-- Setup the interactive draw
@@ -369,6 +395,10 @@ drawObj = function(cnvobj,shape,pts,coords)
 			type = "object",
 			item = objs[#objs]
 		}
+		-- If blocking rectangle then add to routing matrix
+		if shape == "BLOCKINGRECT" then
+			rm:addBlockingRect(t,t.start_x,t.start_y,t.end_x,t.end_y)
+		end		
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB
@@ -454,6 +484,8 @@ dragObj = function(cnvobj,objList,offx,offy)
 	elseif not offy or type(offy) ~= "number" then
 		return nil, "Coordinates not given"
 	end
+	
+	local rm = cnvobj.rM
 	-- Collect all the objects that need to be dragged together by checking group memberships
 	local grp = {}
 	local grpsDone = {}
@@ -547,7 +579,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		end
 		offx = coorc.snapX(offx, grdx)
 		offy = coorc.snapY(offy, grdy)
-		shiftObjList(grp,offx,offy)
+		shiftObjList(grp,offx,offy,rm)
 		local allPorts = {}
 		-- Now redo the connectors
 		for i = 1,#grp do
@@ -555,8 +587,10 @@ dragObj = function(cnvobj,objList,offx,offy)
 			for j = 1,#portT do
 				local conn = portT[j].conn
 				for k = 1,#conn do
+					-- Remove the segments that need to be rerouted
 					local segStart = #conn[k].segments-connSrc[conn[k].id].segsCount+1
 					for l = #conn[k].segments,segStart,-1 do
+						rm:removeSegment(conn[k].segments[l])
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
@@ -657,7 +691,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		x = coorc.snapX(x, grdx)
 		y = coorc.snapY(y, grdy)
 		local offx,offy = (x-refX)+cnvobj.op.coor1.x-grp[1].start_x,(y-refY)+cnvobj.op.coor1.y-grp[1].start_y
-		shiftObjList(grp,offx,offy)
+		shiftObjList(grp,offx,offy,rm)
 		-- Now redo the connectors
 		for i = 1,#grp do
 			local portT = grp[i].port
@@ -666,6 +700,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 				for k = 1,#conn do
 					local segStart = #conn[k].segments-connSrc[conn[k].id].segsCount+1
 					for l = #conn[k].segments,segStart,-1 do
+						rm:removeSegment(conn[k].segments[l])
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here

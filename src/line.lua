@@ -10,6 +10,10 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
+function draw(cnvobj,cnv,shape,x1,y1,x2,y2)
+	cnv:Line(x1,y1,x2,y2)
+	return true
+end
 
 -- Function to check whether line object is selectable by x,y within the given resolution res
 function checkXY(obj, x, y,res)
