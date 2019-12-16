@@ -7,14 +7,6 @@ GUI = {
 	images = nil,	-- To Load the images
 	toolbar = {
 		buttons = {
-			lineButton = iup.button{image="IUP_ActionOk"},	-- Button to draw line
-			rectButton = iup.button{image="IUP_ActionOk"},	-- Button to draw rectangle
-			fRectButton = iup.button{image="IUP_ActionOk"},	-- Button to draw filled rectangle
-			bRectButton = iup.button{image="IUP_ActionOk"},	-- Button to draw blocking rectangle
-			elliButton = iup.button{image="IUP_ActionOk"},	-- Button to draw ellipse
-			fElliButton = iup.button{image="IUP_ActionOk"},	-- Button to draw filled ellipse
-			saveButton = iup.button{image="IUP_FileSave"},	-- Button to save drawing
-			loadButton = iup.button{image="IUP_FileOpen"},	-- Button to load drawing
 		},		-- buttons ends
 		left = nil,	-- left toolbar ends
 		center = nil,
@@ -36,9 +28,24 @@ GUI.statBarL = iup.label{title = "Ready",expand = "HORIZONTAL"}	-- Status Bar la
 GUI.statBarM = iup.label{expand = "HORIZONTAL"}	-- Status Bar label middle to display the channel parameters
 GUI.statBarR = iup.label{expand = "HORIZONTAL"}	-- Status Bar label Right to display the scripts directory
 
+GUI.toolbar.buttons = {
+	lineButton = iup.button{image=GUI.images.line,tip="Draw a Line object"},	-- Button to draw line
+	rectButton = iup.button{image=GUI.images.rectangle,tip="Draw a Rectangle object"},	-- Button to draw rectangle
+	fRectButton = iup.button{image=GUI.images.filledrectangle,tip="Draw a Filled Rectangle object"},	-- Button to draw filled rectangle
+	bRectButton = iup.button{image=GUI.images.blockingrectangle,tip="Draw a blocking rectangle"},	-- Button to draw blocking rectangle
+	elliButton = iup.button{image=GUI.images.ellipse,tip="Draw an Ellipse object"},	-- Button to draw ellipse
+	fElliButton = iup.button{image=GUI.images.filledellipse,tip="Draw a Filled Ellipse object"},	-- Button to draw filled ellipse
+	saveButton = iup.button{image="IUP_FileSave",tip="Save image to file"},	-- Button to save drawing
+	loadButton = iup.button{image="IUP_FileOpen",tip="Load image from file"},	-- Button to load drawing
+	snapGridButton = iup.button{image=GUI.images.ongrid,tip="Set snapping off"},
+	showGridButton = iup.toggle{image=GUI.images.grid,tip="Turn off grid",value="ON"},
+}		-- buttons ends
+
 GUI.toolbar.left = iup.hbox{
 	GUI.toolbar.buttons.saveButton,
 	GUI.toolbar.buttons.loadButton,
+	GUI.toolbar.buttons.snapGridButton,
+	GUI.toolbar.buttons.showGridButton,
 	iup.fill{};
 	margin = "2x2",
 	gap=2,

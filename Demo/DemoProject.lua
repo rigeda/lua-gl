@@ -9,6 +9,7 @@ require("GUIStructures")
 LGL = require("lua-gl")
 
 iup.ImageLibOpen()
+iup.SetGlobal("IMAGESTOCKSIZE","32")
 
 -------------<<<<<<<<<<< ##### LuaTerminal ##### >>>>>>>>>>>>>-------------
 require("iuplua_scintilla")
@@ -21,7 +22,12 @@ newterm = LT.newTerm(_ENV,true,"testlog.txt")
 --print("newterm: ", newterm)
 LTbox = iup.vbox{newterm}
 
-LTdlg = iup.dialog{LTbox; title="LuaTerminal", size="QUARTERxQUARTER"}
+LTdlg = iup.dialog{
+	LTbox; 
+	title="LuaTerminal", 
+	size="QUARTERxQUARTER",
+	icon = GUI.images.appIcon
+}
 LTdlg:showxy(iup.RIGHT, iup.LEFT)
 -------------<<<<<<<<<<< ##### LuaTerminal End ##### >>>>>>>>>>>>>-------------
 
@@ -37,6 +43,30 @@ cnvobj = LGL.new{
 GUI.mainArea:append(cnvobj.cnv)
 
 --********************* Callbacks *************
+
+function GUI.toolbar.buttons.snapGridButton:action()
+	if self.image == GUI.images.ongrid then
+		self.image = GUI.images.offgrid
+		self.tip = "Set Snapping On"
+		cnvobj.snapGrid = false
+	else
+		self.image = GUI.images.ongrid
+		self.tip = "Set Snapping Off"
+		cnvobj.snapGrid = true
+	end
+end
+
+function GUI.toolbar.buttons.showGridButton:action(v)
+	if v == 1 then
+		self.tip = "Turn grid off"
+		cnvobj.gridVisibility = true
+	else 
+		self.tip = "Turn grid on"
+		cnvobj.gridVisibility = false
+	end
+end
+
+
 --[[
 
 function Line_button()
@@ -67,21 +97,6 @@ end
 
 function load()
   cnvobj:load(str)
-end
-
-function toggle1:action(v)
-  if v == 1 then
-    cnvobj.snapGrid = true
-  else 
-    cnvobj.snapGrid = false
-  end
-end
-function toggle2:action(v)
-  if v == 1 then
-    cnvobj.gridVisibility = true
-  else 
-    cnvobj.gridVisibility = false
-  end
 end
 
 function valuechanged_cb_grid_x(self)
@@ -145,65 +160,8 @@ end
 
 function clear()
   cnvobj:erase()
-  cnvobj.connector = {}
 end
 
-
-
---********************************** Main (Part 1/2) *****************************************
-hbox = iup.hbox{
-    iup.vbox {
-      iup.label{ title = "Drawing"},
-      iup.button{ title="Line", tip="Line", action = Line_button},
-      iup.button{ title="Rect",  tip="Rectangle", action = Rect_button},
-      iup.button{ title="Filled Rect",  tip="Filled Rectangle", action = Filled_rect_button},
-      iup.button{ title="Ellipse", tip="Ellipse", action = Ellipse_button},
-      iup.button{ title="Filled Ellipse", tip="Filled Ellipse", action = Filled_ellipse_button},
-      
-      margin = "20x20",
-    },
-
-    iup.vbox {
-      toggle1,
-      toggle2,
-      iup.label{title="grid_x:", expand="HORIZONTAL"},
-      iup.text{ expande="HORIZONTAL", value = cnvobj.grid_x, valuechanged_cb = valuechanged_cb_grid_x},
-      iup.label{title="grid_y:", expand="HORIZONTAL"},
-      iup.text{ expande="HORIZONTAL", value = cnvobj.grid_y, valuechanged_cb = valuechanged_cb_grid_y},
-      margin = "20x20",
-    },
-    iup.vbox {
-      label,
-      iup.button{ title="Save", action = save},
-      iup.button{ title="Load", action = load},
-      iup.button{title = "clear" , action = clear},
-      margin = "20x20",
-    },
-    
-    iup.vbox {
-      iup.label{title = "Grouping"},
-      iup.button{title="groupShapes",action = groupShapesAction},
-      iup.button{title="endGrouping",action = endGrouping},
-      iup.label{title = "Port"},
-      iup.button{title = "addPort", action  = addPort},
-      iup.button{title = "stopAddingport", action = stopAddingport},
-      iup.label{title = "Connector"},
-      iup.button{ title="connector", action = connectorAction},
-      margin = "20x20",
-    }
-}
-
-
-
-dlg = iup.dialog{
-   
-    iup.vbox{
-        hbox,
-        iup.label{title = "----------------Canvas1---------------"},
-        cnvobj.cnv,
-    },
-    title="lua-gl",
-}
 
 ]]
 -- Set the mainDlg user size to nil so that the show uses the Natural Size
