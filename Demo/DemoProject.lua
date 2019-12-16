@@ -4,6 +4,8 @@ require("cdlua")
 require("iupluacd")
 require("submodsearcher")
 
+require("GUIStructures")
+
 LGL = require("lua-gl")
 
 iup.ImageLibOpen()
@@ -25,7 +27,14 @@ LTdlg:showxy(iup.RIGHT, iup.LEFT)
 
 --*************** Main (Part 1/2) ******************************
 
-cnvobj = LGL.new{ grid_x = 40, grid_y = 40, width = 900, height = 600, gridVisibility = true}
+cnvobj = LGL.new{ 
+	grid_x = 10, 
+	grid_y = 10, 
+	width = 900, 
+	height = 600, 
+	gridVisibility = true
+}
+GUI.mainArea:append(cnvobj.cnv)
 
 --********************* Callbacks *************
 --[[
@@ -197,7 +206,13 @@ dlg = iup.dialog{
 }
 
 ]]
+-- Set the mainDlg user size to nil so that the show uses the Natural Size
+GUI.mainDlg.size = nil
 GUI.mainDlg:showxy(iup.CENTER, iup.CENTER)
+GUI.mainDlg.minsize = GUI.mainDlg.rastersize	-- To limit the minimum size of the dialog to the natural size
+GUI.mainDlg.maxsize = GUI.mainDlg.rastersize	-- To limit the maximum size of the dialog to the natural size
+GUI.mainDlg.resize = "NO"
+GUI.mainDlg.maxbox = "NO"
 
 if iup.MainLoopLevel()==0 then
     iup.MainLoop()

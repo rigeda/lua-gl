@@ -1,6 +1,6 @@
 -- Module to add ellipse functionality in lua-gl
 
-local coorc = require("lua-gl.CoordiateCalc")
+local coorc = require("lua-gl.CoordinateCalc")
 local abs = math.abs
 local floor = math.floor
 

@@ -1,6 +1,6 @@
 -- Module to add line drawing functionality to lua-gl
 
-local coorc = require("lua-gl.CoordiateCalc")
+local coorc = require("lua-gl.CoordinateCalc")
 
 local M = {}
 package.loaded[...] = M

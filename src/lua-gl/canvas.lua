@@ -87,7 +87,7 @@ function  render(cnvobj)
 		drawGrid(cd_bcanvas,cnvobj)
 	end
 	-- Now loop through the order array to draw every element in order
-	local order = cnvobj.order
+	local order = cnvobj.drawn.order
 	for i = 1,#order do
 		local item = order[i].item
 		if order.type == "object" then

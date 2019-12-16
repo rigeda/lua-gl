@@ -4,6 +4,7 @@ local print = print
 local error = error
 local pcall = pcall
 local type = type
+local assert = assert
 
 local math = math
 local setmetatable = setmetatable
@@ -194,7 +195,7 @@ objFuncs = {
 	end,
 
 	erase = function(cnvobj)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
 		cnvobj.drawn = {
@@ -259,6 +260,7 @@ objFuncs = {
 				CC.motionCB(cnvobj,x,y, status)		
 			end
 		end
+		return true
 	end,
 
 
@@ -335,7 +337,9 @@ new = function(para)
 	cnvobj.cnv = CC.newCanvas()
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	
-	objFuncs.erase(cnvobj)
+	setmetatable(cnvobj,{__index = objFuncs})
+	
+	assert(objFuncs.erase(cnvobj),"Could not initialize the canvas object")
 	-- Create the canvas element
 	
 	-- Setup the callback functions
@@ -358,8 +362,6 @@ new = function(para)
 	function cnvobj.cnv:motion_cb(x, y, status)
 		CC.motionCB(cnvobj,x,y, status)		
 	end
-	
-	setmetatable(cnvobj,{__index = objFuncs})
 	
 	return cnvobj
 end

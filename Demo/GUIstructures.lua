@@ -90,7 +90,7 @@ GUI.mainVbox = iup.vbox{
 
 GUI.mainDlg = iup.dialog{
 	GUI.mainVbox;
-	title = "Lua-gl library demo application"..GUI._VERSION,
+	title = "Lua-gl library demo application "..GUI._VERSION,
 	size="HALFxHALF",
 	shrink="YES",
 	icon = GUI.images.appIcon
