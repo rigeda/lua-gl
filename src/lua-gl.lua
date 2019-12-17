@@ -240,8 +240,9 @@ objFuncs = {
 			-- DRAGOBJ
 			segsToRemove = nil,	-- to store the segments generated after every motion_cb
 			-- DRAWOBJ
-			obj = nil		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment
-			
+			obj = nil,		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment
+			order = nil,		-- order number where the new shape is placed once the drawing starts
+			index = nil,		-- to store the index in cnvobj.drawn.obj array where the object being drawn is stored
 		}
 		cnvobj.rM = router.newRoutingMatrix(cnvobj)
 		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that

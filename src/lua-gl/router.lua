@@ -51,7 +51,7 @@ local rmMeta = {
 			rm.vsegs[key] = nil
 			return true
 		end,
-		addBlockRectangle = function(rm,key,x1,y1,x2,y2)
+		addBlockingRectangle = function(rm,key,x1,y1,x2,y2)
 			rm.blksegs[key] = {x1=x1,y1=y1,x2=x2,y2=y2}
 			fillLimits(rm,x1,y1)
 			fillLimits(rm,x2,y2)

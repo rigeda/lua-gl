@@ -38,13 +38,16 @@ cnvobj = LGL.new{
 	grid_y = 10, 
 	width = 900, 
 	height = 600, 
-	gridVisibility = true
+	gridVisibility = true,
+	snapGrid = true,
+	showBlockingRect = true,
 }
 GUI.mainArea:append(cnvobj.cnv)
 
 
 --********************* Callbacks *************
 
+-- Turn ON/OFF snapping ont he grid
 function GUI.toolbar.buttons.snapGridButton:action()
 	if self.image == GUI.images.ongrid then
 		self.image = GUI.images.offgrid
@@ -57,6 +60,7 @@ function GUI.toolbar.buttons.snapGridButton:action()
 	end
 end
 
+-- Show/Hide the grid
 function GUI.toolbar.buttons.showGridButton:action(v)
 	if v == 1 then
 		self.tip = "Turn grid off"
@@ -68,22 +72,64 @@ function GUI.toolbar.buttons.showGridButton:action(v)
 	cnvobj:refresh()
 end
 
+-- Show/Hide the Blocking Rectangles
+function GUI.toolbar.buttons.showBlockingRect:action(v)
+	if v == 1 then
+		self.tip = "Hide Blocking Rectangles"
+		self.image = GUI.images.blockingRectVisible
+		cnvobj.showBlockingRect = true
+	else 
+		self.tip = "Show Blocking Rectangles"
+		self.image = GUI.images.blockingRectHidden
+		cnvobj.showBlockingRect = false
+	end
+	cnvobj:refresh()
+end
 
+-- Change the grid action
 function GUI.toolbar.buttons.xygrid:action()
-	local function updateGrid(self,pIndex)
-		print("UG",self,pIndex)
-		if pIndex == -2 then
-			self.PARAM0 = "10"
-			self.PARAM1 = "10"
-		end
-		if pIndex ~= -1 then	-- wait for OK to be pressed
-			return 1
-		end
+	local ret,x,y = iup.GetParam("Enter the Grid Size",nil,"X Grid%i{The grid size in X dimension}\nY Grid%i{The grid size in Y dimension}\n",cnvobj.grid_x,cnvobj.grid_y)
+	if ret and x > 0 and y > 0 then
 		cnvobj.grid_x = x
 		cnvobj.grid_y = y
 		cnvobj:refresh()
 	end
-	iup.GetParam("Enter the Grid Size",updateGrid,"X Grid%i{The grid size in X dimension}\nY Grid%i{The grid size in Y dimension}\n",2,0,0)
+end
+
+-- Draw line object
+function GUI.toolbar.buttons.lineButton:action()
+	-- Non interactive line draw
+	--[[cnvobj:drawObj("LINE",2,{
+			{x=10,y=10},
+			{x=100,y=100}
+		})]]
+	--cnvobj:refresh()
+	cnvobj:drawObj("LINE",2)	-- interactive line drawing
+end
+
+-- Draw rectangle object
+function GUI.toolbar.buttons.rectButton:action()
+	cnvobj:drawObj("RECT",2)	-- interactive rectangle drawing
+end
+
+-- Draw filled rectangle object
+function GUI.toolbar.buttons.fRectButton:action()
+	cnvobj:drawObj("FILLEDRECT",2)	-- interactive filled rectangle drawing
+end
+
+-- Draw blocking rectangle object
+function GUI.toolbar.buttons.bRectButton:action()
+	cnvobj:drawObj("BLOCKINGRECT",2)	-- interactive blocking rectangle drawing
+end
+
+-- Draw ellipse object
+function GUI.toolbar.buttons.elliButton:action()
+	cnvobj:drawObj("ELLIPSE",2)	-- interactive ellipse drawing
+end
+
+-- Draw filled ellipse object
+function GUI.toolbar.buttons.fElliButton:action()
+	cnvobj:drawObj("FILLEDELLIPSE",2)	-- interactive filled ellipse drawing
 end
 
 --[[

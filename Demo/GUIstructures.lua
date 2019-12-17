@@ -40,6 +40,7 @@ GUI.toolbar.buttons = {
 	snapGridButton = iup.button{image=GUI.images.ongrid,tip="Set snapping off"},
 	showGridButton = iup.toggle{image=GUI.images.grid,tip="Turn off grid",value="ON"},
 	xygrid = iup.button{image=GUI.images.xygrid,tip="Change Grid size"},
+	showBlockingRect = iup.toggle{image=GUI.images.blockingRectVisible,tip = "Show blocking rectangles",value="ON"},
 }		-- buttons ends
 
 GUI.toolbar.left = iup.hbox{
@@ -48,6 +49,7 @@ GUI.toolbar.left = iup.hbox{
 	GUI.toolbar.buttons.snapGridButton,
 	GUI.toolbar.buttons.showGridButton,
 	GUI.toolbar.buttons.xygrid,
+	GUI.toolbar.buttons.showBlockingRect,
 	iup.fill{};
 	margin = "2x2",
 	gap=2,

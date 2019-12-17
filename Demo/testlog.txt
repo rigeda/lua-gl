@@ -3,4 +3,51 @@ table: 03803850
 >stdin:1: syntax error near 'IUP'
 >
 >
+>stdin:2: syntax error near ';'
+>print(cnvobj)
+table: 03868370
+>o = cnvobj.drawn.order
+>print(#o)
+1
+>print(o[1].type)
+object
+>cnvobj:erase()
+>cnvobj:refresh()
+>print(#cnvobj.drawn.order)
+0
+>
+>
+>print(#cnvobj.drawn.order)
+4
+>cnvobj:refresh()
+>o = cnvobj.drawn.order
+>print(#o)
+2
+>i1 = o[1].item
+>for k,v in pairs(i1) do print(k,v) end
+port	table: 03a8e310
+start_y	10
+end_y	283
+start_x	10
+id	O1
+order	1
+end_x	625
+shape	LINE
+>i2 = o[2].item
+>for k,v in pairs(i2) do print(k,v) end
+port	table: 03a8e310
+start_y	10
+end_y	283
+start_x	10
+id	O1
+order	1
+end_x	625
+shape	LINE
+>cnvobj:refresh()
+>print(cnvobj.snapGrid)
+nil
+>print(cnvobj.snapGrid)
+false
+>print(cnvobj.snapGrid)
+true
 >

@@ -56,19 +56,19 @@ function newCanvas()
 end
 
 -- to draw grid
-function drawGrid(cd_canvas,cnvobj)
+function drawGrid(cnv,cnvobj)
     local w,h = cnvobj.width, cnvobj.height
     local x,y
     local grid_x = cnvobj.grid_x
     local grid_y = cnvobj.grid_y
     --first for loop to draw horizontal line
-    cd_canvas:SetForeground(cd.EncodeColor(192,192,192))
+    cnv:SetForeground(cd.EncodeColor(192,192,192))
     for y=0, h, grid_y do
-      cd_canvas:Line(0,y,w,y)
+      cnv:Line(0,y,w,y)
     end
     -- for loop used to draw vertical line
     for x=0, w, grid_x do
-      cd_canvas:Line(x,0,x,h)
+      cnv:Line(x,0,x,h)
     end
 end
 
@@ -90,15 +90,15 @@ function  render(cnvobj)
 	local order = cnvobj.drawn.order
 	for i = 1,#order do
 		local item = order[i].item
-		if order.type == "object" then
+		if order[i].type == "object" then
 			-- This is an object
-			canvas:Foreground(cd.EncodeColor(0, 0, 255))
+			cd_bcanvas:SetForeground(cd.EncodeColor(0, 162, 232))
 			if M[item.shape] and M[item.shape].draw then
 				M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,item.start_x,item.start_y,item.end_x,item.end_y)
 			end
 		else
 			-- This is a connector
-			canvas:Foreground(cd.EncodeColor(0, 0, 255))
+			cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
 			local segs = item.segments
 			for j = 1,#segs do
 				LINE.draw(cnvobj,cd_bcanvas,"LINE",segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)

@@ -18,6 +18,8 @@ local coorc = require("lua-gl.CoordinateCalc")
 local CONN = require("lua-gl.connector")
 local PORTS = require("lua-gl.ports")
 
+local print = print
+
 
 local M = {}
 package.loaded[...] = M
@@ -96,7 +98,7 @@ local shiftObjList = function(grp,offx,offy,rm)
 		-- If blocking rectangle then remove from routing matrix and add the new postion
 		if grp[i].shape == "BLOCKINGRECT" then
 			rm:removeBlockingRect(grp[i])
-			rm:addBlockingRect(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
+			rm:addBlockingRectangle(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
 		end
 		-- Update port coordinates
 		local portT = grp[i].port
@@ -217,7 +219,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 			-- If blocking rectangle then remove from routing matrix and add the new postion
 			if grp[i].shape == "BLOCKINGRECT" then
 				rm:removeBlockingRect(grp[i])
-				rm:addBlockingRect(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
+				rm:addBlockingRectangle(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
 			end
 			local ports = grp[i].port
 			for j = 1,#ports do
@@ -325,8 +327,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 		y = coorc.snapY(y, grdy)
 		local offx,offy = (x-refX)+cnvobj.op.coor1.x-grp[1].start_x,(y-refY)+cnvobj.op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
-	end
-	
+		cnvobj:refresh()
+	end	
 	return true
 end
 
@@ -351,7 +353,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 	
 	if not interactive then
 		-- Validate the coords table
-		for i = 1,#pts do
+		for i = 1,pts do
 			if not coords[i].x or type(coords[i].x) ~= "number" or not coords[i].y or type(coords[i].y) ~= "number" then
 				return nil, "Coordinates not given"
 			end
@@ -376,7 +378,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 		}
 		-- If blocking rectangle then add to routing matrix
 		if shape == "BLOCKINGRECT" then
-			rm:addBlockingRect(t,t.start_x,t.start_y,t.end_x,t.end_y)
+			rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
 		end		
 		return true
 	end
@@ -388,16 +390,12 @@ drawObj = function(cnvobj,shape,pts,coords)
 	
 	-- Function to end the interactive drawing mode
 	local function drawEnd()
+		--print("drawEnd called")
 		-- End the drawing
-		objs.ids = objs.ids + 1
-		-- Add the object to be drawn in the order array
-		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-			type = "object",
-			item = objs[#objs]
-		}
 		-- If blocking rectangle then add to routing matrix
 		if shape == "BLOCKINGRECT" then
-			rm:addBlockingRect(t,t.start_x,t.start_y,t.end_x,t.end_y)
+			local t = objs[cnvobj.op.index]
+			rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
 		end		
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
@@ -426,13 +424,15 @@ drawObj = function(cnvobj,shape,pts,coords)
 		y = coorc.snapY(y, grdy)
 		
 		if button == iup.BUTTON1 and pressed == 1 then
-			if cnvobj.op.mode ~= "DRAWCONN" then
+			if cnvobj.op.mode == "DRAWOBJ" then
 				drawEnd()
 			else
 				-- Start the drawing
 				cnvobj.op.mode = "DRAWOBJ"	-- Set the mode to drawing object
 				cnvobj.op.obj = shape
 				cnvobj.op.finish = drawEnd
+				cnvobj.op.order = #cnvobj.drawn.order + 1
+				cnvobj.op.index = #objs + 1
 				local t = {}
 				t.id = "O"..tostring(objs.ids + 1)
 				t.shape = shape
@@ -444,6 +444,12 @@ drawObj = function(cnvobj,shape,pts,coords)
 				t.order = #cnvobj.drawn.order + 1
 				t.port = {}
 				objs[#objs + 1] = t
+				objs.ids = objs.ids + 1
+				-- Add the object to be drawn in the order array
+				cnvobj.drawn.order[cnvobj.op.order] = {
+					type = "object",
+					item = t
+				}
 				if pts == 1 then
 					-- This is the end of the drawing
 					t.end_x = nil
@@ -458,15 +464,18 @@ drawObj = function(cnvobj,shape,pts,coords)
 	end
 	
 	function cnvobj.cnv:motion_cb(x, y, status)
-		y = cnvobj.height - y
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
+		if cnvobj.op.mode == "DRAWOBJ" then
+			y = cnvobj.height - y
+			local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
+			if not cnvobj.snapGrid then
+				grdx,grdy = 1,1
+			end
+			x = coorc.snapX(x, grdx)
+			y = coorc.snapY(y, grdy)
+			objs[#objs].end_x = x
+			objs[#objs].end_y = y
+			cnvobj:refresh()
 		end
-		x = coorc.snapX(x, grdx)
-		y = coorc.snapY(y, grdy)
-		objs[#objs].end_x = x
-		objs[#objs].end_y = y
 	end    
 end	-- end drawObj function
 
@@ -708,6 +717,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 				end
 			end
 		end
+		cnvobj:refresh()
 	end
 	return true
 end
