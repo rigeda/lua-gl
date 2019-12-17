@@ -11,7 +11,7 @@ GUI = {
 		left = nil,	-- left toolbar ends
 		center = nil,
 		right = nil,
-		hbox = nil
+		hbox = nil,
 	},		-- toolbar ends
 	mainDlg = nil,
 	mainArea = nil,		-- Main area where the widgets are
@@ -39,6 +39,7 @@ GUI.toolbar.buttons = {
 	loadButton = iup.button{image="IUP_FileOpen",tip="Load image from file"},	-- Button to load drawing
 	snapGridButton = iup.button{image=GUI.images.ongrid,tip="Set snapping off"},
 	showGridButton = iup.toggle{image=GUI.images.grid,tip="Turn off grid",value="ON"},
+	xygrid = iup.button{image=GUI.images.xygrid,tip="Change Grid size"},
 }		-- buttons ends
 
 GUI.toolbar.left = iup.hbox{
@@ -46,6 +47,7 @@ GUI.toolbar.left = iup.hbox{
 	GUI.toolbar.buttons.loadButton,
 	GUI.toolbar.buttons.snapGridButton,
 	GUI.toolbar.buttons.showGridButton,
+	GUI.toolbar.buttons.xygrid,
 	iup.fill{};
 	margin = "2x2",
 	gap=2,

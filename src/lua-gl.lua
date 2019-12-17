@@ -262,6 +262,8 @@ objFuncs = {
 		end
 		return true
 	end,
+	
+	refresh = CC.update,
 
 
 	---- CONNECTORS---------

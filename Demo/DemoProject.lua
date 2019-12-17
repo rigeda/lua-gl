@@ -42,6 +42,7 @@ cnvobj = LGL.new{
 }
 GUI.mainArea:append(cnvobj.cnv)
 
+
 --********************* Callbacks *************
 
 function GUI.toolbar.buttons.snapGridButton:action()
@@ -64,8 +65,26 @@ function GUI.toolbar.buttons.showGridButton:action(v)
 		self.tip = "Turn grid on"
 		cnvobj.gridVisibility = false
 	end
+	cnvobj:refresh()
 end
 
+
+function GUI.toolbar.buttons.xygrid:action()
+	local function updateGrid(self,pIndex)
+		print("UG",self,pIndex)
+		if pIndex == -2 then
+			self.PARAM0 = "10"
+			self.PARAM1 = "10"
+		end
+		if pIndex ~= -1 then	-- wait for OK to be pressed
+			return 1
+		end
+		cnvobj.grid_x = x
+		cnvobj.grid_y = y
+		cnvobj:refresh()
+	end
+	iup.GetParam("Enter the Grid Size",updateGrid,"X Grid%i{The grid size in X dimension}\nY Grid%i{The grid size in Y dimension}\n",2,0,0)
+end
 
 --[[
 

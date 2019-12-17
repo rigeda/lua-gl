@@ -1,0 +1,6 @@
+print(LGL)
+table: 03803850
+>stdin:1: syntax error near 'IUP'
+>
+>
+>
