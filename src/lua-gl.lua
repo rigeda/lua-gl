@@ -12,12 +12,12 @@ local getmetatable = getmetatable
 local tonumber = tonumber
 local tostring = tostring
 
+local GUIFW = require("lua-gl.guifw")
 local objects = require("lua-gl.objects")
 local ports = require("lua-gl.ports")
 local conn = require("lua-gl.connector")
 local hooks = require("lua-gl.hooks")
 local tu = require("tableUtils")
-local CC = require("lua-gl.canvas")
 local router = require("lua-gl.router")
 
 local M = {}
@@ -117,10 +117,7 @@ objFuncs = {
 		if not tab then return nil,"No data found" end
 		x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
 		y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		-- Now append the data in tab into the cnvobj.drawn structure
 		-- obj array copy
 		local objS = tab.obj
@@ -239,32 +236,63 @@ objFuncs = {
 			coor1 = nil,	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 			-- DRAGOBJ
 			segsToRemove = nil,	-- to store the segments generated after every motion_cb
+			grp = nil,		-- Array of objects that are being dragged. This is already sorted in ascending order ranking
+			oldOrder = nil,	-- Array containing the old order positions of the objects being dragged
+			coor1 = nil,	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total drag
 			-- DRAWOBJ
 			obj = nil,		-- shape string of the object being drawn. The shape strings are listed at the top of the objects file when initialized in the environment
 			order = nil,		-- order number where the new shape is placed once the drawing starts
 			index = nil,		-- to store the index in cnvobj.drawn.obj array where the object being drawn is stored
 		}
 		cnvobj.rM = router.newRoutingMatrix(cnvobj)
-		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that
+		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that. Note that this is not the canvas size which is always referred from cnvobj.cnv.rastersize
 		--[[
 		cnvobj.size = {}	
 		cnvobj.size.width = cnvobj.cnv.rastersize:match("(%d%d*)x%d*")
 		cnvobj.size.height = cnvobj.cnv.rastersize:match("%d%d*x(%d%d*)")
-		]]
 		
-		if cnvobj.cnv then
-			function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-				CC.buttonCB(cnvobj,button,pressed,x,y, status)
-			end
-			
-			function cnvobj.cnv:motion_cb(x, y, status)
-				CC.motionCB(cnvobj,x,y, status)		
-			end
+		width = <integer>, 	--Width of the canvas	-- The width at the time of creation
+		height = <integer>,	--Height of the canvas	-- The height at the time of creation
+		grid = {
+			grid_x = <integer>, --x direction grid distance
+			grid_y = <integer>, --y direction grid distance
+			snapGrid = <boolean>,		-- (OPTIONAL) if true then everything works on the grid, otherwise it behaves as if grid is 1px x 1px
+		}
+		viewOptions = {
+			gridVisibility = <boolean>,	-- (OPTIONAL) if true then grid is visible
+			gridMode = <integer>		-- (OPTIONAL) default = 1 (grid points), 2 (rectangular grid)
+			showBlockingRect = <boolean>,-- (OPTIONAL) if true then blocking rectangles are drawn on screen
+		}
+		]]
+		cnvobj.viewOptions.gridMode = cnvobj.viewOptions.gridMode or 1
+		-- Setup the callback functions
+		function cnvobj.cnv.map_cb()
+			GUIFW.mapCB(cnvobj)	
+		end
+		
+		function cnvobj.cnv.unmap_cb()
+			GUIFW.unmapCB(cnvobj)
+		end
+		
+		function cnvobj.cnv.resize_cb()
+			GUIFW.render(cnvobj)
+		end
+		
+		function cnvobj.cnv.action()
+			GUIFW.render(cnvobj)
+		end
+		
+		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+			GUIFW.buttonCB(cnvobj,button,pressed,x,y, status)
+		end
+		
+		function cnvobj.cnv:motion_cb(x, y, status)
+			GUIFW.motionCB(cnvobj,x,y, status)		
 		end
 		return true
 	end,
 	
-	refresh = CC.update,
+	refresh = GUIFW.update,
 
 
 	---- CONNECTORS---------
@@ -324,7 +352,7 @@ end
 
 ]]
 new = function(para)
-	local cnvobj = {}	-- The canvas object for lua-gl
+	local cnvobj = {}		-- The lua-gl object
 	
 	local resp,msg = checkPara(para)
    
@@ -334,37 +362,24 @@ new = function(para)
 	
 	-- Put all parameters into the cnvobj object
 	for k,v in pairs(para) do
-		cnvobj[k] = v
+		if k == "grid_x" or k == "grid_y" or k == "snapGrid" then
+			cnvobj.grid = cnvobj.grid or {}
+			cnvobj.grid[k] = v
+		elseif k == "gridVisibility" or k == "showBlockingRect" then
+			cnvobj.viewOptions = cnvobj.viewOptions or {}
+			cnvobj.viewOptions[k] = v
+		else
+			cnvobj[k] = v
+		end
 	end
 	  
-	cnvobj.cnv = CC.newCanvas()
+	-- Create the canvas element
+	cnvobj.cnv = GUIFW.newCanvas()
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
 	
 	setmetatable(cnvobj,{__index = objFuncs})
 	
 	assert(objFuncs.erase(cnvobj),"Could not initialize the canvas object")
-	-- Create the canvas element
-	
-	-- Setup the callback functions
-	function cnvobj.cnv.map_cb()
-		CC.mapCB(cnvobj)	
-	end
-	
-	function cnvobj.cnv.unmap_cb()
-		CC.unmapCB(cnvobj)
-	end
-	
-	function cnvobj.cnv.action()
-		CC.render(cnvobj)
-	end
-	
-	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		CC.buttonCB(cnvobj,button,pressed,x,y, status)
-	end
-	
-	function cnvobj.cnv:motion_cb(x, y, status)
-		CC.motionCB(cnvobj,x,y, status)		
-	end
 	
 	return cnvobj
 end

@@ -275,10 +275,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
-	local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
-	if not cnvobj.snapGrid then
-		grdx,grdy = 1,1
-	end
+	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
 	local maxX = cnvobj.size and floor(cnvobj.size.width/2)
 	local minY = cnvobj.size and -floor(cnvobj.size.height/2)

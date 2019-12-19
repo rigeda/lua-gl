@@ -8,10 +8,8 @@ GUI = {
 	toolbar = {
 		buttons = {
 		},		-- buttons ends
-		left = nil,	-- left toolbar ends
-		center = nil,
+		top = nil,	-- left toolbar ends
 		right = nil,
-		hbox = nil,
 	},		-- toolbar ends
 	mainDlg = nil,
 	mainArea = nil,		-- Main area where the widgets are
@@ -41,9 +39,11 @@ GUI.toolbar.buttons = {
 	showGridButton = iup.toggle{image=GUI.images.grid,tip="Turn off grid",value="ON"},
 	xygrid = iup.button{image=GUI.images.xygrid,tip="Change Grid size"},
 	showBlockingRect = iup.toggle{image=GUI.images.blockingRectVisible,tip = "Show blocking rectangles",value="ON"},
+	dragButton = iup.button{image=GUI.images.drag,tip="Drag Element"},
+	moveButton = iup.button{image=GUI.images.move,tip="Move Element"}
 }		-- buttons ends
 
-GUI.toolbar.left = iup.hbox{
+GUI.toolbar.top = iup.hbox{
 	GUI.toolbar.buttons.saveButton,
 	GUI.toolbar.buttons.loadButton,
 	GUI.toolbar.buttons.snapGridButton,
@@ -55,24 +55,20 @@ GUI.toolbar.left = iup.hbox{
 	gap=2,
 	alignment = "ACENTER"
 }
-GUI.toolbar.center = iup.hbox{
+GUI.toolbar.right = iup.vbox{
 	GUI.toolbar.buttons.lineButton,
 	GUI.toolbar.buttons.rectButton,
 	GUI.toolbar.buttons.fRectButton,
 	GUI.toolbar.buttons.bRectButton,
 	GUI.toolbar.buttons.elliButton,
 	GUI.toolbar.buttons.fElliButton,
+	GUI.toolbar.buttons.dragButton,
+	GUI.toolbar.buttons.moveButton,
 	iup.fill{};
 	margin="2x2",
 	gap="2",
 	alignment="ACENTER"
 }
-GUI.toolbar.right = iup.hbox{iup.fill{};margin="2x2",gap="2"}
-GUI.toolbar.hbox = iup.hbox{
-	GUI.toolbar.left,
-	GUI.toolbar.center,
-	GUI.toolbar.right
-}		-- toolbar hbox ends
 
 GUI.mainArea = iup.vbox{
 
@@ -89,8 +85,11 @@ GUI.statBarBox = iup.hbox{
 }		--statBarBox ends
 
 GUI.mainVbox = iup.vbox{
-	GUI.toolbar.hbox,
-	GUI.mainArea,
+	GUI.toolbar.top,
+	iup.hbox{
+		GUI.mainArea,
+		GUI.toolbar.right
+	},
 	iup.frame
 	{
 		GUI.statBarBox;

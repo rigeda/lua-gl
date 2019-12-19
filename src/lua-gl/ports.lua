@@ -74,10 +74,7 @@ addPort = function(cnvobj,x,y,objID)
 	if not obj then
 		return nil,"Object not found"
 	end
-	local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-	if not cnvobj.snapGrid then
-		grdx,grdy = 1,1
-	end
+	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	x = coorc.snapX(x, grdx)
 	y = coorc.snapY(y, grdy)
 	local index = #cnvobj.port + 1

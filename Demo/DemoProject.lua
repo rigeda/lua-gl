@@ -1,12 +1,14 @@
+--[[
 require("iuplua")
 require("iupluaimglib")
 require("cdlua")
 require("iupluacd")
+]]
+LGL = require("lua-gl")
 require("submodsearcher")
 
 require("GUIStructures")
 
-LGL = require("lua-gl")
 
 iup.ImageLibOpen()
 iup.SetGlobal("IMAGESTOCKSIZE","32")
@@ -52,11 +54,11 @@ function GUI.toolbar.buttons.snapGridButton:action()
 	if self.image == GUI.images.ongrid then
 		self.image = GUI.images.offgrid
 		self.tip = "Set Snapping On"
-		cnvobj.snapGrid = false
+		cnvobj.grid.snapGrid = false
 	else
 		self.image = GUI.images.ongrid
 		self.tip = "Set Snapping Off"
-		cnvobj.snapGrid = true
+		cnvobj.grid.snapGrid = true
 	end
 end
 
@@ -64,10 +66,10 @@ end
 function GUI.toolbar.buttons.showGridButton:action(v)
 	if v == 1 then
 		self.tip = "Turn grid off"
-		cnvobj.gridVisibility = true
+		cnvobj.viewOptions.gridVisibility = true
 	else 
 		self.tip = "Turn grid on"
-		cnvobj.gridVisibility = false
+		cnvobj.viewOptions.gridVisibility = false
 	end
 	cnvobj:refresh()
 end
@@ -77,21 +79,21 @@ function GUI.toolbar.buttons.showBlockingRect:action(v)
 	if v == 1 then
 		self.tip = "Hide Blocking Rectangles"
 		self.image = GUI.images.blockingRectVisible
-		cnvobj.showBlockingRect = true
+		cnvobj.viewOptions.showBlockingRect = true
 	else 
 		self.tip = "Show Blocking Rectangles"
 		self.image = GUI.images.blockingRectHidden
-		cnvobj.showBlockingRect = false
+		cnvobj.viewOptions.showBlockingRect = false
 	end
 	cnvobj:refresh()
 end
 
 -- Change the grid action
 function GUI.toolbar.buttons.xygrid:action()
-	local ret,x,y = iup.GetParam("Enter the Grid Size",nil,"X Grid%i{The grid size in X dimension}\nY Grid%i{The grid size in Y dimension}\n",cnvobj.grid_x,cnvobj.grid_y)
+	local ret,x,y = iup.GetParam("Enter the Grid Size",nil,"X Grid%i{The grid size in X dimension}\nY Grid%i{The grid size in Y dimension}\n",cnvobj.grid.grid_x,cnvobj.grid.grid_y)
 	if ret and x > 0 and y > 0 then
-		cnvobj.grid_x = x
-		cnvobj.grid_y = y
+		cnvobj.grid.grid_x = x
+		cnvobj.grid.grid_y = y
 		cnvobj:refresh()
 	end
 end
@@ -132,29 +134,12 @@ function GUI.toolbar.buttons.fElliButton:action()
 	cnvobj:drawObj("FILLEDELLIPSE",2)	-- interactive filled ellipse drawing
 end
 
+-- Start Move operation
+function GUI.toolbar.buttons.move:action()
+	-- first we need to select items
+	
+end
 --[[
-
-function Line_button()
-  cnvobj:drawObj("LINE")
-end
-
-function Rect_button()
-  cnvobj:drawObj("RECT")
-end
-
-function Filled_rect_button()
-  cnvobj:drawObj("FILLEDRECT")
-end
-
-function Ellipse_button()
-  cnvobj:drawObj("ELLIPSE")
-end
-
-function Filled_ellipse_button()
-  cnvobj:drawObj("FILLEDELLIPSE")
-end
-
-local str
 
 function save()
   str = cnvobj:save()
@@ -162,16 +147,6 @@ end
 
 function load()
   cnvobj:load(str)
-end
-
-function valuechanged_cb_grid_x(self)
-  local value = self.value
-  cnvobj.grid_x = value
-end
-
-function valuechanged_cb_grid_y(self)
-  local value = self.value
-  cnvobj.grid_y = value
 end
 
 function connectorAction()

@@ -1,6 +1,7 @@
 -- Module to add rectangle functionality in lua-gl
 
 local coorc = require("lua-gl.CoordinateCalc")
+local print = print
 
 local M = {}
 package.loaded[...] = M
@@ -16,7 +17,7 @@ function draw(cnvobj,cnv,shape,x1,y1,x2,y2)
     elseif (shape == "FILLEDRECT") then
       cnv:Box(x1, x2, y1, y2)
     elseif (shape == "BLOCKINGRECT") then
-		if(cnvobj.showBlockingRect==true) then
+		if(cnvobj.viewOptions.showBlockingRect==true) then
 			cnv:Rect(x1, x2, y1, y2)
 		end
     end

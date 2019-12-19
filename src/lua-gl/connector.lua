@@ -2,7 +2,8 @@
 
 local table = table
 local type = type
-local math = math
+local floor = math.floor
+local min = math.min
 local tonumber = tonumber
 local error = error
 local pairs = pairs
@@ -90,7 +91,7 @@ getConnFromXY = function(cnvobj,x,y,res)
 		return {}
 	end
 	local pS = res == 0 and coorc.pointOnSegment or coorc.pointNearSegment
-	res = res or math.floor(math.min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	res = res or floor(min(cnvobj.grid.grid_x,cnvobj.grid.grid_y)/2)
 	local allConns = {}
 	local segs = {}
 	for i = 1,#conns do
@@ -1123,10 +1124,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 	
 	if not interactive then
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		offx = coorc.snapX(offx, grdx)
 		offy = coorc.snapY(offy, grdy)
 		
@@ -1222,10 +1220,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		y = cnvobj.height - y
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		x = coorc.snapX(x, grdx)
 		y = coorc.snapY(y, grdy)
 		local offx,offy = x-refX,y-refY
@@ -1298,10 +1293,7 @@ drawConnector  = function(cnvobj,segs)
 		},
 		]]
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		local conn = cnvobj.drawn.conn	-- Data structure containing all connectors
 		local junc = {}			-- To store all new created junctions
 		for i = 1,#segs do
@@ -1432,10 +1424,7 @@ drawConnector  = function(cnvobj,segs)
 	
 	local function startConnector(x,y)
 		local conn = cnvobj.drawn.conn
-		local grdx, grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		local X,Y  =  coorc.snapX(x, grdx),coorc.snapY(x, grdy)
 		cnvobj.op.startseg = 1		-- segment number from where to generate the segments
 		-- Check if the starting point lays on another connector

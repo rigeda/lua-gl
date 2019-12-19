@@ -78,7 +78,7 @@ getObjFromXY = function(cnvobj,x,y)
 	if #objs == 0 then
 		return {}
 	end
-	local res = floor(min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	local res = floor(min(cnvobj.grid.grid_x,cnvobj.grid.grid_y)/2)
 	local allObjs = {}
 	for i = 1,#objs do
 		if M[objs[i].shape] and M[objs[i].shape].checkXY(objs[i],x,y,res) then
@@ -202,10 +202,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	if not interactive then
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		offx = coorc.snapX(offx, grdx)
 		offy = coorc.snapY(offy, grdy)
 		local allConns = {}
@@ -319,10 +316,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		x = coorc.snapX(x, grdx)
 		y = coorc.snapY(y, grdy)
 		local offx,offy = (x-refX)+cnvobj.op.coor1.x-grp[1].start_x,(y-refY)+cnvobj.op.coor1.y-grp[1].start_y
@@ -412,14 +406,11 @@ drawObj = function(cnvobj,shape,pts,coords)
 	
 	-- button_CB to handle object drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		y = cnvobj.height - y
+		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		local xo,yo = x,y
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		x = coorc.snapX(x, grdx)
 		y = coorc.snapY(y, grdy)
 		
@@ -465,11 +456,8 @@ drawObj = function(cnvobj,shape,pts,coords)
 	
 	function cnvobj.cnv:motion_cb(x, y, status)
 		if cnvobj.op.mode == "DRAWOBJ" then
-			y = cnvobj.height - y
-			local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-			if not cnvobj.snapGrid then
-				grdx,grdy = 1,1
-			end
+			--y = cnvobj.height - y
+			local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 			x = coorc.snapX(x, grdx)
 			y = coorc.snapY(y, grdy)
 			objs[#objs].end_x = x
@@ -582,10 +570,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		
 	if not interactive then
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		offx = coorc.snapX(offx, grdx)
 		offy = coorc.snapY(offy, grdy)
 		shiftObjList(grp,offx,offy,rm)
@@ -693,10 +678,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
-		local grdx,grdy = cnvobj.grid_x,cnvobj.grid_y
-		if not cnvobj.snapGrid then
-			grdx,grdy = 1,1
-		end
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		x = coorc.snapX(x, grdx)
 		y = coorc.snapY(y, grdy)
 		local offx,offy = (x-refX)+cnvobj.op.coor1.x-grp[1].start_x,(y-refY)+cnvobj.op.coor1.y-grp[1].start_y
