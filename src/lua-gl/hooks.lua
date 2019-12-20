@@ -55,7 +55,7 @@ addHook = function(cnvobj,key,func)
 	local index = #cnvobj.hook
 	cnvobj.hook[index+1] = hook
 	cnvobj.hook.ids = cnvobj.hook.ids + 1
-	return cnvobj.hook.ids
+	return hook.id
 end
 
 removeHook = function(cnvobj,id)

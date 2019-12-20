@@ -1,11 +1,7 @@
---[[
-require("iuplua")
-require("iupluaimglib")
-require("cdlua")
-require("iupluacd")
-]]
-LGL = require("lua-gl")
+
 require("submodsearcher")
+LGL = require("lua-gl")
+local tu = require("tableUtils")
 
 require("GUIStructures")
 
@@ -48,6 +44,7 @@ GUI.mainArea:append(cnvobj.cnv)
 
 
 --********************* Callbacks *************
+
 
 -- Turn ON/OFF snapping ont he grid
 function GUI.toolbar.buttons.snapGridButton:action()
@@ -134,11 +131,112 @@ function GUI.toolbar.buttons.fElliButton:action()
 	cnvobj:drawObj("FILLEDELLIPSE",2)	-- interactive filled ellipse drawing
 end
 
--- Start Move operation
-function GUI.toolbar.buttons.move:action()
-	-- first we need to select items
+local function getSelectionList(cb)
+	-- Create a dialog to show the list
+	local list = iup.list{
+		visiblelines = 10,
+		visiblecolumns = 10
+	}
 	
+	local ok = iup.button{title="OK",expand="HORIZONTAL"}
+	local cancel = iup.button{title="Cancel",expand="HORIZONTAL"}
+	local label = iup.label{
+		title="Select items on \nthe canvas and they \nwill be listed below:",
+		alignment = "ACENTER:ACENTER"
+	}
+	local label1 = iup.label{
+		title="After selecting\npress OK and click \n on canvas to start.",
+		alignment = "ACENTER:ACENTER"
+	}
+	
+	local dlg = iup.dialog{
+		title = "Selected Objects",
+		iup.vbox{
+			label,
+			list,
+			label1,
+			iup.hbox{
+				ok,
+				cancel;
+				homogenous = "YES",
+				normalizesize = "HORIZONTAL"
+			},
+		},
+		icon = GUI.images.appIcon
+	}
+	dlg:map()
+	local w = list.rastersize:match("(%d%d*)x")
+	label.rastersize = w.."x"
+	label1.rastersize = w.."x"
+	dlg.minsize = dlg.rastersize
+	dlg.maxsize = dlg.rastersize
+	dlg.minbox = "NO"
+	dlg.maxbox = "NO"
+	dlg:showxy(iup.RIGHT, iup.TOP)
+	--iup.Show(iup.LayoutDialog(dlg))
+
+	-- create hook for mouse click to add shapes to the list
+	local items = {}
+	local function clickToAdd(button,pressed,x,y,status)
+		if button == iup.BUTTON1 and pressed == 1 then
+			-- Add any objects at x,y to items
+			local i = cnvobj:getObjFromXY(x,y)
+			-- Merge into items
+			tu.mergeArrays(i,items,false,function(one,two) return one.id == two.id end)
+			-- Add any connectors at x,y to items
+			local c,s = cnvobj:getConnFromXY(x,y)
+			-- Update the list item control to display the items
+			list.removeitem = "ALL"
+			for i = 1,#items do
+				list.appenditem = items[i].id
+			end
+		end
+	end
+	-- set the hook
+	local hook = cnvobj:addHook("MOUSECLICKPOST",clickToAdd)
+	function ok:action()
+		cnvobj:removeHook(hook)
+		-- Now create a hook to start the move
+		local function getClick(button,pressed,x,y,status)
+			cnvobj:removeHook(hook)
+			if #items > 0 then
+				cb(items)
+			end
+		end
+		-- Add the hook
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		dlg:hide()
+		dlg:destroy()
+		-- If there are items selected then call the callback
+	end
+	function cancel:action()
+		cnvobj:removeHook(hook)
+		dlg:hide()
+		dlg:destroy()
+	end
 end
+
+-- Start Move operation
+function GUI.toolbar.buttons.moveButton:action()
+	-- function to handle the move
+	local function moveitems(items)
+		cnvobj:moveObj(items)
+	end
+	-- first we need to select items
+	getSelectionList(moveitems)
+end
+
+-- Start drag operation
+function GUI.toolbar.buttons.dragButton:action()
+	-- function to handle drag
+	local function dragitems(items)
+		print("callback dragitems")
+		print(cnvobj:dragObj(items))
+	end
+	-- Get the list of items
+	getSelectionList(dragitems)
+end
+
 --[[
 
 function save()

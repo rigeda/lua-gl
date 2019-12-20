@@ -155,7 +155,7 @@ groupObjects = function(cnvobj,objList)
 		local item = order[grpOrder[i]]
 		-- Move this item to just above the last one
 		table.remove(order,grpOrder[i])
-		table.insert(order,item,pos)
+		table.insert(order,pos,item)
 	end
 	-- Update the order number for all items
 	for i = 1,#order do
@@ -301,7 +301,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	-- button_CB to handle interactive move ending
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		y = cnvobj.height - y
+		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		if button == iup.BUTTON1 and pressed == 1 then
@@ -313,13 +313,13 @@ moveObj = function(cnvobj,objList,offx,offy)
 	end
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
-		y = cnvobj.height - y
+		--y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		x = coorc.snapX(x, grdx)
-		y = coorc.snapY(y, grdy)
-		local offx,offy = (x-refX)+cnvobj.op.coor1.x-grp[1].start_x,(y-refY)+cnvobj.op.coor1.y-grp[1].start_y
+		x = coorc.snapX(x-refX, grdx)
+		y = coorc.snapY(y-refY, grdy)
+		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
 		cnvobj:refresh()
 	end	
@@ -614,11 +614,11 @@ dragObj = function(cnvobj,objList,offx,offy)
 	end
 	local item = cnvobj.drawn.order[grp[#grp].order]
 	table.remove(cnvobj.drawn.order,grp[#grp].order)
-	table.insert(cnvobj.drawn.order,item,#cnvobj.drawn.order+1)
+	table.insert(cnvobj.drawn.order,#cnvobj.drawn.order+1,item)
 	for i = #grp-1,1,-1 do
 		item = cnvobj.drawn.order[grp[i].order]
 		table.remove(cnvobj.drawn.order,grp[i].order)
-		table.insert(cnvobj.drawn.order,item,#cnvobj.drawn.order)
+		table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
 	end
 	-- Update the order number for all items 
 	for i = 1,#order do
@@ -632,7 +632,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		for i = 1,#grp do
 			local item = cnvobj.drawn.order[grp[i].order]
 			table.remove(cnvobj.drawn.order,grp[i].order)
-			table.insert(cnvobj.drawn.order,item,oldOrder[i])
+			table.insert(cnvobj.drawn.order,oldOrder[i],item)
 			local portT = grp[i].port
 			for j = 1,#portT do
 				allPorts[#allPorts + 1] = portT[j]
@@ -663,10 +663,12 @@ dragObj = function(cnvobj,objList,offx,offy)
 	
 	-- button_CB to handle object dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		y = cnvobj.height - y
+		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
+		print("DRAG button_Cb")
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
 		if button == iup.BUTTON1 and pressed == 1 then
+			print("Drag end")
 			dragEnd()
 		end
 		-- Process any hooks 
@@ -675,13 +677,13 @@ dragObj = function(cnvobj,objList,offx,offy)
 
 	-- motion_cb to handle object dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
-		y = cnvobj.height - y
+		--y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		x = coorc.snapX(x, grdx)
-		y = coorc.snapY(y, grdy)
-		local offx,offy = (x-refX)+cnvobj.op.coor1.x-grp[1].start_x,(y-refY)+cnvobj.op.coor1.y-grp[1].start_y
+		x = coorc.snapX(x-refX, grdx)
+		y = coorc.snapY(y-refY, grdy)
+		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
 		-- Now redo the connectors
 		for i = 1,#grp do

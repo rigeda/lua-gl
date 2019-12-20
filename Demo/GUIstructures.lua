@@ -62,6 +62,9 @@ GUI.toolbar.right = iup.vbox{
 	GUI.toolbar.buttons.bRectButton,
 	GUI.toolbar.buttons.elliButton,
 	GUI.toolbar.buttons.fElliButton,
+	iup.space{size="2x1"},
+	iup.label{separator="HORIZONTAL"},
+	iup.space{size="2x1"},
 	GUI.toolbar.buttons.dragButton,
 	GUI.toolbar.buttons.moveButton,
 	iup.fill{};

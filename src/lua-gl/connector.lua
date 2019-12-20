@@ -90,8 +90,8 @@ getConnFromXY = function(cnvobj,x,y,res)
 	if #conns == 0 then
 		return {}
 	end
-	local pS = res == 0 and coorc.pointOnSegment or coorc.pointNearSegment
 	res = res or floor(min(cnvobj.grid.grid_x,cnvobj.grid.grid_y)/2)
+	local pS = res == 0 and coorc.pointOnSegment or coorc.pointNearSegment
 	local allConns = {}
 	local segs = {}
 	for i = 1,#conns do
@@ -770,7 +770,7 @@ do
 		-- Set the order to the highest
 		connM.order = maxOrder
 		-- Put the connector at the right place in the order
-		table.insert(cnvobj.drawn.order,{type="connector",item=connM},maxOrder-#orders + 1)
+		table.insert(cnvobj.drawn.order,maxOrder-#orders + 1,{type="connector",item=connM})
 		-- Fix the order of all the items
 		fixOrder(cnvobj)
 		
@@ -1136,13 +1136,13 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs) -- generateSegments updates routing matrix
 			-- Add these segments after this current segment
 			for j = #newSegs,1,-1 do
-				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg+1)
+				table.insert(segList[i].conn.segments,segList[i].seg+1,newSegs[j])
 			end
 			-- route connector from previous start_x,start_y to the new start_x,start_y
 			newSegs = {}
 			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs)	 -- generateSegments updates routing matrix
 			for j = #newSegs,1,-1 do
-				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg)
+				table.insert(segList[i].conn.segments,segList[i].seg,newSegs[j])
 			end
 			rm:removeSegment(seg)
 			-- Move the segment
@@ -1243,14 +1243,14 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs)
 			-- Add these segments after this current segment
 			for j = #newSegs,1,-1 do
-				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg+1)
+				table.insert(segList[i].conn.segments,segList[i].seg+1,newSegs[j])
 			end
 			cnvobj.op.segsToRemove = newSegs
 			-- route connector from previous start_x,start_y to the new start_x,start_y
 			newSegs = {}
 			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs)
 			for j = #newSegs,1,-1 do
-				table.insert(segList[i].conn.segments,newSegs[j],segList[i].seg)
+				table.insert(segList[i].conn.segments,segList[i].seg,newSegs[j])
 				table.insert(cnvobj.op.segsToRemove,newSegs[j])
 			end
 			rm:removeSegment(seg)
