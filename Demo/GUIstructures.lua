@@ -40,7 +40,9 @@ GUI.toolbar.buttons = {
 	xygrid = iup.button{image=GUI.images.xygrid,tip="Change Grid size"},
 	showBlockingRect = iup.toggle{image=GUI.images.blockingRectVisible,tip = "Show blocking rectangles",value="ON"},
 	dragButton = iup.button{image=GUI.images.drag,tip="Drag Element"},
-	moveButton = iup.button{image=GUI.images.move,tip="Move Element"}
+	moveButton = iup.button{image=GUI.images.move,tip="Move Element"},
+	groupButton = iup.button{image=GUI.images.group,tip="Group Objects"},
+	portButton = iup.button{image=GUI.images.port,tip="Add Port"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -62,11 +64,13 @@ GUI.toolbar.right = iup.vbox{
 	GUI.toolbar.buttons.bRectButton,
 	GUI.toolbar.buttons.elliButton,
 	GUI.toolbar.buttons.fElliButton,
+	GUI.toolbar.buttons.portButton,
 	iup.space{size="2x1"},
 	iup.label{separator="HORIZONTAL"},
 	iup.space{size="2x1"},
 	GUI.toolbar.buttons.dragButton,
 	GUI.toolbar.buttons.moveButton,
+	GUI.toolbar.buttons.groupButton,
 	iup.fill{};
 	margin="2x2",
 	gap="2",

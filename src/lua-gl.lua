@@ -19,6 +19,7 @@ local conn = require("lua-gl.connector")
 local hooks = require("lua-gl.hooks")
 local tu = require("tableUtils")
 local router = require("lua-gl.router")
+local coorc = require("lua-gl.CoordinateCalc")
 
 local M = {}
 package.loaded[...] = M
@@ -318,6 +319,11 @@ objFuncs = {
 	groupObjects = objects.groupObjects,	
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
+	-----UTILITY------------
+	snap = function(cnvobj,x,y)
+		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
+		return coorc.snapX(x, grdx),coorc.snapY(y, grdy)	
+	end
 }
 
 local function checkPara(para)

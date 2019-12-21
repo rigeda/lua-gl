@@ -131,7 +131,7 @@ function GUI.toolbar.buttons.fElliButton:action()
 	cnvobj:drawObj("FILLEDELLIPSE",2)	-- interactive filled ellipse drawing
 end
 
-local function getSelectionList(cb)
+local function getSelectionList(cb,noclick)
 	-- Create a dialog to show the list
 	local list = iup.list{
 		visiblelines = 10,
@@ -196,17 +196,23 @@ local function getSelectionList(cb)
 	local hook = cnvobj:addHook("MOUSECLICKPOST",clickToAdd)
 	function ok:action()
 		cnvobj:removeHook(hook)
-		-- Now create a hook to start the move
-		local function getClick(button,pressed,x,y,status)
-			cnvobj:removeHook(hook)
-			if #items > 0 then
-				cb(items)
+		if not noclick then
+			-- Now create a hook to start the move
+			local function getClick(button,pressed,x,y,status)
+				cnvobj:removeHook(hook)
+				if #items > 0 then
+					cb(items)
+				end
 			end
+			-- Add the hook
+			hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+			dlg:hide()
+			dlg:destroy()
+		else
+			dlg:hide()
+			dlg:destroy()
+			cb(items)
 		end
-		-- Add the hook
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
-		dlg:hide()
-		dlg:destroy()
 		-- If there are items selected then call the callback
 	end
 	function cancel:action()
@@ -230,44 +236,38 @@ end
 function GUI.toolbar.buttons.dragButton:action()
 	-- function to handle drag
 	local function dragitems(items)
-		print("callback dragitems")
+		--print("callback dragitems")
 		print(cnvobj:dragObj(items))
 	end
 	-- Get the list of items
 	getSelectionList(dragitems)
 end
 
+function GUI.toolbar.buttons.groupButton:action()
+	-- Function to group objects together
+	local function groupObjects(items)
+		local it = {}
+		-- Pick only objects from the selection
+		for i = 1,#items do
+			if items[i].id:match("^O%d%d*$") then
+				it[#it + 1] = items[i]
+			end
+		end
+		if #it > 0 then
+			cnvobj:groupObjects(it)
+		end		
+	end
+	-- Get the list of items
+	getSelectionList(groupObjects,true)
+end
+
+function GUI.toolbar.buttons.portButton:action()
+	-- Create a representation of the port at the location of the mouse pointer and then start its move
+	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
+	
+end
+
 --[[
-
-function save()
-  str = cnvobj:save()
-end
-
-function load()
-  cnvobj:load(str)
-end
-
-function connectorAction()
-  cnvobj.drawing = "CONNECTOR"
-end
-
-local shapeList = {}
-function groupShapesAction()
-  label.value = "select shape for grouping"
-  
-  cnvobj:addHook("MOUSECLICKPOST",function(button, pressed, x, y)
-    shapeID = cnvobj:whichShape(x,y)
-    shapeList[#shapeList + 1] = shapeID
-  end)
-end
-
-function endGrouping()
-  cnvobj.hook = {}
-  if #shapeList > 0 then
-    cnvobj:groupShapes(shapeList)
-    shapeList = {}
-  end
-end
 
 function addPort()
   label.value = "select coordinate on the shape where you want to add port"

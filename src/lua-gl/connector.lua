@@ -1124,9 +1124,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 	
 	if not interactive then
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		offx = coorc.snapX(offx, grdx)
-		offy = coorc.snapY(offy, grdy)
+		offx,offy = cnvobj:snap(offx,offy)
 		
 		-- Move each segment
 		for i = 1,#segList do
@@ -1207,7 +1205,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		y = cnvobj.height - y
+		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
 		if button == iup.BUTTON1 and pressed == 1 then
@@ -1219,10 +1217,8 @@ dragSegment = function(cnvobj,segList,offx,offy)
 
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
-		y = cnvobj.height - y
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		x = coorc.snapX(x, grdx)
-		y = coorc.snapY(y, grdy)
+		--y = cnvobj.height - y
+		x,y = cnvobj:snap(x,y)
 		local offx,offy = x-refX,y-refY
 		cnvobj.op.offx = offx
 		cnvobj.op.offy = offy
@@ -1293,7 +1289,6 @@ drawConnector  = function(cnvobj,segs)
 		},
 		]]
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		local conn = cnvobj.drawn.conn	-- Data structure containing all connectors
 		local junc = {}			-- To store all new created junctions
 		for i = 1,#segs do
@@ -1310,10 +1305,8 @@ drawConnector  = function(cnvobj,segs)
 				return nil,"Invalid or missing coordinate."
 			end
 			-- Do the snapping of the coordinates first
-			segs[i].start_x = coorc.snapX(segs[i].start_x, grdx)
-			segs[i].start_y = coorc.snapY(segs[i].start_y, grdy)
-			segs[i].end_x = coorc.snapX(segs[i].end_x, grdx)
-			segs[i].end_y = coorc.snapY(segs[i].end_y, grdy)
+			segs[i].start_x,segs[i].start_y = cnvobj:snap(segs[i].start_x,segs[i].start_y)
+			segs[i].end_x,segs[i].end_y = cnvobj:snap(segs[i].end_x,segs[i].end_y)
 			local jcst,jcen=0,0	-- counters to count how many segments does the start point of the i th segment connects to (jcst) and how many segments does the end point of the i th segment connects to (jcen)
 			for j = 1,#segs do
 				if j ~= i then
@@ -1439,7 +1432,7 @@ drawConnector  = function(cnvobj,segs)
 	
 	-- button_CB to handle connector drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y,status)
-		y = cnvobj.height - y
+		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		if button == iup.BUTTON1 and pressed == 1 then
@@ -1462,7 +1455,7 @@ drawConnector  = function(cnvobj,segs)
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--connectors
 		if cnvobj.op.mode == "DRAWCONN" then
-			y = cnvobj.height - y
+			--y = cnvobj.height - y
 			local cIndex = cnvobj.op.cIndex
 			local segStart = cnvobj.op.startseg
 			local startX = cnvobj.op.start.x

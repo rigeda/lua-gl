@@ -1,4 +1,5 @@
 -- Module to add ellipse functionality in lua-gl
+-- The ellipse major and minor axis will be aligned to the X and Y axis
 
 local coorc = require("lua-gl.CoordinateCalc")
 local abs = math.abs
@@ -27,37 +28,17 @@ function checkXY(obj, x, y, res)
 		return nil
 	end
 	
-	-- four coor. of rect
-	local x1, y1 = obj.start_x, obj.start_y
-	local x3, y3 = obj.end_x , obj.end_y
-	local x2, y2, x4, y4 = x1, y3, x3, y1
-	
-	local midx1,midy1,midx2,midy2,midx3,midy3,midx4,midy4
-	midx1 = (x2 + x1)/2
-	midy1 = (y2 + y1)/2
-
-	midx2 = (x3 + x2)/2
-	midy2 = (y3 + y2)/2
-
-	midx3 = (x4 + x3)/2
-	midy3 = (y4 + y3)/2
-
-	midx4 = (x1 + x4)/2
-	midy4 = (y1 + y4)/2
-                
-	--print("("..x1, y1..") ("..x2, y2..") ("..x3, y3..") ("..x4, y4..")")
-	--print(midx1,midy1, midx2, midy2, midx3, midy3, midx4, midy4)
-	local a = (abs(midx1 - midx3))/2
-	local b = (abs(midy2 - midy4))/2
-	
-	local cx, cy = (x1 + x3)/2 , (y1 + y3)/2
-	--print(a,b,cx,cy,x,y)
-	
-	local eq = ((x-cx)^2)/(a^2) + ((y-cy)^2)/(b^2)
-	--print(eq)
-	if obj.shape == "ELLIPSE" and eq > 0.8 and eq < 1.2 then
-		return true
-	elseif eq < 1.2 then
+	local x1,y1,x2,y2 = obj.start_x,obj.start_y,obj.end_x,obj.end_y
+	-- Find the semi major axis and semi minor axis
+	local A = floor(abs(x2-x1)/2)
+	local B = floor(abs(y2-y1)/2)
+	local a = A-res
+	local b = B-res
+	A = A + res
+	B = B + res
+	local xc,yc = floor((x1+x2)/2),floor((y1+y2)/2)
+	local dxc,dyc = (x-xc)^2,(y-yc)^2
+	if (dxc/A^2+dyc/B^2) <= 1 and (dxc/a^2+dyc/b^2) >= 1 then
 		return true
 	end
 	return false

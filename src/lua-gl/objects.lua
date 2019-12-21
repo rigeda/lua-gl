@@ -88,6 +88,15 @@ getObjFromXY = function(cnvobj,x,y)
 	return allObjs
 end
 
+-- Function to fix the order of all the items in the order table
+local function fixOrder(cnvobj)
+	-- Fix the order of all the items
+	for i = 1,#cnvobj.drawn.order do
+		cnvobj.drawn.order[i].item.order = i
+	end
+	return true
+end
+
 -- Function just offsets the objects (in grp array) and associated port coordinates. It does not handle the port connections which have to be updated
 local shiftObjList = function(grp,offx,offy,rm)
 	for i = 1,#grp do
@@ -202,9 +211,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	if not interactive then
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		offx = coorc.snapX(offx, grdx)
-		offy = coorc.snapY(offy, grdy)
+		offx,offy = cnvobj:snap(offx,offy)
 		local allConns = {}
 		local allPorts = {}
 		for i = 1,#grp do
@@ -316,9 +323,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		x = coorc.snapX(x-refX, grdx)
-		y = coorc.snapY(y-refY, grdy)
+		x,y = cnvobj:snap(x-refX,y-refY)
 		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
 		cnvobj:refresh()
@@ -352,14 +357,24 @@ drawObj = function(cnvobj,shape,pts,coords)
 				return nil, "Coordinates not given"
 			end
 		end
+		-- Take care of coordinate snapping
+		local x1,y1 = cnvobj:snap(coords[1].x,coords[1].y)
+		local x2,y2
+		if pts == 2 then
+			x2,y2 = cnvobj:snap(coords[2].x,coords[2].y)
+			if x1 == x2 and y1 == y2 then
+				-- Zero dimension object not allowed
+				return true
+			end
+		end
 		-- Draw the object by adding it to the data structures
 		local t = {}
 		t.id = "O"..tostring(objs.ids + 1)
 		t.shape = shape
-		t.start_x = coords[1].x
-		t.start_y = coords[1].y
-		t.end_x = coords[2] and coords[2].x
-		t.end_y = coords[2] and coords[2].y
+		t.start_x = x1
+		t.start_y = y1
+		t.end_x = x2
+		t.end_y = y2
 		t.group = nil
 		t.order = #cnvobj.drawn.order + 1
 		t.port = {}
@@ -386,11 +401,20 @@ drawObj = function(cnvobj,shape,pts,coords)
 	local function drawEnd()
 		--print("drawEnd called")
 		-- End the drawing
-		-- If blocking rectangle then add to routing matrix
-		if shape == "BLOCKINGRECT" then
-			local t = objs[cnvobj.op.index]
-			rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
-		end		
+		-- Check if this is a zero dimension object then do not add anything
+		local t = objs[cnvobj.op.index]
+		if t.start_x == t.end_x and t.start_y == t.end_y then
+			-- Zero dimension object not allowed
+			-- Remove object from the object and the order arrays
+			table.remove(cnvobj.drawn.order,t.order)
+			fixOrder(cnvobj)
+			table.remove(objs,cnvobj.op.index)
+		else
+			-- If blocking rectangle then add to routing matrix
+			if shape == "BLOCKINGRECT" then
+				rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
+			end		
+		end
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB
@@ -410,9 +434,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		local xo,yo = x,y
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		x = coorc.snapX(x, grdx)
-		y = coorc.snapY(y, grdy)
+		x,y = cnvobj:snap(x,y)
 		
 		if button == iup.BUTTON1 and pressed == 1 then
 			if cnvobj.op.mode == "DRAWOBJ" then
@@ -457,9 +479,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 	function cnvobj.cnv:motion_cb(x, y, status)
 		if cnvobj.op.mode == "DRAWOBJ" then
 			--y = cnvobj.height - y
-			local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-			x = coorc.snapX(x, grdx)
-			y = coorc.snapY(y, grdy)
+			x,y = cnvobj:snap(x,y)
 			objs[#objs].end_x = x
 			objs[#objs].end_y = y
 			cnvobj:refresh()
@@ -570,9 +590,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		
 	if not interactive then
 		-- Take care of grid snapping
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		offx = coorc.snapX(offx, grdx)
-		offy = coorc.snapY(offy, grdy)
+		offx,offy = cnvobj:snap(offx,offy)
 		shiftObjList(grp,offx,offy,rm)
 		local allPorts = {}
 		-- Now redo the connectors
@@ -665,10 +683,10 @@ dragObj = function(cnvobj,objList,offx,offy)
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
-		print("DRAG button_Cb")
+		--print("DRAG button_Cb")
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
 		if button == iup.BUTTON1 and pressed == 1 then
-			print("Drag end")
+			--print("Drag end")
 			dragEnd()
 		end
 		-- Process any hooks 
@@ -680,9 +698,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		--y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		x = coorc.snapX(x-refX, grdx)
-		y = coorc.snapY(y-refY, grdy)
+		x,y = cnvobj:snap(x-refX,y-refY)
 		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
 		-- Now redo the connectors
