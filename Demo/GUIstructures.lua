@@ -42,7 +42,8 @@ GUI.toolbar.buttons = {
 	dragButton = iup.button{image=GUI.images.drag,tip="Drag Element"},
 	moveButton = iup.button{image=GUI.images.move,tip="Move Element"},
 	groupButton = iup.button{image=GUI.images.group,tip="Group Objects"},
-	portButton = iup.button{image=GUI.images.port,tip="Add Port"}
+	portButton = iup.button{image=GUI.images.port,tip="Add Port"},
+	refreshButton = iup.button{image="IUP_NavigateRefresh",tip="Refresh Screen"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -52,6 +53,7 @@ GUI.toolbar.top = iup.hbox{
 	GUI.toolbar.buttons.showGridButton,
 	GUI.toolbar.buttons.xygrid,
 	GUI.toolbar.buttons.showBlockingRect,
+	GUI.toolbar.buttons.refreshButton,
 	iup.fill{};
 	margin = "2x2",
 	gap=2,

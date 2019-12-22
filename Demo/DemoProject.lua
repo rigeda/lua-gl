@@ -1,7 +1,7 @@
 
 require("submodsearcher")
-LGL = require("lua-gl")
-local tu = require("tableUtils")
+local LGL = require("lua-gl")
+tu = require("tableUtils")
 
 require("GUIStructures")
 
@@ -11,17 +11,14 @@ iup.SetGlobal("IMAGESTOCKSIZE","32")
 
 -------------<<<<<<<<<<< ##### LuaTerminal ##### >>>>>>>>>>>>>-------------
 require("iuplua_scintilla")
-LT = require("LuaTerminal")
+local LT = require("LuaTerminal")
 LT.USESCINTILLA = true
 
 -- Create terminal
-newterm = LT.newTerm(_ENV,true,"testlog.txt")
-
---print("newterm: ", newterm)
-LTbox = iup.vbox{newterm}
-
-LTdlg = iup.dialog{
-	LTbox; 
+local LTdlg = iup.dialog{
+	iup.vbox{
+		LT.newTerm(_ENV,true,"testlog.txt")
+	}; 
 	title="LuaTerminal", 
 	size="QUARTERxQUARTER",
 	icon = GUI.images.appIcon
@@ -264,44 +261,41 @@ end
 function GUI.toolbar.buttons.portButton:action()
 	-- Create a representation of the port at the location of the mouse pointer and then start its move
 	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
-	
+	-- Set refX,refY as the mouse coordinate on the canvas
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+	local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+	cnvobj.grid.snapGrid = false
+	local o = cnvobj:drawObj("FILLEDRECT",2,{{x=refX-3,y=refY-3},{x=refX+3,y=refY+3}})
+	cnvobj.grid.snapGrid = true
+	-- Create the hook
+	local hook
+	local function getClick(button,pressed,x,y,status)
+		x,y = cnvobj:snap(x,y)
+		-- Check if there is an object here
+		local allObjs = cnvobj:getObjFromXY(x,y)
+		if #allObjs > 0 and allObjs[1] ~= o then
+			cnvobj:removeHook(hook)
+			-- group o with the 1st object
+			cnvobj:groupObjects({allObjs[1],o})
+			-- Create a port
+			cnvobj:addPort(x,y,allObjs[1].id)
+		else
+			-- Continue the move
+			cnvobj:moveObj({o})
+		end
+	end
+	-- Add the hook
+	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+	-- Start the interactive move
+	cnvobj:moveObj({o})
 end
 
---[[
-
-function addPort()
-  label.value = "select coordinate on the shape where you want to add port"
-  cnvobj:addHook("MOUSECLICKPOST",function(button, pressed, x, y)
-    shapeID = cnvobj:whichShape(x,y)
-    if pressed == 0 then
-      cnvobj:addPort(x,y,shapeID)
-        
-      cnvobj.drawnEle[#cnvobj.drawnEle + 1] = {}
-      cnvobj.drawnEle[#cnvobj.drawnEle] = {start_x = x + 3, start_y = y + 3, end_x = x-3, end_y =y-3, shape="FILLEDELLIPSE", shapeID = #cnvobj.drawnEle}
-		  cnvobj.drawnEle[#cnvobj.drawnEle].Asso_port = portID
-		
-		  if shapeID then
-			    local shapeTable = {}
-      		table.insert(shapeTable,shapeID)
-      		table.insert(shapeTable,#cnvobj.drawnEle)
-      		cnvobj:groupShapes(shapeTable)
-		  end
-      iup.Update(cnvobj.cnv)
-    end
-  end)
-end
-
-function stopAddingport()
-  print("number of port",#cnvobj.port)
-  cnvobj.hook = {}
-end
-
-function clear()
-  cnvobj:erase()
+function GUI.toolbar.buttons.refreshButton:action()
+	cnvobj:refresh()
 end
 
 
-]]
 -- Set the mainDlg user size to nil so that the show uses the Natural Size
 GUI.mainDlg.size = nil
 GUI.mainDlg:showxy(iup.CENTER, iup.CENTER)

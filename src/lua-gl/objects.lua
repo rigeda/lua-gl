@@ -267,6 +267,9 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	local function moveEnd()
 		-- Disconnect connectors connected to the ports and reconnect any connectors touching the current port positions
+		cnvobj.cnv.button_cb = oldBCB
+		cnvobj.cnv.motion_cb = oldMCB	
+		print("Move end changed Button_CB and Motion_CB",cnvobj.op.coor1)
 		local allConns = {}
 		local allPorts = {}
 		for i = 1,#grp do
@@ -298,8 +301,6 @@ moveObj = function(cnvobj,objList,offx,offy)
 		PORTS.connectOverlapPorts(cnvobj,allPorts)
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
-		cnvobj.cnv.button_cb = oldBCB
-		cnvobj.cnv.motion_cb = oldMCB				
 	end
 	
 	cnvobj.op.mode = "MOVEOBJ"	-- Set the mode to drawing object
@@ -313,6 +314,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		if button == iup.BUTTON1 and pressed == 1 then
 			-- End the move
+			print("BUTTON_CB ending move",cnvobj.op.coor1)
 			moveEnd()
 		end
 		-- Process any hooks 
@@ -323,6 +325,9 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
+		if not cnvobj.op.coor1 then
+			print("MOTION_CB",cnvobj.op.mode)
+		end
 		x,y = cnvobj:snap(x-refX,y-refY)
 		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
@@ -364,7 +369,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 			x2,y2 = cnvobj:snap(coords[2].x,coords[2].y)
 			if x1 == x2 and y1 == y2 then
 				-- Zero dimension object not allowed
-				return true
+				return nil,"Zero dimension object not allowed"
 			end
 		end
 		-- Draw the object by adding it to the data structures
@@ -389,7 +394,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 		if shape == "BLOCKINGRECT" then
 			rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
 		end		
-		return true
+		return t
 	end
 	-- Setup the interactive draw
 	
