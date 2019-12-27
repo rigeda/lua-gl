@@ -36,10 +36,10 @@ getPortFromXY = function(cnvobj, x, y)
 	if #ports == 0 then
 		return {}
 	end
-	local res = floor(min(cnvobj.grid_x,cnvobj.grid_y)/2)
+	local res = floor(min(cnvobj.grid.grid_x,cnvobj.grid.grid_y)/2)
 	local allPorts = {}
 	for i = 1, #ports do
-		if abs(ports[i].x - x) <= res and math.abs(cnvobj.port[i].y - y) <= res then
+		if abs(ports[i].x - x) <= res and abs(ports[i].y - y) <= res then
 				allPorts[#allPorts + 1] = ports[i]
 		end
 	end
@@ -67,7 +67,7 @@ addPort = function(cnvobj,x,y,objID)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
-	if not objID or type(objID) ~= "number" or not cnvobj:getObjectFromID(objID) then
+	if not objID or not cnvobj:getObjFromID(objID) then
 		return nil,"Need valid shapeID"
 	end
 	local obj = cnvobj:getObjFromID(objID)
@@ -77,7 +77,7 @@ addPort = function(cnvobj,x,y,objID)
 	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	x = coorc.snapX(x, grdx)
 	y = coorc.snapY(y, grdy)
-	local index = #cnvobj.port + 1
+	local index = #cnvobj.drawn.port + 1
 	local portID = "P"..tostring(cnvobj.drawn.port.ids + 1)
 	cnvobj.drawn.port.ids = cnvobj.drawn.port.ids + 1
 	

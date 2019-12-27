@@ -17,6 +17,7 @@ local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 local CONN = require("lua-gl.connector")
 local PORTS = require("lua-gl.ports")
+local router = require("lua-gl.router")
 
 local print = print
 
@@ -181,6 +182,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		return nil,"Not a valid lua-gl object"
 	end
 	-- Check whether this is an interactive move or not
+	print("MOVE OBJECT BEGIN")
 	local interactive
 	if not offx or type(offx) ~= "number" then
 		interactive = true
@@ -312,6 +314,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
+		print("BUTTON_CB execution",button,iup.BUTTON1,pressed)
 		if button == iup.BUTTON1 and pressed == 1 then
 			-- End the move
 			print("BUTTON_CB ending move",cnvobj.op.coor1)
@@ -325,12 +328,11 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
-		if not cnvobj.op.coor1 then
-			print("MOTION_CB",cnvobj.op.mode)
+		if cnvobj.op.mode == "MOVEOBJ" then
+			x,y = cnvobj:snap(x-refX,y-refY)
+			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
+			shiftObjList(grp,offx,offy,rm)
 		end
-		x,y = cnvobj:snap(x-refX,y-refY)
-		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
-		shiftObjList(grp,offx,offy,rm)
 		cnvobj:refresh()
 	end	
 	return true
@@ -589,6 +591,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 					table.remove(conn[k].segments,segs[l])	-- Remove
 					table.insert(conn[k].segments,item)	-- Insert at end
 				end
+				connSrc[conn[k].id].segStart = #conn[k].segments - #segs + 1
 			end		-- For k (connector table) ends here
 		end		-- For j (port table) ends here
 	end		-- for i (group) ends here
@@ -611,7 +614,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					CONN.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
 				end
 				allPorts[#allPorts + 1] = portT[j]
 			end
@@ -712,13 +715,13 @@ dragObj = function(cnvobj,objList,offx,offy)
 			for j = 1,#portT do
 				local conn = portT[j].conn
 				for k = 1,#conn do
-					local segStart = #conn[k].segments-connSrc[conn[k].id].segsCount+1
+					local segStart = connSrc[conn[k].id].segStart
 					for l = #conn[k].segments,segStart,-1 do
 						rm:removeSegment(conn[k].segments[l])
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					CONN.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
 				end
 			end
 		end

@@ -3,6 +3,7 @@ local pcall = pcall
 local type = type
 local table = table
 local tostring = tostring
+local error = error
 
 local M = {}
 package.loaded[...] = M
@@ -34,7 +35,7 @@ function processHooks(cnvobj, key, params)
 		if cnvobj.hook[i].key == key then
 			local status, val = pcall(cnvobj.hook[i].func, table.unpack(params))
 			if not status then
-				--error("error: " .. val)
+				error("error: " .. val)
 			end
 		end
 	end

@@ -80,7 +80,7 @@ end
 
 -- Checks whether the point x,y lies on the line segment x1,y1 x2,y2
 function pointOnSegment(x1,y1,x2,y2,x,y)
-    local o1 = orientation(x1,y1, x2,y2, x3,y3)
+    local o1 = orientation(x1,y1, x2,y2, x,y)
 	if o1 ~= 0 then
 		return false
 	end

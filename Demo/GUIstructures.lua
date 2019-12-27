@@ -43,7 +43,8 @@ GUI.toolbar.buttons = {
 	moveButton = iup.button{image=GUI.images.move,tip="Move Element"},
 	groupButton = iup.button{image=GUI.images.group,tip="Group Objects"},
 	portButton = iup.button{image=GUI.images.port,tip="Add Port"},
-	refreshButton = iup.button{image="IUP_NavigateRefresh",tip="Refresh Screen"}
+	refreshButton = iup.button{image="IUP_NavigateRefresh",tip="Refresh Screen"},
+	connButton = iup.button{image=GUI.images.connector,tip="Draw connector"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -67,6 +68,7 @@ GUI.toolbar.right = iup.vbox{
 	GUI.toolbar.buttons.elliButton,
 	GUI.toolbar.buttons.fElliButton,
 	GUI.toolbar.buttons.portButton,
+	GUI.toolbar.buttons.connButton,
 	iup.space{size="2x1"},
 	iup.label{separator="HORIZONTAL"},
 	iup.space{size="2x1"},

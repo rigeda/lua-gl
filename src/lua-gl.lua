@@ -33,6 +33,8 @@ _VERSION = "B19.12.15"
 
 --- TASKS
 --[[
+DEBUG:
+- Connector that loops back to the same port
 * Finish loading of saved structure.
 * Finish moveSegment
 * Finish moveConn

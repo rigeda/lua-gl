@@ -10,6 +10,8 @@ local floor = math.floor
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 
+local print = print
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
@@ -107,7 +109,7 @@ local rmMeta = {
 				end
 				if intersect then	-- case 1 and 2
 					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 				end
 				-- Segment 2 is x1,y1 x2,y1 of blksegs
 				intersect = coorc.doIntersect(v.x1,v.y1,v.x2,v.y1,x1,y1,x2,y2) -- p1,q1,p2,q2
@@ -116,7 +118,7 @@ local rmMeta = {
 				end
 				if intersect then	-- case 1 and 2
 					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 				end
 				-- Segment 3 is x1,y2 x2,y2 of blksegs
 				intersect = coorc.doIntersect(v.x1,v.y2,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
@@ -125,7 +127,7 @@ local rmMeta = {
 				end
 				if intersect then	-- case 1 and 2
 					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 				end
 				-- Segment 4 is x2,y1 x2,y2 of blksegs
 				intersect = coorc.doIntersect(v.x2,v.y1,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
@@ -134,10 +136,10 @@ local rmMeta = {
 				end
 				if intersect then	-- case 1 and 2
 					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2][y2]
+					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 				end				
 			end
-			if rm.ports[x2][y2] then
+			if rm.ports[x2] and rm.ports[x2][y2] then
 				return x2 == dstX and y2 == dstY
 			end
 			-- Go through the segments
@@ -148,7 +150,7 @@ local rmMeta = {
 					-- stepping on end point (only allowed if that is the destination)
 					return x2 == dstX and y2 == dstY
 				end
-				if vmove and v.x1 == x1 and y2 > min(v.y1,v.y2) and y < max(v.y1,v.y2) then
+				if vmove and v.x1 == x1 and y2 > min(v.y1,v.y2) and y2 < max(v.y1,v.y2) then
 					-- cannot do vertical move on a vertical segment
 					return false
 				end
@@ -158,7 +160,7 @@ local rmMeta = {
 					-- stepping on end point (only allowed if that is the destination)
 					return x2 == dstX and y2 == dstY
 				end
-				if hmove and v.y1 == y1 and x2 > min(v.x1,v.x2) and y < max(v.x1,v.x2) then
+				if hmove and v.y1 == y1 and x2 > min(v.x1,v.x2) and x2 < max(v.x1,v.x2) then
 					-- cannot do horizontal move on a horizontal segment
 					return false
 				end
@@ -199,10 +201,10 @@ end
 local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
 
 	-- Setup the Matrix width and height according to the min and max in the routing matrix
-	minX = minX or (rM.minX - stepX)
-	minY = minY or (rM.minY - stepY)
-	maxX = maxX or (rM.maxX + stepX)
-	maxY = maxY or (rM.maxY + stepY)
+	minX = minX or min(rM.minX - stepX,destX-stepX,srcX-stepX)
+	minY = minY or min(rM.minY - stepY,destY-stepY,srcY-stepY)
+	maxX = maxX or max(rM.maxX + stepX,destX+stepX,srcX+stepX)
+	maxY = maxY or max(rM.maxY + stepY,destY+stepY,srcY+stepY)
 	
 	local function valid(X, Y) 
 		return X >= minX and X <= maxX and Y >= minY and Y <= maxY 
@@ -215,7 +217,8 @@ local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 	local stepStr = {"L","U","D","R"}
 	
 	local visited = {}	-- To mark the visited coordinates
-	  
+	
+	visited[srcX] = {}
 	-- Mark the source cell as visited 
 	visited[srcX][srcY] = true; 
   
@@ -275,6 +278,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	print("GENERATE SEGMENTS",X,Y,x,y)
 	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
 	local maxX = cnvobj.size and floor(cnvobj.size.width/2)
@@ -282,13 +286,14 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 	local maxY = cnvobj.size and floor(cnvobj.size.height/2)
     
 	-- The start and end points
-    local srcX  =  coorc.snapX(X, grdx)/grdx
-    local srcY  =  coorc.snapY(Y, grdy)/grdy
-    local destX =  coorc.snapX(x, grdx)/grdx
-    local destY =  coorc.snapY(y, grdy)/grdy
+    local srcX  =  coorc.snapX(X, grdx)
+    local srcY  =  coorc.snapY(Y, grdy)
+    local destX =  coorc.snapX(x, grdx)
+    local destY =  coorc.snapY(y, grdy)
 	
 	if srcX == destX and srcY == destY then
 		-- No distance yet so no segments should be generated
+		print("SOURCE AND DESTINATION SAME")
 		return true
 	end
 	local rM = cnvobj.rM
@@ -296,6 +301,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
     local shortestPathLen, shortestPathString = BFS(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
     
 	if not shortestPathLen then
+		print("CANNOT REACH DESTINATION")
         return nil,"Cannot reach destination" 
     end
 	
@@ -311,13 +317,14 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 		L = 0,
 		R = 0,
 	}
+	print("GENSEGS:",shortestPathString)
 	
 	-- Now generate the segments
 	local i = 1
 	while i <= #shortestPathString do
 		local c = shortestPathString:sub(i,i)	-- Get the character at position i
 		-- Now count how many of them are repeated
-		local st = shortestPathString:find("[^"..c.."]",i+1)
+		local st = shortestPathString:find("[^"..c.."]",i+1) or #shortestPathString+1
 		local t = {}
 		if i == 1 then
 			t.start_x = srcX
@@ -331,6 +338,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 		segments[#segments + 1] = t
 		-- Add the segment to routing matrix with t as the key
 		rM:addSegment(t,t.start_x,t.start_y,t.end_x,t.end_y)
+		i = st
     end
 	
 	return true

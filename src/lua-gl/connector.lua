@@ -8,13 +8,14 @@ local tonumber = tonumber
 local error = error
 local pairs = pairs
 local tostring = tostring
+local iup = iup
 
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 local router = require("lua-gl.router")
 
 -- Only for debug
---local print = print
+local print = print
 
 local M = {}
 package.loaded[...] = M
@@ -93,7 +94,7 @@ getConnFromXY = function(cnvobj,x,y,res)
 	res = res or floor(min(cnvobj.grid.grid_x,cnvobj.grid.grid_y)/2)
 	local pS = res == 0 and coorc.pointOnSegment or coorc.pointNearSegment
 	local allConns = {}
-	local segs = {}
+	local segInfo = {}
 	for i = 1,#conns do
 		local segs = conns[i].segments
 		local connAdded
@@ -101,15 +102,15 @@ getConnFromXY = function(cnvobj,x,y,res)
 			if pS(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, x, y, res)  then
 				if not connAdded then
 					allConns[#allConns + 1] = conns[i]
-					segs[#segs + 1] = {conn = i, seg = {j}}
+					segInfo[#segInfo + 1] = {conn = i, seg = {j}}
 					connAdded = true
 				else
-					segs[#segs].seg[#segs[#segs].seg + 1] = j	-- Add all segments that lie on that point
+					segInfo[#segInfo].seg[#segInfo[#segInfo].seg + 1] = j	-- Add all segments that lie on that point
 				end
 			end
 		end
 	end
-	return allConns, segs
+	return allConns, segInfo
 end
 
 local function equalCoordinate(v1,v2)
@@ -136,10 +137,10 @@ local function sameeqn(x1,y1,x2,y2,x3,y3,x4,y4)
 	elseif x1~=x2 and x3~=x4 then
 		-- equation x = c is not true for both lines
 		-- round till 0.01 resolution
-		local m1 = math.floor((y2-y1)/(x2-x1)*100)/100
-		local m2 = math.floor((y4-y3)/(x4-x3)*100)/100
+		local m1 = floor((y2-y1)/(x2-x1)*100)/100
+		local m2 = floor((y4-y3)/(x4-x3)*100)/100
 		-- Check slopes are equal and the y-intercept are the same
-		if m1 == m2 and math.floor((y1-x1*m1)*100) == math.floor((y3-x3*m2)*100) then
+		if m1 == m2 and floor((y1-x1*m1)*100) == floor((y3-x3*m2)*100) then
 			seqn = true
 		end
 	end
@@ -226,6 +227,7 @@ local function repairSegAndJunc(cnvobj,conn)
 	-- AND
 	-- * The end point does not lie on a port
 	local segs = conn.segments
+	local rm = cnvobj.rM
 	local s,e = findDangling(cnvobj,segs,true)	-- find dangling with port check enabled
 	-- Function to create segments given the coordinate pairs
 	-- Segment is only created if its length is > 0
@@ -705,7 +707,7 @@ do
 		-- Check if more than one connector in allSegs
 		if #allSegs == 1 then
 			-- only 1 connector and nothing to merge
-			return true
+			return cnvobj.drawn.conn[allSegs[1].conn],{cnvobj.drawn.conn[allSegs[1].conn].id}
 		end
 		-- Sort allSegs with descending connector index so the previous index is not affected when the connector is merged and deleted
 		table.sort(allSegs,function(one,two)
@@ -1274,6 +1276,8 @@ drawConnector  = function(cnvobj,segs)
 		interactive = true
 	end
 	
+	print("DRAW CONNECTOR START")
+	
 	local rm = cnvobj.rM
 	
 	if not interactive then
@@ -1394,16 +1398,9 @@ drawConnector  = function(cnvobj,segs)
 		local segTable = conn.segments
 		-- Add the segments to the routing matrix
 		for i = 1,#segTable do
-			rm:addSegment(segTable[i].segTable[i].start_x,segTable[i].start_y,segTable[i].end_x,segTable[i].end_y)
+			rm:addSegment(segTable[i],segTable[i].start_x,segTable[i].start_y,segTable[i].end_x,segTable[i].end_y)
 		end
 
-		-- Update the connector id counter
-		cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
-		-- Add the connector to be drawn in the order array
-		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-			type = "connector",
-			item = cnvobj.drawn.conn[cnvobj.op.cIndex]
-		}
 		-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
 		-- remove any overlaps in the final merged connector
 		local mergeMap = shortAndMergeConnectors(cnvobj,{conn})
@@ -1416,9 +1413,10 @@ drawConnector  = function(cnvobj,segs)
 	end		-- Function endConnector ends here
 	
 	local function startConnector(x,y)
+		print("START CONNECTOR")
 		local conn = cnvobj.drawn.conn
 		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		local X,Y  =  coorc.snapX(x, grdx),coorc.snapY(x, grdy)
+		local X,Y  =  coorc.snapX(x, grdx),coorc.snapY(y, grdy)
 		cnvobj.op.startseg = 1		-- segment number from where to generate the segments
 		-- Check if the starting point lays on another connector
 		cnvobj.op.connID = "C"..tostring(cnvobj.drawn.conn.ids + 1)
@@ -1437,6 +1435,7 @@ drawConnector  = function(cnvobj,segs)
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		if button == iup.BUTTON1 and pressed == 1 then
 			if cnvobj.op.mode ~= "DRAWCONN" then
+				print("Start connector drawing at ",x,y)
 				startConnector(x,y)
 			elseif #cnvobj:getPortFromXY(x, y) > 0 or #getConnFromXY(cnvobj,x,y,0) > 1 then	-- 1 is the connector being drawn right now
 				endConnector()
@@ -1460,20 +1459,32 @@ drawConnector  = function(cnvobj,segs)
 			local segStart = cnvobj.op.startseg
 			local startX = cnvobj.op.start.x
 			local startY = cnvobj.op.start.y
-			cnvobj.drawn.conn[cIndex] = cnvobj.drawn.conn[cIndex] or 	-- new connector object described below:
-				{
+			if not cnvobj.drawn.conn[cIndex] then
+				-- new connector object described below:
+				cnvobj.drawn.conn[cIndex] = {
 					segments = {},
 					id=cnvobj.op.connID,
 					order=#cnvobj.drawn.order+1,
 					junction={},
 					port={}
 				}
+				-- Update the connector id counter
+				cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
+				-- Add the connector to be drawn in the order array
+				cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+					type = "connector",
+					item = cnvobj.drawn.conn[cnvobj.op.cIndex]
+				}
+			end
 			local connector = cnvobj.drawn.conn[cIndex]
 			-- Remove all the segments that need to be regenerated
 			for i = #connector.segments,segStart,-1 do
+				cnvobj.rM:removeSegment(connector.segments[i])
 				table.remove(connector.segments,i)
 			end
+			print("GENERATE SEGMENTS")
 			router.generateSegments(cnvobj, startX,startY,x, y,connector.segments)
+			cnvobj:refresh()
 		end			
 	end
 	

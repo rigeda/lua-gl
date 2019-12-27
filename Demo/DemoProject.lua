@@ -39,6 +39,8 @@ cnvobj = LGL.new{
 }
 GUI.mainArea:append(cnvobj.cnv)
 
+local MODE
+
 
 --********************* Callbacks *************
 
@@ -259,6 +261,10 @@ function GUI.toolbar.buttons.groupButton:action()
 end
 
 function GUI.toolbar.buttons.portButton:action()
+	-- Check if port mode already on then do nothing
+	if MODE == "ADDPORT" then
+		return
+	end
 	-- Create a representation of the port at the location of the mouse pointer and then start its move
 	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
 	-- Set refX,refY as the mouse coordinate on the canvas
@@ -268,31 +274,50 @@ function GUI.toolbar.buttons.portButton:action()
 	cnvobj.grid.snapGrid = false
 	local o = cnvobj:drawObj("FILLEDRECT",2,{{x=refX-3,y=refY-3},{x=refX+3,y=refY+3}})
 	cnvobj.grid.snapGrid = true
+	-- Set the cursor position to be right on the center of the object
+	iup.SetGlobal("CURSORPOS",tostring(sx+refX).."x"..tostring(sy+refY))
 	-- Create the hook
 	local hook
 	local function getClick(button,pressed,x,y,status)
+		print("Run Hook getClick")
 		x,y = cnvobj:snap(x,y)
 		-- Check if there is an object here
 		local allObjs = cnvobj:getObjFromXY(x,y)
-		if #allObjs > 0 and allObjs[1] ~= o then
+		local stop
+		for i = 1,#allObjs do
+			if allObjs[i] ~= o then
+				stop = true
+				break
+			end
+		end
+		if stop then
 			cnvobj:removeHook(hook)
 			-- group o with the 1st object
 			cnvobj:groupObjects({allObjs[1],o})
 			-- Create a port
+			print("Create the port at ",x,y)
 			cnvobj:addPort(x,y,allObjs[1].id)
-		else
-			-- Continue the move
+			MODE = nil
+		elseif cnvobj.op.mode ~= "MOVEOBJ" then
+			print("Continuing Move",#allObjs)
+			-- Continue the move only if it is out of the move mode
 			cnvobj:moveObj({o})
 		end
+		print("End Hook execution getClick")
 	end
 	-- Add the hook
 	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	-- Start the interactive move
+	MODE = "ADDPORT"
 	cnvobj:moveObj({o})
 end
 
 function GUI.toolbar.buttons.refreshButton:action()
 	cnvobj:refresh()
+end
+
+function GUI.toolbar.buttons.connButton:action()
+	cnvobj:drawConnector()
 end
 
 
