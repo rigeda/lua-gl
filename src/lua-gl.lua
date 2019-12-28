@@ -34,7 +34,10 @@ _VERSION = "B19.12.15"
 --- TASKS
 --[[
 DEBUG:
-- Connector that loops back to the same port
+- Interactive drag did not reroute all connectors
+- Drag object to end of dangling node. Seems as if the connector does not connect to the port.
+- 2 connectors between 2 ports drag one object messes the connectors
+- Draw a straight floating connector - end connector hangs it up
 * Finish loading of saved structure.
 * Finish moveSegment
 * Finish moveConn

@@ -86,13 +86,13 @@ local rmMeta = {
 		validStep = function(rm,x1,y1,x2,y2,dstX,dstY)
 			-- Function to check whether a step from x1,y1 to x2,y2 is allowed. 
 			-- dstX and dstY is the final destination
-			-- The rules are as follows:
+			-- The rules in order are as follows:
 			--[[
 				# Check whether we are crossing a blocking segment, stepping on it or none. Crossing a blocking segment is not allowed. Stepping may be allowed if it is a port and final destination.
-				# Check if x2,y2 is a port and x2==dstX and y2=dstY. x2,y2 can only be a port if it is the destination and not crossing a blocking segment
-				# Check if stepping on segment end points. If it is not the destination then it is not allowed.
 				# Check if this is a horizontal move then it should not be overlapping any horizontal segment
 				# Check if this is a vertical move then it should not be overlapping any vertical segment
+				# Check if x2,y2 is a port and x2==dstX and y2=dstY. x2,y2 can only be a port if it is the destination and not crossing a blocking segment
+				# Check if stepping on segment end points. If it is not the destination then it is not allowed.
 			]]
 			for k,v in pairs(rm.blksegs) do
 				-- Segment 1 is x1,y1 x1,y2 of blksegs
@@ -139,31 +139,34 @@ local rmMeta = {
 					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 				end				
 			end
-			if rm.ports[x2] and rm.ports[x2][y2] then
-				return x2 == dstX and y2 == dstY
-			end
 			-- Go through the segments
 			local vmove = x1 == x2
 			local hmove = y1 == y2
+			
 			for k,v in pairs(rm.vsegs) do
+				if vmove and v.x1 == x1 and ((y2 > min(v.y1,v.y2) and y2 < max(v.y1,v.y2)) or  
+				  (y1 > min(v.y1,v.y2) and y1 < max(v.y1,v.y2))) then
+					-- cannot do vertical move on a vertical segment
+					return false
+				end
 				if v.x1 == x2 and (v.y1 == y2  or v.y2 == y2) then
 					-- stepping on end point (only allowed if that is the destination)
 					return x2 == dstX and y2 == dstY
 				end
-				if vmove and v.x1 == x1 and y2 > min(v.y1,v.y2) and y2 < max(v.y1,v.y2) then
-					-- cannot do vertical move on a vertical segment
-					return false
-				end
 			end
 			for k,v in pairs(rm.hsegs) do 
+				if hmove and v.y1 == y1 and ((x2 > min(v.x1,v.x2) and x2 < max(v.x1,v.x2)) or 
+				  (x1 > min(v.x1,v.x2) and x1 < max(v.x1,v.x2))) then
+					-- cannot do horizontal move on a horizontal segment
+					return false
+				end
 				if v.y1 == y2 and (v.x1 == x2 or v.x2 == x2) then
 					-- stepping on end point (only allowed if that is the destination)
 					return x2 == dstX and y2 == dstY
 				end
-				if hmove and v.y1 == y1 and x2 > min(v.x1,v.x2) and x2 < max(v.x1,v.x2) then
-					-- cannot do horizontal move on a horizontal segment
-					return false
-				end
+			end
+			if rm.ports[x2] and rm.ports[x2][y2] then
+				return x2 == dstX and y2 == dstY
 			end
 			return true	-- step is allowed
 		end,

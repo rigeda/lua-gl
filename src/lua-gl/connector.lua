@@ -895,7 +895,7 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 		else
 			segPath[1] = {			-- 1st step in the path initialized
 				x = csegs[j].start_x,
-				y = csegs[j]._y,
+				y = csegs[j].start_y,
 				i = 0		-- segment index that will be traversed
 			}			
 		end
@@ -918,56 +918,63 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 				i = i - 1
 			else
 				-- We have segments that can be traversed
-				local sgmnt = segPath.segs[segPath[i].i]
-				-- Check the end points of this new segment with the end points of other members in csegs
-				local k = j + 1
-				while k <= #csegs do	-- Loop through all the next segments in csegs
-					local ex,ey		-- to store the end point other than X,Y
-					if csegs[k].start_x == X and csegs[k].start_y == Y then
-						ex,ey = csegs[k].end_x,csegs[k].end_y
-					else
-						ex,ey = csegs[k].start_x,csegs[k].start_y
-					end
-					if sgmnt.start_x == ex and sgmnt.start_y == ey or sgmnt.end_x == ex and sgmnt.end_y == ey then
-						-- found the other point in the kth starting segment so segment j cannot split with segment k
-						-- Add the kth segment to the segsDone structure 
-						segsDone[j][csegs[k]] = true
-						-- Merge the kth segment with the jth segment (remove it from the csegs table)
-						table.remove(csegs,k)
-						k = k - 1	-- To compensate for the removed segment
-					end
-					k = k + 1
-				end		-- while k <= #csegs ends here
-				-- Traverse this segment
-				segsDone[j][sgmnt] = true
-				-- Store the endPoints
-				if not endPoints[sgmnt.end_x] then
-					endPoints[sgmnt.end_x] = {}
-				end
-				if not endPoints[sgmnt.end_x][sgmnt.end_y] then
-					endPoints[sgmnt.end_x][sgmnt.end_y] = 1
+				local sgmnt = segPath[i].segs[segPath[i].i]
+				local nxt_x,nxt_y
+				if sgmnt.start_x == segPath[i].x and sgmnt.start_y == segPath[i].y then
+					nxt_x = sgmnt.end_x
+					nxt_y = sgmnt.end_y
 				else
-					endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
-				end
-				if not endPoints[sgmnt.start_x] then
-					endPoints[sgmnt.start_x] = {}
-				end
-				if not endPoints[sgmnt.start_x][sgmnt.start_y] then
-					endPoints[sgmnt.start_x][sgmnt.start_y] = 1
-				else
-					endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
+					nxt_x = sgmnt.start_x
+					nxt_y = sgmnt.start_y
 				end
 				
-				i = i + 1
-				segPath[i] = {i = 0}
-				if sgmnt.start_x == segPath[i-1].x and sgmnt.start_y == segPath[i-1].y then
-					segPath[i].x = sgmnt.end_x
-					segPath[i].y = sgmnt.end_y
-				else
-					segPath[i].x = sgmnt.start_x
-					segPath[i].y = sgmnt.start_y
-				end
-				segPath[i].segs = findSegs(segs,segPath[i].x,segPath[i].y,segsDone[j])
+				-- Traverse this segment
+				segsDone[j][sgmnt] = true
+				-- Check whether the end point (nxt_x,nxt_y) of this segment lands on a port then this path ends here
+				if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then	 -- If there is a port here then path ends here for this segment
+					-- Check the end points of this new segment with the end points of other members in csegs
+					local k = j + 1
+					while k <= #csegs do	-- Loop through all the next segments in csegs
+						local ex,ey		-- to store the end point other than X,Y
+						if csegs[k].start_x == X and csegs[k].start_y == Y then
+							ex,ey = csegs[k].end_x,csegs[k].end_y
+						else
+							ex,ey = csegs[k].start_x,csegs[k].start_y
+						end
+						if sgmnt.start_x == ex and sgmnt.start_y == ey or sgmnt.end_x == ex and sgmnt.end_y == ey then
+							-- found the other point in the kth starting segment so segment j cannot split with segment k
+							-- Add the kth segment to the segsDone structure 
+							segsDone[j][csegs[k]] = true
+							-- Merge the kth segment with the jth segment (remove it from the csegs table)
+							table.remove(csegs,k)
+							k = k - 1	-- To compensate for the removed segment
+						end
+						k = k + 1
+					end		-- while k <= #csegs ends here
+					-- Store the endPoints
+					if not endPoints[sgmnt.end_x] then
+						endPoints[sgmnt.end_x] = {}
+					end
+					if not endPoints[sgmnt.end_x][sgmnt.end_y] then
+						endPoints[sgmnt.end_x][sgmnt.end_y] = 1
+					else
+						endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
+					end
+					if not endPoints[sgmnt.start_x] then
+						endPoints[sgmnt.start_x] = {}
+					end
+					if not endPoints[sgmnt.start_x][sgmnt.start_y] then
+						endPoints[sgmnt.start_x][sgmnt.start_y] = 1
+					else
+						endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
+					end
+					
+					i = i + 1
+					segPath[i] = {i = 0}
+					segPath[i].x = nxt_x
+					segPath[i].y = nxt_y
+					segPath[i].segs = findSegs(segs,segPath[i].x,segPath[i].y,segsDone[j])
+				end		-- if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then ends
 			end
 		end		-- while i > 0 ends here
 		-- Now segsDone has all the segments that connect to the csegs[j] starting connector. So we can form 1 connector using these
@@ -1022,7 +1029,8 @@ end
 -- Function to check if any ports in the drawn data port array (or, if given, in the ports array) touch the given connector 'conn'. All touching ports are connected to the connector if not already done
 -- if conn is not given then all connectors are processed
 -- To connect the port to the connector unless the port lies on a dangling end the connector is split at the port so that the connector never crosses the port
--- Before calling this function it is optional to remove the connector's ports or not. Removing them makes sure only touching ports in the end are connected to the connector. 
+-- If a port in ports is already connected to the connectors processed then it is first disconnected to avoid duplicating of connectors in the port data structure as described below:
+-- It is best to disconnect ports from the connector before processing. Because if there is a split in the connector it creates new connectors without any ports and then it adds the port to both the connectors. The problem is if that port was connected to the original connector the port.conn array still contains the pointer to the old connector and that is not removed.
 function connectOverlapPorts(cnvobj,conn,ports)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -1035,8 +1043,21 @@ function connectOverlapPorts(cnvobj,conn,ports)
 		local allConns,sgmnts = getConnFromXY(cnvobj,X,Y,0)
 		for j = 1,#allConns do
 			conn = conn or allConns[j]
+			-- From this connector disconnect ports[i] if there
+			for k = 1,#ports[i].conn do
+				if ports[i].conn[k] == conn then	-- ports[i] was connected to conn so disconnected it
+					table.remove(ports[i].conn,k)	-- remove conn from ports table
+					for m = 1,#conn.port do			-- find the port in the connector port table
+						if conn.port[m] == ports[i] then	
+							table.remove(conn.port,m)	-- remove the port from the connector port table
+							break
+						end
+					end
+					break
+				end
+			end
 			segs = conn.segments
-			if allConns[j] == conn and not tu.inArray(conn.port,ports[i]) then
+			if allConns[j] == conn then
 				-- This connector lies on the port and the port is not already connected to it
 				-- Check if the port lies on a dangling node
 				-- If there are more than 1 segment on this port then it cannot be a dangling segment since the connector will have to be split
@@ -1069,7 +1090,7 @@ function connectOverlapPorts(cnvobj,conn,ports)
 						-- Place the connector at the original connector spot
 						table.insert(cnvobj.drawn.conn,l,splitConn[k])
 						-- Place the connectors at the order spot of the original connector
-						table.insert(cnvobj.drawn.conn,ord,{type="connector",item=splitConn[k]})
+						table.insert(cnvobj.drawn.order,ord,{type="connector",item=splitConn[k]})
 					end
 					-- Fix the indexes of other items in sgmnts
 					for k = 1,#sgmnts do
@@ -1159,7 +1180,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 				-- remove any overlaps in the final merged connector
 				local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})
 				-- Connect overlapping ports
-				connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 			end
 		end
 		return true
@@ -1182,7 +1203,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 				-- remove any overlaps in the final merged connector
 				local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})
 				-- Connect overlapping ports
-				connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 			end
 		end
 		
@@ -1367,7 +1388,7 @@ drawConnector  = function(cnvobj,segs)
 		-- remove any overlaps in the final merged connector
 		local mergeMap = shortAndMergeConnectors(cnvobj,{conn[#conn]})
 		-- Connect overlapping ports
-		connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+		connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 		return true
 	end
 	-- Setup interactive drawing
@@ -1405,7 +1426,7 @@ drawConnector  = function(cnvobj,segs)
 		-- remove any overlaps in the final merged connector
 		local mergeMap = shortAndMergeConnectors(cnvobj,{conn})
 		-- Connect overlapping ports
-		connectOverlapPorts(cnvobj,mergeMap[1][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+		connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB
