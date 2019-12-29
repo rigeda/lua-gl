@@ -835,6 +835,7 @@ end
 local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 	-- First check if coor is in the middle of a segment. If it is then split the segment to make coor at the end
 	local allConns,sgmnts = getConnFromXY(cnvobj,X,Y,0)
+	local rm = cnvobj.rM	-- routing Matrix
 	local segs = conn.segments
 	for j = 1,#allConns do
 		if allConns[j] == conn then
@@ -1038,7 +1039,7 @@ function connectOverlapPorts(cnvobj,conn,ports)
 	-- Check all the ports in the drawn structure/given ports array and see if any port lies on this connector then connect to it by splitting it
 	ports = ports or cnvobj.drawn.port
 	local segs,k
-	local all = conn
+	local all = not conn
 	local splitColl = {conn}	-- Array to store all connectors that result from the split since all of them have to be processed for every port
 	for i = 1,#ports do	-- Check for every port in the list
 		local X,Y = ports[i].x,ports[i].y
@@ -1086,13 +1087,20 @@ function connectOverlapPorts(cnvobj,conn,ports)
 					-- Remove conn from order and place the connectors at that spot
 					local ord = conn.order
 					table.remove(cnvobj.drawn.order,ord)
-					-- Connect the port to each of the returned connectors
+					-- Connect the port (and ports in conn) to each of the returned connectors
+					-- Note that ports[i] was already removed from conn if it was there
+					-- Now conn only has ports other than ports[i]
 					for k = 1,#splitConn do
 						local sp = splitConn[k].port
 						-- Add the port to the connector port array
 						sp[#sp + 1] = ports[i]
 						-- Add the connector to the port connector array
 						ports[i].conn[#ports[i].conn + 1] = splitConn[k]
+						-- Now do this for ports in conn
+						for m = 1,#conn.port do
+							conn.port[m].conn[#conn.port[m].conn + 1] = splitConn[k]
+							sp[#sp + 1] = conn.port[m]
+						end
 						-- Place the connector at the original connector spot
 						table.insert(cnvobj.drawn.conn,l,splitConn[k])
 						-- Place the connectors at the order spot of the original connector
@@ -1376,7 +1384,7 @@ drawConnector  = function(cnvobj,segs)
 		end		-- for i = 1,#segs ends here
 		-- Add the segments to the routing matrix
 		for i = 1,#segs do
-			rm:addSegment(segs[i].segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y)
+			rm:addSegment(segs[i],segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y)
 		end
 		-- Create a new connector using the segments
 		conn[#conn + 1] = {

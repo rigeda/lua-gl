@@ -93,7 +93,7 @@ addPort = function(cnvobj,x,y,objID)
 	obj.port[#obj.port + 1] = cnvobj.drawn.port[index]	
 	-- Add the port to the routing matrix
 	cnvobj.rM:addPort(cnvobj.drawn.port[index],x,y)
-	return true
+	return cnvobj.drawn.port[index]
 end
 
 removePort = function(cnvobj,portID)
