@@ -1037,28 +1037,29 @@ function connectOverlapPorts(cnvobj,conn,ports)
 	end
 	-- Check all the ports in the drawn structure/given ports array and see if any port lies on this connector then connect to it by splitting it
 	ports = ports or cnvobj.drawn.port
-	local segs
+	local segs,k
+	local all = conn
+	local splitColl = {conn}	-- Array to store all connectors that result from the split since all of them have to be processed for every port
 	for i = 1,#ports do	-- Check for every port in the list
 		local X,Y = ports[i].x,ports[i].y
 		local allConns,sgmnts = getConnFromXY(cnvobj,X,Y,0)
 		for j = 1,#allConns do
-			conn = conn or allConns[j]
-			-- From this connector disconnect ports[i] if there
-			for k = 1,#ports[i].conn do
-				if ports[i].conn[k] == conn then	-- ports[i] was connected to conn so disconnected it
+			conn = allConns[j]
+			-- Check if this connector needs to be processed
+			if all or tu.inArray(splitColl,allConns[j]) then	
+				-- This connector lies on the port 
+				-- From this connector disconnect ports[i] if there
+				k = tu.inArray(ports[i].conn,conn)
+				if k then
+					-- ports[i] was connected to conn so disconnected it
 					table.remove(ports[i].conn,k)	-- remove conn from ports table
-					for m = 1,#conn.port do			-- find the port in the connector port table
-						if conn.port[m] == ports[i] then	
-							table.remove(conn.port,m)	-- remove the port from the connector port table
-							break
-						end
+					k = tu.inArray(conn.port,ports[i])
+					if k then
+						-- port in the connector port table at index k
+						table.remove(conn.port,k)	-- remove the port from the connector port table
 					end
-					break
 				end
-			end
-			segs = conn.segments
-			if allConns[j] == conn then
-				-- This connector lies on the port and the port is not already connected to it
+				segs = conn.segments
 				-- Check if the port lies on a dangling node
 				-- If there are more than 1 segment on this port then it cannot be a dangling segment since the connector will have to be split
 				local split
@@ -1073,10 +1074,15 @@ function connectOverlapPorts(cnvobj,conn,ports)
 				end
 				if split then
 					-- Split the connector across all the segments that lie on the port
-					local splitConn = splitConnectorAtCoor(cnvobj,conn,X,Y)	-- To get the list of connectors after splitting the connector at this point
+					local splitConn = splitConnectorAtCoor(cnvobj,conn,X,Y)	-- To get the list of connectors after splitting the connector at this point					
 					-- Place the connectors at the spot in cnvobj.drawn.conn where conn was
 					local l = sgmnts[j].conn	-- index of the connector in cnvobj.drawn.conn
 					table.remove(cnvobj.drawn.conn,l)
+					-- Remove the connector reference from all its ports
+					for k = 1,#conn.port do
+						local m = tu.inArray(conn.port[k].conn,conn)
+						table.remove(conn.port[k].conn,m)
+					end
 					-- Remove conn from order and place the connectors at that spot
 					local ord = conn.order
 					table.remove(cnvobj.drawn.order,ord)
@@ -1091,6 +1097,8 @@ function connectOverlapPorts(cnvobj,conn,ports)
 						table.insert(cnvobj.drawn.conn,l,splitConn[k])
 						-- Place the connectors at the order spot of the original connector
 						table.insert(cnvobj.drawn.order,ord,{type="connector",item=splitConn[k]})
+						-- Add the splitConn connectors to the splitColl
+						table.insert(splitColl,splitConn[k])
 					end
 					-- Fix the indexes of other items in sgmnts
 					for k = 1,#sgmnts do
