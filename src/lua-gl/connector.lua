@@ -569,6 +569,7 @@ local function repairSegAndJunc(cnvobj,conn)
 					table.insert(segs,pos,newSegs[k])
 				end
 				j = 0	-- Reset j to run with all segments again
+				overlap = nil
 			end
 			j = j + 1
 		end		-- while j <= #segs ends
