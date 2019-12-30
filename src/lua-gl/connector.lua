@@ -900,8 +900,11 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 				i = 0		-- segment index that will be traversed
 			}			
 		end
-		
-		segPath[1].segs = findSegs(segs,segPath[1].x,segPath[1].y,segsDone[j])	-- get all segments connected at this step
+		if #cnvobj:getPortFromXY(segPath[1].x,segPath[1].y) == 0 then	 -- If there is a port here then path ends here for this segment
+			segPath[1].segs = findSegs(segs,segPath[1].x,segPath[1].y,segsDone[j])	-- get all segments connected at this step
+		else
+			segPath[1].segs = {}
+		end
 		-- Create the segment traversal algorithm (i is the step index corresponding to the index of segPath)
 		local i = 1
 		while i > 0 do
@@ -1000,7 +1003,7 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 		for i = 1,#conn.port do
 			if endPoints[conn.port[i].x] and endPoints[conn.port[i].x][conn.port[i].y] then
 				-- this port goes in this new connector
-				connA[#connA].port[#connA.port + 1] = conn.port[i]
+				connA[#connA].port[connA[#connA].port + 1] = conn.port[i]
 				-- Remove conn from conn.port[i] and add connA[#connA]
 				local pconn = conn.port[i].conn
 				for k = 1,#pconn do

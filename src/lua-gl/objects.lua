@@ -638,22 +638,29 @@ dragObj = function(cnvobj,objList,offx,offy)
 	for i = 1,#grp do
 		oldOrder[i] = grp[i].order
 	end
+	-- Move the last item in the list to the end. Last item because it is te one with the highest order
 	local item = cnvobj.drawn.order[grp[#grp].order]
 	table.remove(cnvobj.drawn.order,grp[#grp].order)
-	table.insert(cnvobj.drawn.order,#cnvobj.drawn.order+1,item)
-	for i = #grp-1,1,-1 do
+	table.insert(cnvobj.drawn.order,item)
+	-- Move the rest of the items on the last position
+	for i = 1,#grp-1 do
 		item = cnvobj.drawn.order[grp[i].order]
 		table.remove(cnvobj.drawn.order,grp[i].order)
 		table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
 	end
 	-- Update the order number for all items 
-	for i = 1,#order do
-		order[i].item.order = i
-	end
-	
+	fixOrder(cnvobj)
 	local function dragEnd()
 		-- End the drag at this point
 		-- Reset the orders back
+		for i = 1,#grp do
+			local item = cnvobj.drawn.order[grp[i].order]
+			table.remove(cnvobj.drawn.order,grp[i].order)
+			table.insert(cnvobj.drawn.order,oldOrder[i],item)
+		end
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		-- Get all the ports that were dragged
 		local allPorts = {}
 		for i = 1,#grp do
 			local item = cnvobj.drawn.order[grp[i].order]
@@ -669,10 +676,6 @@ dragObj = function(cnvobj,objList,offx,offy)
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 		PORTS.connectOverlapPorts(cnvobj,allPorts)
-		-- Update the order number for all items
-		for i = 1,#order do
-			order[i].item.order = i
-		end
 		-- Reset mode
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode

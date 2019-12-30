@@ -35,8 +35,6 @@ _VERSION = "B19.12.15"
 --[[
 DEBUG:
 - Drag object to end of dangling node. Seems as if the connector does not connect to the port.
-- 2 connectors between 2 ports drag one object messes the connectors
-- Draw a straight floating connector - end connector hangs it up
 
 TASKS:
 * Finish loading of saved structure.
