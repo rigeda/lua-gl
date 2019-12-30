@@ -34,11 +34,14 @@ _VERSION = "B19.12.30"
 --- TASKS
 --[[
 DEBUG:
-- Cannot draw floating connector
-- Drag object to end of dangling node. Seems as if the connector does not connect to the port.
 
 TASKS:
-* Implement order manipulation when object is moved
+* implement BFS and routing matrix in C
+* Implement generate segment modes: (Generate segment needs to return point uptill last routed)
+	* Mode 0 - Fully Manual. A single segment is made from source to destination irrespective of routing matrix
+	* Mode 1 - Fully Manual orthogonal. Segments can only be vertical or horizontal. From source to destination whichever is longer of the 2 would be returned
+	* Mode 2 - Manual orthogonal with routing matrix guidance?
+	* Mode 9 - Auto-routing with BFS algorithm.
 * Fix drag segment to take care of case when connected segments of the same connector are being dragged
 * Finish loading of saved structure.
 * Finish moveSegment

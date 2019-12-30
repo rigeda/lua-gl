@@ -211,6 +211,11 @@ moveObj = function(cnvobj,objList,offx,offy)
 		return nil,"No objects to move"
 	end
 	
+	-- Sort the group elements in ascending order ranking
+	table.sort(grp,function(one,two) 
+			return one.order < two.order
+	end)
+	
 	if not interactive then
 		-- Take care of grid snapping
 		offx,offy = cnvobj:snap(offx,offy)
@@ -267,8 +272,36 @@ moveObj = function(cnvobj,objList,offx,offy)
 	local oldMCB = cnvobj.cnv.motion_cb
 	local oldBCB = cnvobj.cnv.button_cb
 	
+	-- Backup the orders of the elements to move and change their orders to display in the front
+	local order = cnvobj.drawn.order
+	local oldOrder = {}
+	for i = 1,#grp do
+		oldOrder[i] = grp[i].order
+	end
+	-- Move the last item in the list to the end. Last item because it is te one with the highest order
+	local item = cnvobj.drawn.order[grp[#grp].order]
+	table.remove(cnvobj.drawn.order,grp[#grp].order)
+	table.insert(cnvobj.drawn.order,item)
+	-- Move the rest of the items on the last position
+	for i = 1,#grp-1 do
+		item = cnvobj.drawn.order[grp[i].order]
+		table.remove(cnvobj.drawn.order,grp[i].order)
+		table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
+	end
+	-- Update the order number for all items 
+	fixOrder(cnvobj)
+	
 	local function moveEnd()
 		-- Disconnect connectors connected to the ports and reconnect any connectors touching the current port positions
+		-- Reset the orders back
+		for i = 1,#grp do
+			local item = cnvobj.drawn.order[grp[i].order]
+			table.remove(cnvobj.drawn.order,grp[i].order)
+			table.insert(cnvobj.drawn.order,oldOrder[i],item)
+		end
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		-- Restore the previous button_cb and motion_cb
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB	
 		print("Move end changed Button_CB and Motion_CB",cnvobj.op.coor1)
@@ -660,6 +693,9 @@ dragObj = function(cnvobj,objList,offx,offy)
 		end
 		-- Update the order number for all items 
 		fixOrder(cnvobj)
+		-- Restore the previous button_cb and motion_cb
+		cnvobj.cnv.button_cb = oldBCB
+		cnvobj.cnv.motion_cb = oldMCB
 		-- Get all the ports that were dragged
 		local allPorts = {}
 		for i = 1,#grp do
@@ -679,8 +715,6 @@ dragObj = function(cnvobj,objList,offx,offy)
 		-- Reset mode
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
-		cnvobj.cnv.button_cb = oldBCB
-		cnvobj.cnv.motion_cb = oldMCB
 	end
 	
 		

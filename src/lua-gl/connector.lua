@@ -1453,11 +1453,9 @@ drawConnector  = function(cnvobj,segs)
 		cnvobj.cnv.motion_cb = oldMCB
 	end		-- Function endConnector ends here
 	
-	local function startConnector(x,y)
+	local function startConnector(X,Y)
 		print("START CONNECTOR")
 		local conn = cnvobj.drawn.conn
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		local X,Y  =  coorc.snapX(x, grdx),coorc.snapY(y, grdy)
 		cnvobj.op.startseg = 1		-- segment number from where to generate the segments
 		-- Check if the starting point lays on another connector
 		cnvobj.op.connID = "C"..tostring(cnvobj.drawn.conn.ids + 1)
@@ -1474,6 +1472,8 @@ drawConnector  = function(cnvobj,segs)
 		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
+		local xo,yo = x,y
+		x,y = cnvobj:snap(x,y)
 		if button == iup.BUTTON1 and pressed == 1 then
 			if cnvobj.op.mode ~= "DRAWCONN" then
 				print("Start connector drawing at ",x,y)
@@ -1489,7 +1489,7 @@ drawConnector  = function(cnvobj,segs)
 			endConnector()
 		end
 		-- Process any hooks 
-		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y,status})
+		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,xo,yo,status})
 	end
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
