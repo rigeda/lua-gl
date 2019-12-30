@@ -29,14 +29,17 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B19.12.15"
+_VERSION = "B19.12.30"
 
 --- TASKS
 --[[
 DEBUG:
+- Cannot draw floating connector
 - Drag object to end of dangling node. Seems as if the connector does not connect to the port.
 
 TASKS:
+* Implement order manipulation when object is moved
+* Fix drag segment to take care of case when connected segments of the same connector are being dragged
 * Finish loading of saved structure.
 * Finish moveSegment
 * Finish moveConn
