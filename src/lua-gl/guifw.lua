@@ -32,6 +32,23 @@ M.LINE = LINE
 M.ELLIPSE = ELLIPSE
 M.FILLEDELLIPSE = ELLIPSE
 
+-- Constants
+
+-- Line style constants
+M.CONTINUOUS = cd.CONTINUOUS
+M.DASHED = cd.DASHED
+M.DOTTED = cd.DOTTED
+M.DASH_DOT = cd.DASH_DOT
+M.DASH_DOT_DOT = cd.DASH_DOT_DOT
+-- Line Join Constants
+M.MITER = cd.MITER
+M.BEVEL = cd.BEVEL
+M.ROUND = cd.ROUND
+-- Line Cap constants
+M.CAPFLAT = cd.CAPFLAT
+M.CAPSQUARE = cd.CAPSQUARE
+M.CAPROUND = cd.CAPROUND
+
 function mapCB(cnvobj)
 	--local cd_Canvas = cd.CreateCanvas(cd.IUP, cnvobj.cnv)
 	local cd_bCanvas = cd.CreateCanvas(cd.IUPDBUFFER,cnvobj.cnv) --cd_Canvas)
@@ -57,6 +74,45 @@ end
 
 function newCanvas()
 	return iup.canvas{}
+end
+
+-- Set of functions to setup attributes of something that is being drawn. Each function returns a closure (function with associated up values). The rendering loop just calls the function before drawing it
+--[[
+There are 5 types of items for which attributes need to be set:
+		- Non filled object		(1)
+		- Blocking rectangle	(2)
+		- Filled object			(3)
+		- Normal Connector		(4)
+		- Jumping Connector		(5)
+	So ther are 5 functions below
+]]
+
+-- Function to return closure for setting attributes for non filled objects
+--[[ Attributes to set are:
+* Draw color(color)	- Table with RGB e.g. {127,230,111}
+* Line Style(style)	- number or a table. Number should be one of M.CONTINUOUS, M.DASHED, M.DOTTED, M.DASH_DOT, M.DASH_DOT_DOT. FOr table it should be array of integers specifying line length in pixels and then space length in pixels. Pattern repeats
+* Line width(width) - number for width in pixels
+* Line Join style(join) - should be one of the constants M.MITER, M.BEVEL, M.ROUND
+* Line Cap style (cap) - should be one of the constants M.CAPFLAT, M.CAPROUND, M.CAPSQUARE
+]]
+function setNonFilledObjAttr()
+	
+end
+
+function setBlockingRectAttr()
+	
+end
+
+function setFilledObjAttr()
+	
+end
+
+function setConnAttr()
+	
+end
+
+function setJumpConnAttr()
+	
 end
 
 -- to draw grid
