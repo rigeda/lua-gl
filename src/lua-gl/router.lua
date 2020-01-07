@@ -6,6 +6,7 @@ local remove = table.remove
 local pairs = pairs
 local min = math.min
 local max = math.max
+local abs = math.abs
 local floor = math.floor
 
 local tu = require("tableUtils")
@@ -117,8 +118,12 @@ local rmMeta = {
 					return false
 				end
 				if intersect then	-- case 1 and 2
-					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+					if intersect == 2 then
+						-- This has to be a port and final destination
+						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+					else
+						return true
+					end
 				end
 				-- Segment 2 is x1,y1 x2,y1 of blksegs
 				intersect = coorc.doIntersect(v.x1,v.y1,v.x2,v.y1,x1,y1,x2,y2) -- p1,q1,p2,q2
@@ -126,17 +131,25 @@ local rmMeta = {
 					return false
 				end
 				if intersect then	-- case 1 and 2
-					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+					if intersect == 2 then
+						-- This has to be a port and final destination
+						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+					else
+						return 2
+					end
 				end
 				-- Segment 3 is x1,y2 x2,y2 of blksegs
 				intersect = coorc.doIntersect(v.x1,v.y2,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
 				if intersect and intersect > 2 then	-- 3,4,5 are not allowed i.e. crossing the blk segment (5), blk segment end lies on the step line (3,4)
 					return false
 				end
-				if intersect then	-- case 1 and 2
-					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+				if intersect then	-- case 1 and 
+					if intersect == 2 then
+						-- This has to be a port and final destination
+						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+					else
+						return true
+					end
 				end
 				-- Segment 4 is x2,y1 x2,y2 of blksegs
 				intersect = coorc.doIntersect(v.x2,v.y1,v.x2,v.y2,x1,y1,x2,y2) -- p1,q1,p2,q2
@@ -144,8 +157,12 @@ local rmMeta = {
 					return false
 				end
 				if intersect then	-- case 1 and 2
-					-- This has to be a port and final destination
-					return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+					if intersect == 2 then
+						-- This has to be a port and final destination
+						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
+					else
+						return true
+					end
 				end				
 			end
 			-- Go through the segments
@@ -232,12 +249,11 @@ function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
   
 	-- Create a queue for BFS where the nodes from where exploration has not been fully completed are placed
 	local q = {}
+	local dist,str,dist2,str2
 
-	-- Distance of source cell is 0 
-	local str = ""	-- Path string
-   
-	--insert(q,{srcX, srcY, 0, str})  -- Enqueue source cell 
-	q[#q+1] = {srcX, srcY, 0, str}
+	q[#q+1] = {srcX, srcY, ""}
+	dist = abs(destX-srcX)+abs(destY-srcY)
+	str = ""
   
 	-- Do a BFS starting from source cell 
 	while #q > 0 do 
@@ -245,7 +261,7 @@ function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 		-- If we have reached the destination cell we are done 
 		-- Since this is a que (FIFO) so we always check the 1st element 
 		if (q[1][1] == destX and q[1][2] == destY) then
-			return q[1][3], q[1][4]; 
+			return q[1][3] 
 		end
 		-- Otherwise dequeue the front cell in the queue 
 		-- and enqueue its adjacent cells 
@@ -268,16 +284,21 @@ function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 				visited[srcX] = visited[srcX] or {}
 				visited[srcX][srcY] = true
 				-- Add the step string
-				str = pt[4]..stepStr[i]					
+				str2 = pt[3]..stepStr[i]
 				-- Add the adjacent cell
 				--insert(q, { srcX, srcY, pt[3] + 1, str})
-				q[#q+1] = { srcX, srcY, pt[3] + 1, str}
+				q[#q+1] = { srcX, srcY, str2}
+				dist2 = abs(destX-srcX)+abs(destY-srcY)
+				if dist2 < dist then
+					dist = dist2
+					str = str2
+				end
 			end
 		end		-- for i=1, 4 do ends 
 	end		-- while #q > 0 do  ends
   
-	-- Return -1 if destination cannot be reached 
-	return nil,"Cannot reach destination" 
+	-- Could not reach destination, return the closest approached step
+	return str
 end
 
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
@@ -304,10 +325,10 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router)
 	end
 	local rM = cnvobj.rM
 	print("Do BFS srcX="..srcX..",srcY="..srcY..",destX="..destX..",destY="..destY..",stepX="..grdx..",stepY="..grdy..",minX="..(minX or "NIL")..",minY="..(minY or "NIL")..",maxX="..(maxX or "NIL")..",maxY="..(maxY or "NIL"))
-    local shortestPathLen, shortestPathString = router(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
+    local shortestPathString = router(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
 	print("GENSEGS:",shortestPathString,#shortestPathString)
 	
-	if not shortestPathLen then
+	if not shortestPathString then
 		print("CANNOT REACH DESTINATION")
         return nil,"Cannot reach destination" 
     end

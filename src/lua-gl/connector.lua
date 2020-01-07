@@ -386,11 +386,16 @@ local function repairSegAndJunc(cnvobj,conn)
 											{x3,y3,x4,y4},	-- CD
 										})
 								else
-									newSegs = createSegments({
-											{x1,y1,x3,y3},	-- AC
-											{x3,y3,x2,y2},	-- CB
-											{x2,y2,x4,y4},	-- BD
-										})
+									if x3==x2 and y3==y3 then
+										-- CB is 0 so the segments won't change
+										overlap=false
+									else
+										newSegs = createSegments({
+												{x1,y1,x3,y3},	-- AC
+												{x3,y3,x2,y2},	-- CB
+												{x2,y2,x4,y4},	-- BD
+											})
+									end
 								end						
 							else
 								-- B does not lie on AD - Case 8
@@ -413,11 +418,16 @@ local function repairSegAndJunc(cnvobj,conn)
 											{x3,y3,x2,y2},	-- CB
 										})
 								else
-									newSegs = createSegments({
-											{x4,y4,x1,y1},	-- DA
-											{x1,y1,x3,y3},	-- AC
-											{x3,y3,x2,y2},	-- CB
-										})
+									if x1==x3 and y1==y3 then
+										-- AC is 0 so segments don't change
+										overlap = false
+									else
+										newSegs = createSegments({
+												{x4,y4,x1,y1},	-- DA
+												{x1,y1,x3,y3},	-- AC
+												{x3,y3,x2,y2},	-- CB
+											})
+									end
 								end						
 							end		-- if B lies on AD check
 						end		-- if D lies on AB check					
@@ -446,11 +456,16 @@ local function repairSegAndJunc(cnvobj,conn)
 											{x2,y2,x3,y3},	-- BC
 										})
 								else
-									newSegs = createSegments({
-											{x1,y1,x4,y4},	-- AD
-											{x4,y4,x2,y2},	-- DB
-											{x2,y2,x3,y3},	-- BC
-										})
+									if x4==x2 and y4==y2 then
+										-- DB is 0 so the segments don't change
+										overlap = false
+									else
+										newSegs = createSegments({
+												{x1,y1,x4,y4},	-- AD
+												{x4,y4,x2,y2},	-- DB
+												{x2,y2,x3,y3},	-- BC
+											})
+									end
 								end						
 							else
 								-- B does not lie on AC	- Case 2
@@ -473,11 +488,16 @@ local function repairSegAndJunc(cnvobj,conn)
 											{x1,y1,x2,y2},	-- AB
 										})
 								else
-									newSegs = createSegments({
-											{x3,y3,x1,y1},	-- CA
-											{x1,y1,x4,y4},	-- AD
-											{x4,y4,x2,y2},	-- DB
-										})
+									if x1==x4 and y1==y4 then
+										-- AD is 0 so the segments don't change
+										overlap = false
+									else
+										newSegs = createSegments({
+												{x3,y3,x1,y1},	-- CA
+												{x1,y1,x4,y4},	-- AD
+												{x4,y4,x2,y2},	-- DB
+											})
+									end
 								end											
 							end		-- if B lies on AC check
 						else	-- if D lies on AB check
@@ -704,7 +724,7 @@ do
 					return one.conn == two.conn
 				end)	-- Just collect the unique connectors
 		end		-- for i = 1,#coor ends here
-		-- Now allSegs has data about all the connectors that are present at coordinates in coor and also all their segment numbers
+		-- Now allSegs has data about all the connectors that are present at coordinates in coor. It also has some segment numbers (not all) but they are not needed or used.
 		-- Check if more than one connector in allSegs
 		if #allSegs == 1 then
 			-- only 1 connector and nothing to merge
@@ -807,6 +827,7 @@ do
 			end			
 		end
 		-- Now run repairSegAndJunc on all the merged connectors
+		-- Go through mergeMap and run repairSegAndJunc only for those connector structures which are the resulting merged connectors
 		for i = 1,#mergeMap do
 			local found
 			for j = i + 1,#mergeMap do
