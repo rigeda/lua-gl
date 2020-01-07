@@ -1,7 +1,8 @@
 
 local setmetatable = setmetatable
 local type = type
-local table = table
+local insert = table.insert
+local remove = table.remove
 local pairs = pairs
 local min = math.min
 local max = math.max
@@ -9,6 +10,14 @@ local floor = math.floor
 
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
+
+local crouter 
+do
+	local ret,msg = pcall(require,"luaglib.crouter")
+	if ret then
+		crouter = msg
+	end
+end
 
 local print = print
 
@@ -194,24 +203,20 @@ function newRoutingMatrix(cnvobj)
 	return rm
 end
 
--- BFS algorithm implementation
+-- BFS algorithm implementation for routing connector
 -- function to find the shortest path and string between 
 -- a given source cell to a destination cell. 
--- rM is the routing Matrix object
+-- rM is the routing Matrix object which is used to check for valid paths. rM is not modified in any way
 -- srcX and srcY are the starting coordinates
 -- destX and destY are the ending coordinates
 -- stepX and stepY are the increments to apply to X and Y to get to the next coordinate in the X and Y directions
-local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
+function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
 
 	-- Setup the Matrix width and height according to the min and max in the routing matrix
 	minX = minX or min(rM.minX - stepX,destX-stepX,srcX-stepX)
 	minY = minY or min(rM.minY - stepY,destY-stepY,srcY-stepY)
 	maxX = maxX or max(rM.maxX + stepX,destX+stepX,srcX+stepX)
 	maxY = maxY or max(rM.maxY + stepY,destY+stepY,srcY+stepY)
-	
-	local function valid(X, Y) 
-		return X >= minX and X <= maxX and Y >= minY and Y <= maxY 
-	end 
 	
 	-- These arrays are used to get row and column 
 	-- numbers of 4 neighbours of a given cell 
@@ -231,7 +236,8 @@ local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 	-- Distance of source cell is 0 
 	local str = ""	-- Path string
    
-	table.insert(q,{srcX, srcY, 0, str})  -- Enqueue source cell 
+	--insert(q,{srcX, srcY, 0, str})  -- Enqueue source cell 
+	q[#q+1] = {srcX, srcY, 0, str}
   
 	-- Do a BFS starting from source cell 
 	while #q > 0 do 
@@ -246,7 +252,7 @@ local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 
 		local pt = q[1]
 		
-		table.remove(q,1); 
+		remove(q,1); 
 		
 		for i=1, 4 do
 			-- Coordinates for the adjacent cell
@@ -255,18 +261,17 @@ local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 		   
 			-- if adjacent cell is valid, has path and 
 			-- not visited yet, enqueue it. 
-			if not visited[srcX] then
-				visited[srcX] = {}
-			end
 			
-			
-			if valid(srcX, srcY) and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+--			if valid(srcX, srcY) and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+			if srcX >= minX and srcX <= maxX and srcY >= minY and srcY <= maxY and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and (not visited[srcX] or not visited[srcX][srcY]) then
 				-- mark cell as visited and enqueue it 
+				visited[srcX] = visited[srcX] or {}
 				visited[srcX][srcY] = true
 				-- Add the step string
 				str = pt[4]..stepStr[i]					
 				-- Add the adjacent cell
-				table.insert(q, { srcX, srcY, pt[3] + 1, str})
+				--insert(q, { srcX, srcY, pt[3] + 1, str})
+				q[#q+1] = { srcX, srcY, pt[3] + 1, str}
 			end
 		end		-- for i=1, 4 do ends 
 	end		-- while #q > 0 do  ends
@@ -277,10 +282,8 @@ end
 
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
 -- The new segments are added to the end of the segments array passed to it
-function generateSegments(cnvobj, X,Y,x, y,segments)
-	if not cnvobj or type(cnvobj) ~= "table" then
-		return nil,"Not a valid lua-gl object"
-	end
+-- router is a auto-routing function to be used for routing the connector
+function generateSegments(cnvobj, X,Y,x, y,segments,router)
 	print("GENERATE SEGMENTS",X,Y,x,y)
 	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
@@ -300,9 +303,10 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 		return true
 	end
 	local rM = cnvobj.rM
-   
-    local shortestPathLen, shortestPathString = BFS(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
-    
+	print("Do BFS srcX="..srcX..",srcY="..srcY..",destX="..destX..",destY="..destY..",stepX="..grdx..",stepY="..grdy..",minX="..(minX or "NIL")..",minY="..(minY or "NIL")..",maxX="..(maxX or "NIL")..",maxY="..(maxY or "NIL"))
+    local shortestPathLen, shortestPathString = router(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
+	print("GENSEGS:",shortestPathString,#shortestPathString)
+	
 	if not shortestPathLen then
 		print("CANNOT REACH DESTINATION")
         return nil,"Cannot reach destination" 
@@ -320,7 +324,6 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 		L = 0,
 		R = 0,
 	}
-	print("GENSEGS:",shortestPathString)
 	
 	-- Now generate the segments
 	local i = 1
@@ -340,9 +343,10 @@ function generateSegments(cnvobj, X,Y,x, y,segments)
 		t.end_y = t.start_y + grdy* (st-i)*ystep[c]
 		segments[#segments + 1] = t
 		-- Add the segment to routing matrix with t as the key
+		--print("Add segment",t.start_x,t.start_y,t.end_x,t.end_y)
 		rM:addSegment(t,t.start_x,t.start_y,t.end_x,t.end_y)
 		i = st
     end
-	
+	print("FINISH GENSEGS")
 	return true
 end

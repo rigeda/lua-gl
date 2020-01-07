@@ -107,7 +107,7 @@ local shiftObjList = function(grp,offx,offy,rm)
 		grp[i].end_y = grp[i].end_y and (grp[i].end_y + offy)
 		-- If blocking rectangle then remove from routing matrix and add the new postion
 		if grp[i].shape == "BLOCKINGRECT" then
-			rm:removeBlockingRect(grp[i])
+			rm:removeBlockingRectangle(grp[i])
 			rm:addBlockingRectangle(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
 		end
 		-- Update port coordinates
@@ -229,7 +229,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 			grp[i].end_y = grp[i].end_y and (grp[i].end_y + offy)
 			-- If blocking rectangle then remove from routing matrix and add the new postion
 			if grp[i].shape == "BLOCKINGRECT" then
-				rm:removeBlockingRect(grp[i])
+				rm:removeBlockingRectangle(grp[i])
 				rm:addBlockingRectangle(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
 			end
 			local ports = grp[i].port
@@ -647,7 +647,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,cnvobj.options.router[9])
 				end
 				allPorts[#allPorts + 1] = portT[j]
 			end
@@ -737,6 +737,8 @@ dragObj = function(cnvobj,objList,offx,offy)
 		-- Process any hooks 
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})
 	end
+	
+	local routeFunc = cnvobj.options.router[9]
 
 	-- motion_cb to handle object dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
@@ -758,7 +760,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 						table.remove(conn[k].segments,l)
 					end
 					-- Regenerate the connector segments here
-					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments)
+					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,routeFunc)
 				end
 			end
 		end

@@ -21,6 +21,15 @@ local tu = require("tableUtils")
 local router = require("lua-gl.router")
 local coorc = require("lua-gl.CoordinateCalc")
 
+
+local crouter 
+do
+	local ret,msg = pcall(require,"luaglib.crouter")
+	if ret then
+		crouter = msg
+	end
+end
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
@@ -36,7 +45,6 @@ _VERSION = "B19.12.30"
 DEBUG:
 
 TASKS:
-* implement BFS and routing matrix in C
 * Implement generate segment modes: (Generate segment needs to return point uptill last routed)
 	* Mode 0 - Fully Manual. A single segment is made from source to destination irrespective of routing matrix
 	* Mode 1 - Fully Manual orthogonal. Segments can only be vertical or horizontal. From source to destination whichever is longer of the 2 would be returned
@@ -255,7 +263,11 @@ objFuncs = {
 			order = nil,		-- order number where the new shape is placed once the drawing starts
 			index = nil,		-- to store the index in cnvobj.drawn.obj array where the object being drawn is stored
 		}
-		cnvobj.rM = router.newRoutingMatrix(cnvobj)
+		if cnvobj.options.usecrouter and crouter then
+			cnvobj.rM = crouter.newRoutingMatrix()
+		else
+			cnvobj.rM = router.newRoutingMatrix(cnvobj)
+		end
 		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that. Note that this is not the canvas size which is always referred from cnvobj.cnv.rastersize
 		--[[
 		cnvobj.size = {}	
@@ -276,6 +288,12 @@ objFuncs = {
 		}
 		]]
 		cnvobj.viewOptions.gridMode = cnvobj.viewOptions.gridMode or 1
+		--[[
+		options = {
+			usecrouter = <boolean>,	-- (OPTIONAL) if true then tries to use the crouter module. False by default
+			router = <array of functions>,	-- The table containin the routing functions for different routing modes
+		}
+		]]
 		-- Setup the callback functions
 		function cnvobj.cnv.map_cb()
 			GUIFW.mapCB(cnvobj)	
@@ -336,6 +354,25 @@ objFuncs = {
 	end
 }
 
+-- cnvobj options meta table
+local optMeta = {
+	__index = function(t,k)
+		return t.__OPTDATA[k]
+	end,
+	__newindex = function(t,k,v)
+		if k == "usecrouter" then
+			if v and crouter then
+				t.__OPTDATA.usecrouter = v
+				t.__OPTDATA.router[9] = crouter.BFS
+			else
+				t.__OPTDATA.router[9] = router.BFS
+			end
+		else
+			t.__OPTDATA[k] = v
+		end
+	end
+}
+
 local function checkPara(para)
 
 	if not para.width or type(para.width) ~= "number" then
@@ -364,11 +401,23 @@ end
 	gridVisibility = <boolean>,	-- (OPTIONAL) if true then grid is visible
 	snapGrid = <boolean>,		-- (OPTIONAL) if true then everything works on the grid, otherwise it behaves as if grid is 1px x 1px
 	showBlockingRect = <boolean>,-- (OPTIONAL) if true then blocking rectangles are drawn on screen
+	usecrouter = <boolean>,		-- (OPTIONAL) if true then it tries to find and use the crouter module. Default is false
 }
 
 ]]
 new = function(para)
-	local cnvobj = {}		-- The lua-gl object
+	local cnvobj = {
+		grid = {},
+		viewOptions = {},	-- this table does not need a action metatable like options since viewoptions can be made into effect by doing a refresh
+		options = {},
+	}		-- The lua-gl object
+	
+	cnvobj.options.__OPTDATA = {
+		router = {
+			[9] = router.BFS
+		}
+	}	-- table to store the actual options. This in effect is the data for the options table. This can be modified directly but the relation action or effect of setting the option may not happen
+	setmetatable(cnvobj.options,optMeta)
 	
 	local resp,msg = checkPara(para)
    
@@ -379,11 +428,11 @@ new = function(para)
 	-- Put all parameters into the cnvobj object
 	for k,v in pairs(para) do
 		if k == "grid_x" or k == "grid_y" or k == "snapGrid" then
-			cnvobj.grid = cnvobj.grid or {}
 			cnvobj.grid[k] = v
 		elseif k == "gridVisibility" or k == "showBlockingRect" then
-			cnvobj.viewOptions = cnvobj.viewOptions or {}
 			cnvobj.viewOptions[k] = v
+		elseif k == "usecrouter" then
+			cnvobj.options[k] = v
 		else
 			cnvobj[k] = v
 		end

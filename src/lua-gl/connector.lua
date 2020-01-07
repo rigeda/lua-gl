@@ -1174,14 +1174,14 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
 			-- route connector from previous end_x,end_y to the new end_x,end_y
 			local newSegs = {}
-			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs) -- generateSegments updates routing matrix
+			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs,cnvobj.options.router[9]) -- generateSegments updates routing matrix
 			-- Add these segments after this current segment
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg+1,newSegs[j])
 			end
 			-- route connector from previous start_x,start_y to the new start_x,start_y
 			newSegs = {}
-			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs)	 -- generateSegments updates routing matrix
+			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs,cnvobj.options.router[9])	 -- generateSegments updates routing matrix
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg,newSegs[j])
 			end
@@ -1257,6 +1257,8 @@ dragSegment = function(cnvobj,segList,offx,offy)
 		-- Process any hooks 
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})	
 	end
+	
+	local routeFunc = cnvobj.options.router[9]
 
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
@@ -1279,7 +1281,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
 			-- route connector from previous end_x,end_y to the new end_x,end_y
 			local newSegs = {}
-			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs)
+			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs,routeFunc)
 			-- Add these segments after this current segment
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg+1,newSegs[j])
@@ -1287,7 +1289,7 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			cnvobj.op.segsToRemove = newSegs
 			-- route connector from previous start_x,start_y to the new start_x,start_y
 			newSegs = {}
-			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs)
+			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs,routeFunc)
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg,newSegs[j])
 				table.insert(cnvobj.op.segsToRemove,newSegs[j])
@@ -1492,6 +1494,8 @@ drawConnector  = function(cnvobj,segs)
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,xo,yo,status})
 	end
 	
+	local routeFunc = cnvobj.options.router[9]
+	
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--connectors
 		if cnvobj.op.mode == "DRAWCONN" then
@@ -1519,12 +1523,14 @@ drawConnector  = function(cnvobj,segs)
 			end
 			local connector = cnvobj.drawn.conn[cIndex]
 			-- Remove all the segments that need to be regenerated
+			print("Remove segments:")
 			for i = #connector.segments,segStart,-1 do
 				cnvobj.rM:removeSegment(connector.segments[i])
 				table.remove(connector.segments,i)
 			end
+			print("DONE")
 			print("GENERATE SEGMENTS")
-			router.generateSegments(cnvobj, startX,startY,x, y,connector.segments)
+			router.generateSegments(cnvobj, startX,startY,x, y,connector.segments,routeFunc)
 			cnvobj:refresh()
 		end			
 	end

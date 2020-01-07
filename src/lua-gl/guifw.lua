@@ -55,10 +55,6 @@ function motionCB(cnvobj,x, y, status)
 	
 end
 
-function update(cnvobj)
-	iup.Update(cnvobj.cnv)
-end
-
 function newCanvas()
 	return iup.canvas{}
 end
@@ -150,3 +146,6 @@ function  render(cnvobj)
 	cd_bcanvas:Flush()
 end
 
+function update(cnvobj)
+	render(cnvobj)
+end

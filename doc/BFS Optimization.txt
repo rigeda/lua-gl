@@ -1,0 +1,320 @@
+local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
+
+	-- Setup the Matrix width and height according to the min and max in the routing matrix
+	minX = minX or min(rM.minX - stepX,destX-stepX,srcX-stepX)
+	minY = minY or min(rM.minY - stepY,destY-stepY,srcY-stepY)
+	maxX = maxX or max(rM.maxX + stepX,destX+stepX,srcX+stepX)
+	maxY = maxY or max(rM.maxY + stepY,destY+stepY,srcY+stepY)
+	
+	-- These arrays are used to get row and column 
+	-- numbers of 4 neighbours of a given cell 
+	local delX = {-stepX, 0, 0, stepX}
+	local delY = {0, -stepY, stepY, 0} 
+	local stepStr = {"L","U","D","R"}
+	
+	local visited = {}	-- To mark the visited coordinates
+	
+	visited[srcX] = {}
+	-- Mark the source cell as visited 
+	visited[srcX][srcY] = true; 
+  
+	-- Create a queue for BFS where the nodes from where exploration has not been fully completed are placed
+	local q = {}
+
+	-- Distance of source cell is 0 
+	local str = ""	-- Path string
+   
+	table.insert(q,{srcX, srcY, 0, str})  -- Enqueue source cell 
+  
+	-- Do a BFS starting from source cell 
+	while #q > 0 do 
+		
+		-- If we have reached the destination cell we are done 
+		-- Since this is a que (FIFO) so we always check the 1st element 
+		if (q[1][1] == destX and q[1][2] == destY) then
+			return q[1][3], q[1][4]; 
+		end
+		-- Otherwise dequeue the front cell in the queue 
+		-- and enqueue its adjacent cells 
+
+		local pt = q[1]
+		
+		table.remove(q,1); 
+		
+		for i=1, 4 do
+			-- Coordinates for the adjacent cell
+			srcX = pt[1] + delX[i]
+			srcY = pt[2] + delY[i]
+		   
+			-- if adjacent cell is valid, has path and 
+			-- not visited yet, enqueue it. 
+			if not visited[srcX] then
+				visited[srcX] = {}
+			end
+			
+			
+--			if valid(srcX, srcY) and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+			if srcX >= minX and srcX <= maxX and srcY >= minY and srcY <= maxY and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+				-- mark cell as visited and enqueue it 
+				visited[srcX][srcY] = true
+				-- Add the step string
+				str = pt[4]..stepStr[i]					
+				-- Add the adjacent cell
+				table.insert(q, { srcX, srcY, pt[3] + 1, str})
+			end
+		end		-- for i=1, 4 do ends 
+	end		-- while #q > 0 do  ends
+  
+	-- Return -1 if destination cannot be reached 
+	return nil,"Cannot reach destination" 
+end
+
+TIME 3.931
+-----------------------------------------------------------------------------------------------------------------------------------------------
+REPLACED STR WITH TABLE FOR STRING STEPS
+-----------------------------------------------------------------------------------------------------------------------------------------------
+local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
+
+	-- Setup the Matrix width and height according to the min and max in the routing matrix
+	minX = minX or min(rM.minX - stepX,destX-stepX,srcX-stepX)
+	minY = minY or min(rM.minY - stepY,destY-stepY,srcY-stepY)
+	maxX = maxX or max(rM.maxX + stepX,destX+stepX,srcX+stepX)
+	maxY = maxY or max(rM.maxY + stepY,destY+stepY,srcY+stepY)
+	
+	-- These arrays are used to get row and column 
+	-- numbers of 4 neighbours of a given cell 
+	local delX = {-stepX, 0, 0, stepX}
+	local delY = {0, -stepY, stepY, 0} 
+	local stepStr = {"L","U","D","R"}
+	
+	local visited = {}	-- To mark the visited coordinates
+	
+	visited[srcX] = {}
+	-- Mark the source cell as visited 
+	visited[srcX][srcY] = true; 
+  
+	-- Create a queue for BFS where the nodes from where exploration has not been fully completed are placed
+	local q = {}
+	local pathS
+
+	-- Distance of source cell is 0 
+	table.insert(q,{srcX, srcY, 0, {}})  -- Enqueue source cell 
+  
+	-- Do a BFS starting from source cell 
+	while #q > 0 do 
+		
+		-- If we have reached the destination cell we are done 
+		-- Since this is a que (FIFO) so we always check the 1st element 
+		if (q[1][1] == destX and q[1][2] == destY) then
+			return q[1][3], table.concat(q[1][4]); 
+		end
+		-- Otherwise dequeue the front cell in the queue 
+		-- and enqueue its adjacent cells 
+
+		local pt = q[1]
+		table.remove(q,1); 
+		
+		for i=1, 4 do
+			-- Coordinates for the adjacent cell
+			srcX = pt[1] + delX[i]
+			srcY = pt[2] + delY[i]
+		   
+			-- if adjacent cell is valid, has path and 
+			-- not visited yet, enqueue it. 
+			if not visited[srcX] then
+				visited[srcX] = {}
+			end
+			
+			
+--			if valid(srcX, srcY) and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+			if srcX >= minX and srcX <= maxX and srcY >= minY and srcY <= maxY and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+				-- mark cell as visited and enqueue it 
+				visited[srcX][srcY] = true
+				-- Add the step string
+				pathS = table.move(pt[4],1,#pt[4],1,{})
+				pathS[#pathS + 1] = stepStr[i]
+				-- Add the adjacent cell
+				table.insert(q, { srcX, srcY, pt[3] + 1, pathS})
+			end
+		end		-- for i=1, 4 do ends 
+	end		-- while #q > 0 do  ends
+  
+	-- Return -1 if destination cannot be reached 
+	return nil,"Cannot reach destination" 
+end
+
+TIME: 9.491
+
+-----------------------------------------------------------------------------------------------------------------------------------------------
+CHANGED QUE TO INDIVIDUAL TABLES
+-----------------------------------------------------------------------------------------------------------------------------------------------
+
+local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
+
+	-- Setup the Matrix width and height according to the min and max in the routing matrix
+	minX = minX or min(rM.minX - stepX,destX-stepX,srcX-stepX)
+	minY = minY or min(rM.minY - stepY,destY-stepY,srcY-stepY)
+	maxX = maxX or max(rM.maxX + stepX,destX+stepX,srcX+stepX)
+	maxY = maxY or max(rM.maxY + stepY,destY+stepY,srcY+stepY)
+	
+	-- These arrays are used to get row and column 
+	-- numbers of 4 neighbours of a given cell 
+	local delX = {-stepX, 0, 0, stepX}
+	local delY = {0, -stepY, stepY, 0} 
+	local stepStr = {"L","U","D","R"}
+	
+	local visited = {}	-- To mark the visited coordinates
+	
+	visited[srcX] = {}
+	-- Mark the source cell as visited 
+	visited[srcX][srcY] = true; 
+  
+	-- Create a queue for BFS where the nodes from where exploration has not been fully completed are placed
+	local q = {}
+
+	-- Distance of source cell is 0 
+	local str = ""	-- Path string
+	local fifox,fifoy,fifop = {},{},{}
+	insert(fifox,srcX)
+	insert(fifoy,srcY)
+	insert(fifop,str)
+	--insert(q,{srcX, srcY, 0, str})  -- Enqueue source cell 
+	local ptx,pty,ptp
+  
+	-- Do a BFS starting from source cell 
+	while #fifox > 0 do 
+		
+		ptx,pty,ptp = fifox[1],fifoy[1],fifop[1]
+		
+		-- If we have reached the destination cell we are done 
+		-- Since this is a que (FIFO) so we always check the 1st element 
+		if (ptx == destX and pty == destY) then
+			return 0,ptp 
+		end
+		-- Otherwise dequeue the front cell in the queue 
+		-- and enqueue its adjacent cells 
+
+		
+		remove(fifox,1)
+		remove(fifoy,1)
+		remove(fifop,1)
+		
+		for i=1, 4 do
+			-- Coordinates for the adjacent cell
+			srcX = ptx + delX[i]
+			srcY = pty + delY[i]
+		   
+			-- if adjacent cell is valid, has path and 
+			-- not visited yet, enqueue it. 
+			if not visited[srcX] then
+				visited[srcX] = {}
+			end
+			
+			
+--			if valid(srcX, srcY) and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+			if srcX >= minX and srcX <= maxX and srcY >= minY and srcY <= maxY and rM:validStep(ptx,pty,srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+				-- mark cell as visited and enqueue it 
+				visited[srcX][srcY] = true
+				-- Add the step string
+				str = ptp..stepStr[i]					
+				-- Add the adjacent cell
+				insert(fifox,srcX)
+				insert(fifoy,srcY)
+				insert(fifop,str)
+			end
+		end		-- for i=1, 4 do ends 
+	end		-- while #q > 0 do  ends
+  
+	-- Return -1 if destination cannot be reached 
+	return nil,"Cannot reach destination" 
+end
+
+TIME: 8.16
+
+-----------------------------------------------------------------------------------------------------------------------------------------------
+CHANGED table.insert to adding to array expression
+-----------------------------------------------------------------------------------------------------------------------------------------------
+
+local function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY) 
+
+	-- Setup the Matrix width and height according to the min and max in the routing matrix
+	minX = minX or min(rM.minX - stepX,destX-stepX,srcX-stepX)
+	minY = minY or min(rM.minY - stepY,destY-stepY,srcY-stepY)
+	maxX = maxX or max(rM.maxX + stepX,destX+stepX,srcX+stepX)
+	maxY = maxY or max(rM.maxY + stepY,destY+stepY,srcY+stepY)
+	
+	-- These arrays are used to get row and column 
+	-- numbers of 4 neighbours of a given cell 
+	local delX = {-stepX, 0, 0, stepX}
+	local delY = {0, -stepY, stepY, 0} 
+	local stepStr = {"L","U","D","R"}
+	
+	local visited = {}	-- To mark the visited coordinates
+	
+	visited[srcX] = {}
+	-- Mark the source cell as visited 
+	visited[srcX][srcY] = true; 
+  
+	-- Create a queue for BFS where the nodes from where exploration has not been fully completed are placed
+	local q = {}
+
+	-- Distance of source cell is 0 
+	local str = ""	-- Path string
+	local fifox,fifoy,fifop = {},{},{}
+	fifox[#fifox+1]=srcX
+	fifoy[#fifoy+1]=srcY
+	fifop[#fifop+1]=str
+	--insert(q,{srcX, srcY, 0, str})  -- Enqueue source cell 
+	local ptx,pty,ptp
+  
+	-- Do a BFS starting from source cell 
+	while #fifox > 0 do 
+		
+		ptx,pty,ptp = fifox[1],fifoy[1],fifop[1]
+		
+		-- If we have reached the destination cell we are done 
+		-- Since this is a que (FIFO) so we always check the 1st element 
+		if (ptx == destX and pty == destY) then
+			return 0,ptp 
+		end
+		-- Otherwise dequeue the front cell in the queue 
+		-- and enqueue its adjacent cells 
+
+		
+		remove(fifox,1)
+		remove(fifoy,1)
+		remove(fifop,1)
+		
+		for i=1, 4 do
+			-- Coordinates for the adjacent cell
+			srcX = ptx + delX[i]
+			srcY = pty + delY[i]
+		   
+			-- if adjacent cell is valid, has path and 
+			-- not visited yet, enqueue it. 
+			if not visited[srcX] then
+				visited[srcX] = {}
+			end
+			
+			
+--			if valid(srcX, srcY) and rM:validStep(pt[1],pt[2],srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+			if srcX >= minX and srcX <= maxX and srcY >= minY and srcY <= maxY and rM:validStep(ptx,pty,srcX,srcY,destX,destY) and not visited[srcX][srcY] then
+				-- mark cell as visited and enqueue it 
+				visited[srcX][srcY] = true
+				-- Add the step string
+				str = ptp..stepStr[i]					
+				-- Add the adjacent cell
+				fifox[#fifox+1]=srcX
+				fifoy[#fifoy+1]=srcY
+				fifop[#fifop+1]=str
+			end
+		end		-- for i=1, 4 do ends 
+	end		-- while #q > 0 do  ends
+  
+	-- Return -1 if destination cannot be reached 
+	return nil,"Cannot reach destination" 
+end
+
+TIME: 7.9
+
+TIME: 8.168
