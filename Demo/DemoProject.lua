@@ -36,7 +36,7 @@ cnvobj = LGL.new{
 	gridVisibility = true,
 	snapGrid = true,
 	showBlockingRect = true,
-	--usecrouter = true,
+	usecrouter = true,
 }
 GUI.mainArea:append(cnvobj.cnv)
 

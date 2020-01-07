@@ -122,6 +122,7 @@ local rmMeta = {
 						-- This has to be a port and final destination
 						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 					else
+						-- p2 can lie on p1 q1 since p2 is the source. It was already allowed by the calling function
 						return true
 					end
 				end
@@ -135,7 +136,8 @@ local rmMeta = {
 						-- This has to be a port and final destination
 						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 					else
-						return 2
+						-- p2 can lie on p1 q1 since p2 is the source. It was already allowed by the calling function
+						return true
 					end
 				end
 				-- Segment 3 is x1,y2 x2,y2 of blksegs
@@ -148,6 +150,7 @@ local rmMeta = {
 						-- This has to be a port and final destination
 						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 					else
+						-- p2 can lie on p1 q1 since p2 is the source. It was already allowed by the calling function
 						return true
 					end
 				end
@@ -161,6 +164,7 @@ local rmMeta = {
 						-- This has to be a port and final destination
 						return x2 == dstX and y2 == dstY and rm.ports[x2] and rm.ports[x2][y2]
 					else
+						-- p2 can lie on p1 q1 since p2 is the source. It was already allowed by the calling function
 						return true
 					end
 				end				
@@ -253,7 +257,7 @@ function BFS(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 
 	q[#q+1] = {srcX, srcY, ""}
 	dist = abs(destX-srcX)+abs(destY-srcY)
-	str = ""
+	str = ""	-- To store the string to the closest approach
   
 	-- Do a BFS starting from source cell 
 	while #q > 0 do 
@@ -328,11 +332,6 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router)
     local shortestPathString = router(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
 	print("GENSEGS:",shortestPathString,#shortestPathString)
 	
-	if not shortestPathString then
-		print("CANNOT REACH DESTINATION")
-        return nil,"Cannot reach destination" 
-    end
-	
 	local xstep = {
 		U = 0,
 		D = 0,
@@ -345,6 +344,12 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router)
 		L = 0,
 		R = 0,
 	}
+	
+	local reX,reY
+	if shortestPathString == "" then
+		reX = srcX
+		reY = srcY
+	end
 	
 	-- Now generate the segments
 	local i = 1
@@ -360,14 +365,25 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router)
 			t.start_x = segments[#segments].end_x
 			t.start_y = segments[#segments].end_y
 		end
-		t.end_x = t.start_x + grdx* (st-i)*xstep[c]
-		t.end_y = t.start_y + grdy* (st-i)*ystep[c]
+		reX = t.start_x + grdx* (st-i)*xstep[c]
+		t.end_x = reX
+		reY = t.start_y + grdy* (st-i)*ystep[c]
+		t.end_y = reY
 		segments[#segments + 1] = t
 		-- Add the segment to routing matrix with t as the key
 		--print("Add segment",t.start_x,t.start_y,t.end_x,t.end_y)
 		rM:addSegment(t,t.start_x,t.start_y,t.end_x,t.end_y)
 		i = st
     end
+	if reX ~= destX or reY ~= destY then
+		-- Add a segment for the last jump, this is a jumping connector
+		segments[#segments + 1] = {
+			start_x = reX,
+			start_y = reY,
+			end_x = destX,
+			end_y = destY
+		}
+	end
 	print("FINISH GENSEGS")
 	return true
 end

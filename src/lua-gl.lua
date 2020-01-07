@@ -45,6 +45,35 @@ _VERSION = "B19.12.30"
 DEBUG:
 
 TASKS:
+* Implement drawing attributes:
+** Non Filled objects and connectors:
+*** Draw color
+*** Line Style
+*** Line width
+*** Line Join
+*** Line Cap
+** Filled objects
+*** Border Color
+*** Fill Color
+*** Background Opacity	-- Used for hatch and stipple fills
+*** Fill interior style
+**** Pattern
+**** Solid
+**** Hatch/Stipple
+
+	- Items for which attributes need to be set:
+		- Non filled object		(1)
+		- Blocking rectangle	(2)
+		- Filled object			(3)
+		- Normal Connector		(4)
+		- Jumping Connector		(5)
+		
+	-- So attributes need only be changed if the item changes or the new item has special attributes. Create a dirty flag which can have the above values and another value 6 corresponding to special attribute.
+
+	-- Junction drawing should be the same foreground color as connector. Junction shape and dx,dy should be set in view options. Set radius to 0 to not draw anything on the junction. JUnction shape can be rectangle or ellipse. the coordinates for the shape from center will be x-dx,y-dx to x+dx,y+dx
+
+
+* Added Erase button to demo application
 * Implement generate segment modes: (Generate segment needs to return point uptill last routed)
 	* Mode 0 - Fully Manual. A single segment is made from source to destination irrespective of routing matrix
 	* Mode 1 - Fully Manual orthogonal. Segments can only be vertical or horizontal. From source to destination whichever is longer of the 2 would be returned
@@ -56,10 +85,12 @@ TASKS:
 * Finish moveConn
 * Finish removeConn
 * Finish removeObj
+* Finish removePort
 * Add Text functionality
 * Add arc functionality
 * Canvas scroll, zoom, pan and coordinate translation
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
+* Implement action cancel by ending and then undoing it.
 * Connector labeling
 * Have to add export/print
 ]]
