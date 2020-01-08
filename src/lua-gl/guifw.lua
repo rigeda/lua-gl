@@ -48,6 +48,9 @@ M.ROUND = cd.ROUND
 M.CAPFLAT = cd.CAPFLAT
 M.CAPSQUARE = cd.CAPSQUARE
 M.CAPROUND = cd.CAPROUND
+-- Back Opacity
+M.OPAQUE = cd.OPAQUE
+M.TRANSPARENT = cd.TRANSPARENT
 
 function mapCB(cnvobj)
 	--local cd_Canvas = cd.CreateCanvas(cd.IUP, cnvobj.cnv)
@@ -80,38 +83,73 @@ end
 --[[
 There are 5 types of items for which attributes need to be set:
 		- Non filled object		(1)
-		- Blocking rectangle	(2)
+		- Blocking rectangle	(2)	-- attribute set using setNonFilledObjectAttr function
 		- Filled object			(3)
-		- Normal Connector		(4)
-		- Jumping Connector		(5)
-	So ther are 5 functions below
+		- Normal Connector		(4)	-- attribute set using setNonFilledObjectAttr function
+		- Jumping Connector		(5)	-- attribute set using setNonFilledObjectAttr function
+	So there are 2 functions below:
 ]]
 
 -- Function to return closure for setting attributes for non filled objects
---[[ Attributes to set are:
+--[[ Attributes to set are: (given a table (attr) with all these keys and attributes
 * Draw color(color)	- Table with RGB e.g. {127,230,111}
 * Line Style(style)	- number or a table. Number should be one of M.CONTINUOUS, M.DASHED, M.DOTTED, M.DASH_DOT, M.DASH_DOT_DOT. FOr table it should be array of integers specifying line length in pixels and then space length in pixels. Pattern repeats
 * Line width(width) - number for width in pixels
 * Line Join style(join) - should be one of the constants M.MITER, M.BEVEL, M.ROUND
 * Line Cap style (cap) - should be one of the constants M.CAPFLAT, M.CAPROUND, M.CAPSQUARE
 ]]
-function setNonFilledObjAttr()
-	
+function setNonFilledObjAttr(attr)
+	local color = cd.EncodeColor(attr.color[1],attr.color[2],attr.color[3])
+	local style = attr.style
+	local width = attr.width
+	local join = attr.join
+	local cap = attr.cap
+
+	-- Function to set the attributes when the line style is a number
+	local function nfoaNUM(canvas)
+		-- Set the foreground color
+		canvas:SetForeground(color)
+		-- Set the line style
+		canvas:LineStyle(style)
+		-- Set line width
+		canvas:LineWidth(width)
+		-- Set Line Join
+		canvas:LineJoin(join)
+		-- Set Line cap
+		canvas:LineCap(cap)
+	end
+	-- Function to set the attributes when the line style is a table
+	local function nfoaTAB()
+		-- Set the foreground color
+		canvas:SetForeground(color)
+		-- Set the line style
+		canvas:LineStyleDashes(style, #style)
+		-- Set line width
+		canvas:LineWidth(width)
+		-- Set Line Join
+		canvas:LineJoin(join)
+		-- Set Line cap
+		canvas:LineCap(cap)	
+	end
+	if type(style) == "number" then
+		return nfoaNUM
+	else
+		return nfoaTAB
+	end
 end
 
-function setBlockingRectAttr()
-	
-end
-
-function setFilledObjAttr()
-	
-end
-
-function setConnAttr()
-	
-end
-
-function setJumpConnAttr()
+-- Function to return closure for setting attributes for non filled objects
+--[[
+The attributes to be set are:
+* Border Color(bcolor)	(OPTIONAL) - Table with RGB e.g. {127,230,111} If not given then it defaults to Fill color
+* Fill Color(fcolor)	- Table with RGB e.g. {127,230,111}
+* Background Opacity (bopa) - One of the constants M.OPAQUE, M.TRANSPARENT	
+* Fill interior style (style) - One of the constants M.SOLID, M.HOLLOW, M.STIPPLE, M.HATCH, M.PATTERN
+* Hatch style (hatch) (OPTIONAL) - Needed if style == M.HATCH. Must be one of the constants M.HORIZONTAL, M.VERTICAL, M.FDIAGONAL, M.BDIAGONAL, M.CROSS or M.DIAGCROSS
+* Stipple style (stipple) (OPTIONAL) - Needed if style = M.STIPPLE. Should be a  wxh matrix of zeros (0) and ones (1). The zeros are mapped to the background color or are transparent, according to the background opacity attribute. The ones are mapped to the foreground color.
+* Pattern style (pattern) (OPTIONAL) - Needed if style = M.PATTERN. Should be a wxh color matrix of tables with RGB numbers`
+]]
+function setFilledObjAttr(attr)
 	
 end
 
