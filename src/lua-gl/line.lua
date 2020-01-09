@@ -1,6 +1,8 @@
 -- Module to add line drawing functionality to lua-gl
 
 local coorc = require("lua-gl.CoordinateCalc")
+local GUIFW = require("lua-gl.guifw")
+local OBJ = require("lua-gl.objects")
 
 local M = {}
 package.loaded[...] = M
@@ -28,4 +30,15 @@ function checkXY(obj, x, y,res)
 	y2 = obj.end_y
 
 	return coorc.pointNearSegment(x1, y1, x2, y2, x, y, res)                
+end
+
+function init(cnvobj)
+	GUIFW.LINE = {
+		draw = draw,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[1]	-- non filled object
+	}
+	-- Register checkXY function
+	OBJ.LINE = {
+		checkXY = checkXY
+	}
 end

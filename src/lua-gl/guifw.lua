@@ -11,11 +11,6 @@ local cd = cd
 local math = math
 local type = type
 
-local RECT = require("lua-gl.rectangle")
-local LINE = require("lua-gl.line")
-local ELLIPSE = require("lua-gl.ellipse")
-local coorc = require("lua-gl.CoordinateCalc")
-
 local print = print
 
 local M = {}
@@ -25,13 +20,6 @@ if setfenv and type(setfenv) == "function" then
 else
 	_ENV = M		-- Lua 5.2+
 end
-
-M.RECT = RECT
-M.FILLEDRECT = RECT
-M.BLOCKINGRECT = RECT
-M.LINE = LINE
-M.ELLIPSE = ELLIPSE
-M.FILLEDELLIPSE = ELLIPSE
 
 -- Constants
 
@@ -236,22 +224,14 @@ end
 -- to draw grid
 -- One experiment was to draw the grid using a stipple but was told there is no guaranteed way to align the stipple pattern to
 -- known canvas coordinates so always drawing the grid manually
-local function drawGrid(cnv,cnvobj)
+local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
 	--print("DRAWGRID!")
     local w,h = cnvobj.width, cnvobj.height
     local x,y
     local grid_x = cnvobj.grid.grid_x
     local grid_y = cnvobj.grid.grid_y
 	
-	local fColor = cnv:Foreground(cd.QUERY)
-	local bColor = cnv:Background(cd.QUERY)
-	if cnvobj.viewOptions.gridMode == 1 then
-		local br,bg,bb = cd.DecodeColor(bColor)
-		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
-	else
-		--cnv:SetForeground(cd.EncodeColor(192,192,192))
-		cnv:SetForeground(cd.EncodeColor(255,0,0))
-	end
+	cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
     --first for loop to draw horizontal line
     for y=0, h, grid_y do
       cnv:Line(0,y,w,y)
@@ -271,7 +251,6 @@ local function drawGrid(cnv,cnvobj)
 		end
 		cnv:WriteMode(cd.REPLACE)
 	end		
-	cnv:SetForeground(fColor)
 end
 
 function  render(cnvobj)
@@ -281,13 +260,14 @@ function  render(cnvobj)
 	local vOptions = cnvobj.viewOptions
 	local attr = cnvobj.attributes
 	local bColor = vOptions.backgroundColor
+	local bColore = cd.EncodeColor(bColor[1], bColor[2], bColor[3])
 
 	cd_bcanvas:Activate()
-	cd_bcanvas:Background(cd.EncodeColor(bColor[1], bColor[2], bColor[3]))
+	cd_bcanvas:Background(bColore)
 	cd_bcanvas:Clear()
 
 	if cnvobj.viewOptions.gridVisibility then
-		drawGrid(cd_bcanvas,cnvobj)
+		drawGrid(cd_bcanvas,cnvobj,bColore,bColor[1], bColor[2], bColor[3])
 	end
 	-- Now loop through the order array to draw every element in order
 	local order = cnvobj.drawn.order
@@ -295,7 +275,7 @@ function  render(cnvobj)
 		local item = order[i].item
 		if order[i].type == "object" then
 			-- This is an object
-			cd_bcanvas:SetForeground(cd.EncodeColor(0, 162, 232))
+			--cd_bcanvas:SetForeground(cd.EncodeColor(0, 162, 232))
 			local x1,y1,x2,y2 = item.start_x,item.start_y,item.end_x,item.end_y
 			--y1 = cnv:InvertYAxis(y1)
 			--y2 = cnv:InvertYAxis(y2)
@@ -307,7 +287,7 @@ function  render(cnvobj)
 			end
 		else
 			-- This is a connector
-			cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
+			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
 			local segs = item.segments
 			for j = 1,#segs do
 				local s = segs[j]
@@ -316,7 +296,7 @@ function  render(cnvobj)
 				--y2 = cnv:InvertYAxis(y2)
 				y1 = cnvobj.height - y1
 				y2 = cnvobj.height - y2
-				LINE.draw(cnvobj,cd_bcanvas,"CONNECTOR",x1,y1,x2,y2)
+				M.LINE.draw(cnvobj,cd_bcanvas,"CONNECTOR",x1,y1,x2,y2)
 			end
 		end
 	end

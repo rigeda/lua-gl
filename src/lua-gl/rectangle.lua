@@ -1,6 +1,8 @@
 -- Module to add rectangle functionality in lua-gl
 
 local coorc = require("lua-gl.CoordinateCalc")
+local GUIFW = require("lua-gl.guifw")
+
 local print = print
 
 local M = {}
@@ -11,17 +13,36 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-function draw(cnvobj,cnv,shape,x1,y1,x2,y2)
-    if (shape == "RECT") then   
-      cnv:Rect(x1, x2, y1, y2)
-    elseif (shape == "FILLEDRECT") then
-      cnv:Box(x1, x2, y1, y2)
-    elseif (shape == "BLOCKINGRECT") then
-		if(cnvobj.viewOptions.showBlockingRect==true) then
-			cnv:Rect(x1, x2, y1, y2)
-		end
-    end
+function drawhollow(cnvobj,cnv,shape,x1,y1,x2,y2)
+    cnv:Rect(x1, x2, y1, y2)
 	return true
+end
+
+function drawfilled(cnvobj,cnv,shape,x1,y1,x2,y2)
+	cnv:Box(x1, x2, y1, y2)
+	return true
+end
+
+function drawblockingrectangle(cnvobj,cnv,shape,x1,y1,x2,y2)
+	if(cnvobj.viewOptions.showBlockingRect==true) then
+		cnv:Rect(x1, x2, y1, y2)
+	end
+	return true
+end
+
+function init(cnvobj)
+	GUIFW.RECT = {
+		draw = drawhollow,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[1]	-- non filled object
+	}
+	GUIFW.FILLEDRECT = {
+		draw = drawfilled,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[3]	-- filled object
+	}
+	GUIFW.BLOCKINGRECT = {
+		draw = drawblockingrectangle,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[2]	-- blocking rectangle
+	}
 end
 
 -- Function to check whether rectangle object is selectable by x,y within the given resolution res

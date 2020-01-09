@@ -10,16 +10,13 @@ local iup = iup
 local min = math.min
 local floor = math.floor
 
+local GUIFW = require("lua-gl.guifw")
 local utility = require("lua-gl.utility")
-local RECT = require("lua-gl.rectangle")
-local LINE = require("lua-gl.line")
-local ELLIPSE = require("lua-gl.ellipse")
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 local CONN = require("lua-gl.connector")
 local PORTS = require("lua-gl.ports")
 local router = require("lua-gl.router")
-local GUIFW = require("lua-gl.guifw")
 
 local print = print
 
@@ -31,13 +28,6 @@ if setfenv and type(setfenv) == "function" then
 else
 	_ENV = M		-- Lua 5.2+
 end
-
-M.RECT = RECT
-M.FILLEDRECT = RECT
-M.BLOCKINGRECT = RECT
-M.LINE = LINE
-M.ELLIPSE = ELLIPSE
-M.FILLEDELLIPSE = ELLIPSE
 
 -- The object structure looks like this:
 --[[

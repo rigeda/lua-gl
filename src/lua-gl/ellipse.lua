@@ -2,6 +2,8 @@
 -- The ellipse major and minor axis will be aligned to the X and Y axis
 
 local coorc = require("lua-gl.CoordinateCalc")
+local GUIFW = require("lua-gl.guifw")
+local OBJ = require("lua-gl.objects")
 local abs = math.abs
 local floor = math.floor
 
@@ -13,12 +15,13 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-function draw(cnvobj,cnv,shape,x1,y1,x2,y2)
-    if (shape == "ELLIPSE") then
-		cnv:Arc(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
-    elseif (shape == "FILLEDELLIPSE") then
-		cnv:Sector(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
-	end
+function drawfilled(cnvobj,cnv,shape,x1,y1,x2,y2)
+	cnv:Sector(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
+	return true
+end
+
+function drawhollow(cnvobj,cnv,shape,x1,y1,x2,y2)
+	cnv:Arc(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
 	return true
 end
 
@@ -42,4 +45,23 @@ function checkXY(obj, x, y, res)
 		return true
 	end
 	return false
+end
+
+function init(cnvobj)
+	-- Register drawing functions
+	GUIFW.ELLIPSE = {
+		draw = drawhollow,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[3]	-- filled object
+	}
+	GUIFW.FILLEDELLIPSE = {
+		draw = drawfilled,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[1]	-- non filled object
+	}
+	-- Register checkXY function
+	OBJ.ELLIPSE = {
+		checkXY = checkXY
+	}
+	OBJ.FILLEDELLIPSE = {
+		checkXY = checkXY
+	}
 end
