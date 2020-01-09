@@ -2,6 +2,7 @@
 
 local coorc = require("lua-gl.CoordinateCalc")
 local GUIFW = require("lua-gl.guifw")
+local OBJ = require("lua-gl.objects")
 
 local print = print
 
@@ -30,21 +31,6 @@ function drawblockingrectangle(cnvobj,cnv,shape,x1,y1,x2,y2)
 	return true
 end
 
-function init(cnvobj)
-	GUIFW.RECT = {
-		draw = drawhollow,
-		visualAttr = cnvobj.attributes.defaultVisualAttr[1]	-- non filled object
-	}
-	GUIFW.FILLEDRECT = {
-		draw = drawfilled,
-		visualAttr = cnvobj.attributes.defaultVisualAttr[3]	-- filled object
-	}
-	GUIFW.BLOCKINGRECT = {
-		draw = drawblockingrectangle,
-		visualAttr = cnvobj.attributes.defaultVisualAttr[2]	-- blocking rectangle
-	}
-end
-
 -- Function to check whether rectangle object is selectable by x,y within the given resolution res
 function checkXY(obj, x, y, res)
 	if obj.shape ~= "RECT" and obj.shape ~= "BLOCKINGRECT" and obj.shape ~= "FILLEDRECT" then
@@ -69,3 +55,32 @@ function checkXY(obj, x, y, res)
 		return coorc.pointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
 	end
 end				
+
+function init(cnvobj)
+	GUIFW.RECT = {
+		draw = drawhollow,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[1],	-- non filled object
+		vAttr = 1
+	}
+	GUIFW.BLOCKINGRECT = {
+		draw = drawblockingrectangle,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[2],	-- blocking rectangle
+		vAttr = 2
+	}
+	GUIFW.FILLEDRECT = {
+		draw = drawfilled,
+		visualAttr = cnvobj.attributes.defaultVisualAttr[3],	-- filled object
+		vAttr = 3
+	}
+	OBJ.RECT = {
+		checkXY = checkXY,
+	}
+	OBJ.BLOCKINGRECT = {
+		checkXY = checkXY,
+	}
+	OBJ.FILLEDRECT = {
+		checkXY = checkXY,
+	}
+end
+
+

@@ -20,6 +20,12 @@ local hooks = require("lua-gl.hooks")
 local tu = require("tableUtils")
 local router = require("lua-gl.router")
 local coorc = require("lua-gl.CoordinateCalc")
+local utility = require("lua-gl.utility")
+
+-- Add the shapes. The shape modules will register themselves to the respective modules
+local RECT = require("lua-gl.rectangle")
+local ELLIPSE = require("lua-gl.ellipse")
+local LINE = require("lua-gl.line")
 
 
 local crouter 
@@ -365,10 +371,11 @@ objFuncs = {
 					- Filled object			(3)
 					- Normal Connector		(4)
 					- Jumping Connector		(5)
+					100	is reserved and used by the rendeing function
 		}
 		]]
 		cnvobj.attributes = {
-			visualAttr = setmetatable({},{__mode="k"}),	-- attr is a table with weak keys to associate the visual attributes to the item
+			visualAttr = setmetatable({},{__mode="k"}),	-- attr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {<integer>,<function>}. The integer points to a defaultVisualAttr index. This allows registering of new visual attributes in the defaultVisualAttr table defined below and helps optimize the render function by not executing same attributes
 			defaultVisualAttr = {
 				GUIFW.getNonFilledObjAttrFunc(vProp[1]),	-- For Non Filled object
 				GUIFW.getNonFilledObjAttrFunc(vProp[2]),	-- For blocking rectangle
@@ -400,6 +407,7 @@ objFuncs = {
 					- Filled object			(3)
 					- Normal Connector		(4)
 					- Jumping Connector		(5)
+					100	is reserved and used by the rendeing function
 		]]
 		cnvobj.setDefVisualAttr = function(itemType,attr)
 			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or itemType > 5 then
@@ -417,6 +425,13 @@ objFuncs = {
 				cnvobj.attributes.defaultVisualAttr[itemType] = GUIFW.getFilledObjAttrFunc(attr)
 			else
 				cnvobj.attributes.defaultVisualAttr[itemType] = GUIFW.getNonFilledObjAttrFunc(attr)
+			end
+			if itemType == 4 then
+				-- Register the new default in the GUIFW
+				GUIFW.CONN = {
+					visualAttr = cnvobj.attributes.defaultVisualAttr[4],	-- normal connector
+					vAttr = 4				
+				}
 			end
 			return true
 		end
@@ -585,7 +600,7 @@ new = function(para)
 			cnvobj[k] = v
 		end
 	end
-	  
+	
 	-- Create the canvas element
 	cnvobj.cnv = GUIFW.newCanvas()
 	cnvobj.cnv.rastersize=""..cnvobj.width.."x"..cnvobj.height..""
@@ -593,6 +608,16 @@ new = function(para)
 	setmetatable(cnvobj,{__index = objFuncs})
 	
 	assert(objFuncs.erase(cnvobj),"Could not initialize the canvas object")
+	
+	-- Register the shapes
+	RECT.init(cnvobj)
+	LINE.init(cnvobj)
+	ELLIPSE.init(cnvobj)
+	-- Register the default visual attribute for the connector in the GUIFW module - Connector drawing does not have its own separate module and is handled inside the render loop iteself so its registration is done here directly.
+	GUIFW.CONN = {
+		visualAttr = cnvobj.attributes.defaultVisualAttr[4],	-- normal connector
+		vAttr = 4				
+	}
 	
 	return cnvobj
 end

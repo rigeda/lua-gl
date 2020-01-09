@@ -186,7 +186,9 @@ For Filled objects the attributes to be set are:
 * Pattern style (pattern) (OPTIONAL) - Needed if style = M.PATTERN. Should be a wxh color matrix of tables with RGB numbers`
 ]]
 -- The function does not know whether the object is filled or not. It just checks the validity of the attr table and sets it for that object.
-function setObjVisualAttr(cnvobj,obj,attr)
+-- num is a index for the visual attribute definition and adds it to the defaults and other items can use it as well by referring to the number. It optimizes the render function as well since it does not have to reexecute the visual attributes settings if the number is the same for the next item to draw.
+-- Set num to 100 to make it unique. 100 is reserved for uniqueness
+function setObjVisualAttr(cnvobj,obj,attr,num)
 	local res,filled = utility.validateVisualAttr(attr)
 	if not res then
 		return res,filled
@@ -195,9 +197,9 @@ function setObjVisualAttr(cnvobj,obj,attr)
 	obj.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
 	-- Set the attributes function in the visual properties table
 	if filled then
-		cnvobj.attributes.visualAttr[obj] = GUIFW.getFilledObjAttrFunc(attr)
+		cnvobj.attributes.visualAttr[obj] = {vAttr = num, visualAttr = GUIFW.getFilledObjAttrFunc(attr)}
 	else
-		cnvobj.attributes.visualAttr[obj] = GUIFW.getNonFilledObjAttrFunc(attr)
+		cnvobj.attributes.visualAttr[obj] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
 	end
 end
 

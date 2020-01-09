@@ -232,12 +232,20 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
     local grid_y = cnvobj.grid.grid_y
 	
 	cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
+	-- Set the line style
+	cnv:LineStyle(M.CONTINUOUS)
+	-- Set line width
+	cnv:LineWidth(1)
+	-- Set Line Join
+	cnv:LineJoin(M.MITER)
+	-- Set Line cap
+	cnv:LineCap(M.CAPFLAT)
     --first for loop to draw horizontal line
     for y=0, h, grid_y do
       cnv:Line(0,y,w,y)
     end
 	if cnvobj.viewOptions.gridMode == 1 then
-		cnv:SetForeground(bColor)		-- Draw with backfround color
+		cnv:SetForeground(bColore)		-- Draw with backfround color
 	end		
     -- for loop used to draw vertical line
     for x=0, w, grid_x do
@@ -256,10 +264,8 @@ end
 function  render(cnvobj)
 	local canvas = cnvobj.cnv
 	local cd_bcanvas = cnvobj.cdbCanvas
-	local canvas_width, canvas_height = cnvobj.width, cnvobj.height
-	local vOptions = cnvobj.viewOptions
 	local attr = cnvobj.attributes
-	local bColor = vOptions.backgroundColor
+	local bColor = cnvobj.viewOptions.backgroundColor
 	local bColore = cd.EncodeColor(bColor[1], bColor[2], bColor[3])
 
 	cd_bcanvas:Activate()
@@ -270,28 +276,48 @@ function  render(cnvobj)
 		drawGrid(cd_bcanvas,cnvobj,bColore,bColor[1], bColor[2], bColor[3])
 	end
 	-- Now loop through the order array to draw every element in order
+	local vAttr = 100		-- Special case number which forces the run of the next visual attributes run
+	local shape
 	local order = cnvobj.drawn.order
+	local x1,y1,x2,y2
+	local item
+	local segs
+	local s
 	for i = 1,#order do
-		local item = order[i].item
+		item = order[i].item
 		if order[i].type == "object" then
 			-- This is an object
 			--cd_bcanvas:SetForeground(cd.EncodeColor(0, 162, 232))
-			local x1,y1,x2,y2 = item.start_x,item.start_y,item.end_x,item.end_y
+			-- Run the visual attributes
+			shape = attr.visualAttr[item] or M[item.shape]	-- validity is not checked for the registered shape structure
+			if vAttr ~= shape.vAttr then
+				vAttr = shape.vAttr
+				shape.visualAttr(cd_bcanvas)
+			end
+			x1,y1,x2,y2 = item.start_x,item.start_y,item.end_x,item.end_y
 			--y1 = cnv:InvertYAxis(y1)
 			--y2 = cnv:InvertYAxis(y2)
 			y1 = cnvobj.height - y1
 			y2 = cnvobj.height - y2
 			
-			if M[item.shape] and M[item.shape].draw then
-				M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,x1,y1,x2,y2)
-			end
+			shape.draw(cnvobj,cd_bcanvas,item.shape,x1,y1,x2,y2)
 		else
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
-			local segs = item.segments
+			shape = attr.visualAttr[item] or M.CONN
+			if vAttr ~= shape.vAttr then
+				vAttr = shape.vAttr
+				shape.visualAttr(cd_bcanvas)
+			end
+			segs = item.segments
 			for j = 1,#segs do
-				local s = segs[j]
-				local x1,y1,x2,y2 = s.start_x,s.start_y,s.end_x,s.end_y
+				s = segs[j]
+				shape = attr.visualAttr[s] or M.CONN
+				if vAttr ~= shape.vAttr then
+					vAttr = shape.vAttr
+					shape.visualAttr(cd_bcanvas)
+				end
+				x1,y1,x2,y2 = s.start_x,s.start_y,s.end_x,s.end_y
 				--y1 = cnv:InvertYAxis(y1)
 				--y2 = cnv:InvertYAxis(y2)
 				y1 = cnvobj.height - y1

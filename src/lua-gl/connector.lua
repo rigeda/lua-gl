@@ -117,7 +117,28 @@ getConnFromXY = function(cnvobj,x,y,res)
 	return allConns, segInfo
 end
 
-function setConnVisualAttr(cnvobj,conn,attr)
+-- Function to set the object Visual attributes
+--[[
+For non filled objects attributes to set are: (given a table (attr) with all these keys and attributes
+* Draw color(color)	- Table with RGB e.g. {127,230,111}
+* Line Style(style)	- number or a table. Number should be one of M.CONTINUOUS, M.DASHED, M.DOTTED, M.DASH_DOT, M.DASH_DOT_DOT. FOr table it should be array of integers specifying line length in pixels and then space length in pixels. Pattern repeats
+* Line width(width) - number for width in pixels
+* Line Join style(join) - should be one of the constants M.MITER, M.BEVEL, M.ROUND
+* Line Cap style (cap) - should be one of the constants M.CAPFLAT, M.CAPROUND, M.CAPSQUARE
+]]
+--[[
+For Filled objects the attributes to be set are:
+* Fill Color(color)	- Table with RGB e.g. {127,230,111}
+* Background Opacity (bopa) - One of the constants M.OPAQUE, M.TRANSPARENT	
+* Fill interior style (style) - One of the constants M.SOLID, M.HOLLOW, M.STIPPLE, M.HATCH, M.PATTERN
+* Hatch style (hatch) (OPTIONAL) - Needed if style == M.HATCH. Must be one of the constants M.HORIZONTAL, M.VERTICAL, M.FDIAGONAL, M.BDIAGONAL, M.CROSS or M.DIAGCROSS
+* Stipple style (stipple) (OPTIONAL) - Needed if style = M.STIPPLE. Should be a  wxh matrix of zeros (0) and ones (1). The zeros are mapped to the background color or are transparent, according to the background opacity attribute. The ones are mapped to the foreground color.
+* Pattern style (pattern) (OPTIONAL) - Needed if style = M.PATTERN. Should be a wxh color matrix of tables with RGB numbers`
+]]
+-- The function does not know whether the object is filled or not. It just checks the validity of the attr table and sets it for that object.
+-- num is a index for the visual attribute definition and adds it to the defaults and other items can use it as well by referring to the number. It optimizes the render function as well since it does not have to reexecute the visual attributes settings if the number is the same for the next item to draw.
+-- Set num to 100 to make it unique. 100 is reserved for uniqueness
+function setConnVisualAttr(cnvobj,conn,attr,num)
 	local res,filled = utility.validateVisualAttr(attr)
 	if not res then
 		return res,filled
@@ -126,9 +147,9 @@ function setConnVisualAttr(cnvobj,conn,attr)
 	conn.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
 	-- Set the attributes function in the visual properties table
 	if filled then
-		cnvobj.attributes.visualAttr[conn] = GUIFW.getFilledObjAttrFunc(attr)
+		cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getFilledObjAttrFunc(attr)}
 	else
-		cnvobj.attributes.visualAttr[conn] = GUIFW.getNonFilledObjAttrFunc(attr)
+		cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
 	end
 end
 
