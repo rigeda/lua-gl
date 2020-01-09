@@ -10,6 +10,7 @@ local iup = iup
 local min = math.min
 local floor = math.floor
 
+local utility = require("lua-gl.utility")
 local RECT = require("lua-gl.rectangle")
 local LINE = require("lua-gl.line")
 local ELLIPSE = require("lua-gl.ellipse")
@@ -18,6 +19,7 @@ local coorc = require("lua-gl.CoordinateCalc")
 local CONN = require("lua-gl.connector")
 local PORTS = require("lua-gl.ports")
 local router = require("lua-gl.router")
+local GUIFW = require("lua-gl.guifw")
 
 local print = print
 
@@ -49,6 +51,7 @@ M.FILLEDELLIPSE = ELLIPSE
 	group = <array or nil>,	-- Pointer to the array of object structures present in the group. nil if this object not in any group
 	port = <array>,			-- Array of port structures associated with the object
 	order = <integer>		-- Index in the order array
+	vattr = <table>			-- (OPTIONAL) table containing the object visual attributes. If not present object drawn with default drawing settings
 }
 ]]
 -- The object structure is located at cnvobj.drawn.obj
@@ -172,6 +175,40 @@ groupObjects = function(cnvobj,objList)
 		order[i].item.order = i
 	end
 	return true
+end
+
+-- Function to set the object Visual attributes
+--[[
+For non filled objects attributes to set are: (given a table (attr) with all these keys and attributes
+* Draw color(color)	- Table with RGB e.g. {127,230,111}
+* Line Style(style)	- number or a table. Number should be one of M.CONTINUOUS, M.DASHED, M.DOTTED, M.DASH_DOT, M.DASH_DOT_DOT. FOr table it should be array of integers specifying line length in pixels and then space length in pixels. Pattern repeats
+* Line width(width) - number for width in pixels
+* Line Join style(join) - should be one of the constants M.MITER, M.BEVEL, M.ROUND
+* Line Cap style (cap) - should be one of the constants M.CAPFLAT, M.CAPROUND, M.CAPSQUARE
+]]
+--[[
+For Filled objects the attributes to be set are:
+* Fill Color(color)	- Table with RGB e.g. {127,230,111}
+* Background Opacity (bopa) - One of the constants M.OPAQUE, M.TRANSPARENT	
+* Fill interior style (style) - One of the constants M.SOLID, M.HOLLOW, M.STIPPLE, M.HATCH, M.PATTERN
+* Hatch style (hatch) (OPTIONAL) - Needed if style == M.HATCH. Must be one of the constants M.HORIZONTAL, M.VERTICAL, M.FDIAGONAL, M.BDIAGONAL, M.CROSS or M.DIAGCROSS
+* Stipple style (stipple) (OPTIONAL) - Needed if style = M.STIPPLE. Should be a  wxh matrix of zeros (0) and ones (1). The zeros are mapped to the background color or are transparent, according to the background opacity attribute. The ones are mapped to the foreground color.
+* Pattern style (pattern) (OPTIONAL) - Needed if style = M.PATTERN. Should be a wxh color matrix of tables with RGB numbers`
+]]
+-- The function does not know whether the object is filled or not. It just checks the validity of the attr table and sets it for that object.
+function setObjVisualAttr(cnvobj,obj,attr)
+	local res,filled = utility.validateVisualAttr(attr)
+	if not res then
+		return res,filled
+	end
+	-- attr is valid now associate it with the object
+	obj.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
+	-- Set the attributes function in the visual properties table
+	if filled then
+		cnvobj.attributes.visualAttr[obj] = GUIFW.getFilledObjAttrFunc(attr)
+	else
+		cnvobj.attributes.visualAttr[obj] = GUIFW.getNonFilledObjAttrFunc(attr)
+	end
 end
 
 -- Function to move a list of objects provided with the given offset offx,offy which are added to the coordinates

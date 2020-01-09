@@ -45,34 +45,11 @@ _VERSION = "B19.12.30"
 DEBUG:
 
 TASKS:
-* Implement drawing attributes:
-** Non Filled objects and connectors:
-*** Draw color
-*** Line Style
-*** Line width
-*** Line Join
-*** Line Cap
-** Filled objects
-*** Border Color
-*** Fill Color
-*** Background Opacity	-- Used for hatch and stipple fills
-*** Fill interior style
-**** Pattern
-**** Solid
-**** Hatch/Stipple
 
-	- Items for which attributes need to be set:
-		- Non filled object		(1)
-		- Blocking rectangle	(2)
-		- Filled object			(3)
-		- Normal Connector		(4)
-		- Jumping Connector		(5)
-		
 	-- So attributes need only be changed if the item changes or the new item has special attributes. Create a dirty flag which can have the above values and another value 6 corresponding to special attribute.
 
 	-- Junction drawing should be the same foreground color as connector. Junction shape and dx,dy should be set in view options. Set radius to 0 to not draw anything on the junction. JUnction shape can be rectangle or ellipse. the coordinates for the shape from center will be x-dx,y-dx to x+dx,y+dx
-
-
+	
 * Added Erase button to demo application
 * Implement generate segment modes: (Generate segment needs to return point uptill last routed)
 	* Mode 0 - Fully Manual. A single segment is made from source to destination irrespective of routing matrix
@@ -95,11 +72,12 @@ TASKS:
 * Have to add export/print
 ]]
 
-
+local function getVisualAttr(cnvobj,item)
+	return cnvobj.attributes.visualAttr[item]
+end
 
 
 -- This is the metatable that contains the API of the library that can be used by the host program
-
 local objFuncs
 objFuncs = {
 	
@@ -294,11 +272,18 @@ objFuncs = {
 			order = nil,		-- order number where the new shape is placed once the drawing starts
 			index = nil,		-- to store the index in cnvobj.drawn.obj array where the object being drawn is stored
 		}
+		--[[
+		options = {
+			usecrouter = <boolean>,	-- (OPTIONAL) if true then tries to use the crouter module. False by default
+			router = <array of functions>,	-- The table containin the routing functions for different routing modes
+		}
+		]]
 		if cnvobj.options.usecrouter and crouter then
 			cnvobj.rM = crouter.newRoutingMatrix()
 		else
 			cnvobj.rM = router.newRoutingMatrix(cnvobj)
 		end
+		----############## THIS NEEDS TO BE EVALUATED WHEN DOING ZOOM AND PAN #############################################
 		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that. Note that this is not the canvas size which is always referred from cnvobj.cnv.rastersize
 		--[[
 		cnvobj.size = {}	
@@ -307,24 +292,141 @@ objFuncs = {
 		
 		width = <integer>, 	--Width of the canvas	-- The width at the time of creation
 		height = <integer>,	--Height of the canvas	-- The height at the time of creation
+		]]
+		-- ################################################################################################################
+		--[[
 		grid = {
 			grid_x = <integer>, --x direction grid distance
 			grid_y = <integer>, --y direction grid distance
 			snapGrid = <boolean>,		-- (OPTIONAL) if true then everything works on the grid, otherwise it behaves as if grid is 1px x 1px
-		}
+		}]]
+		--[[
 		viewOptions = {
-			gridVisibility = <boolean>,	-- (OPTIONAL) if true then grid is visible
+			gridVisibility = <boolean>,	-- (OPTIONAL) if true then grid is visible, default is nil
 			gridMode = <integer>		-- (OPTIONAL) default = 1 (grid points), 2 (rectangular grid)
 			showBlockingRect = <boolean>,-- (OPTIONAL) if true then blocking rectangles are drawn on screen
+			backgroundColor = {R,G,B},	-- Array containing the background color R,G,B, default is {255,255,255}
+			visualProp = <array>,		-- Array containing list of attribute tables that will set the drawing settings for each of the following items:
+					- Items for which attributes need to be set:
+					- Non filled object		(1)
+					- Blocking rectangle	(2)
+					- Filled object			(3)
+					- Normal Connector		(4)
+					- Jumping Connector		(5)		
 		}
 		]]
 		cnvobj.viewOptions.gridMode = cnvobj.viewOptions.gridMode or 1
+		cnvobj.viewOptions.backgroundColor = cnvobj.viewOptions.backgroundColor or {255,255,255}
+		-- Visual properties
+		local vProp = {
+			{	-- For Non Filled object
+				color = {0, 162, 232},
+				style = GUIFW.CONTINUOUS,
+				width = 2,
+				join = GUIFW.MITER,
+				cap = GUIFW.CAPFLAT
+			},
+			{	-- For blocking rectangle
+				color = {255, 162, 162},
+				style = GUIFW.DOTTED,
+				width = 1,
+				join = GUIFW.MITER,
+				cap = GUIFW.CAPFLAT
+			},
+			{	-- For filled object
+				color = {0, 162, 232},
+				bopa = GUIFW.OPAQUE,
+				style = GUIFW.SOLID,
+			},
+			{	-- For Normal connector
+				color = {255, 128, 0},
+				style = GUIFW.CONTINUOUS,
+				width = 1,
+				join = GUIFW.MITER,
+				cap = GUIFW.CAPFLAT
+			},
+			{	-- For jumping connector
+				color = {255, 128, 0},
+				style = GUIFW.DASHED,
+				width = 1,
+				join = GUIFW.MITER,
+				cap = GUIFW.CAPFLAT
+			},			
+		}
+		cnvobj.viewOptions.visualProp = vProp
+		-- Setup the functions in the attributes below
 		--[[
-		options = {
-			usecrouter = <boolean>,	-- (OPTIONAL) if true then tries to use the crouter module. False by default
-			router = <array of functions>,	-- The table containin the routing functions for different routing modes
+		attributes = {
+			visualAttr = <table>,			-- Hash map containing mapping from the item structure to the visual attributes function
+			defaulVisualAttr = <array>,		-- Array containing list of functions that will set the drawing settings for each of the following items:
+					- Items for which attributes need to be set:
+					- Non filled object		(1)
+					- Blocking rectangle	(2)
+					- Filled object			(3)
+					- Normal Connector		(4)
+					- Jumping Connector		(5)
 		}
 		]]
+		cnvobj.attributes = {
+			visualAttr = setmetatable({},{__mode="k"}),	-- attr is a table with weak keys to associate the visual attributes to the item
+			defaultVisualAttr = {
+				GUIFW.getNonFilledObjAttrFunc(vProp[1]),	-- For Non Filled object
+				GUIFW.getNonFilledObjAttrFunc(vProp[2]),	-- For blocking rectangle
+				GUIFW.getFilledObjAttrFunc(vProp[3]),		-- For filled object
+				GUIFW.getNonFilledObjAttrFunc(vProp[4]),	-- For Normal connector
+				GUIFW.getNonFilledObjAttrFunc(vProp[5]),	-- For jumping connector
+			}
+		}
+		
+		--[[ Attributes can be set for the following structures:
+		* Object
+		* Connector
+		* Segement
+		-- Attribute when set will be in a table called 'vattr' of the object. This table is set by the API in cnvobj (below) and should not be manually set but can be read. Manually setting it will not change the display of the item.
+		]]
+
+		-- Attributes setting API
+		cnvobj.setObjVisualAttr = objects.setObjVisualAttr
+		cnvobj.getObjVisualAttr = getVisualAttr
+		cnvobj.setConnVisualAttr = conn.setConnVisualAttr
+		cnvobj.getConnVisualAttr = getVisualAttr
+		cnvobj.setSegVisualAttr = conn.setSegVisualAttr
+		cnvobj.getSegVisualAttr = getVisualAttr
+		
+		--[[
+			- Item Type is one of the following numbers:
+					- Non filled object		(1)
+					- Blocking rectangle	(2)
+					- Filled object			(3)
+					- Normal Connector		(4)
+					- Jumping Connector		(5)
+		]]
+		cnvobj.setDefVisualAttr = function(itemType,attr)
+			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or itemType > 5 then
+				return nil,"Invalid Item type"
+			end
+			local ret,filled = utility.validateVisualAttr(attr)
+			if not ret then
+				return ret,filled
+			end
+			if filled and itemType ~= 3 then
+				return nil,"attributes table is for filled object but itemType is not 3"
+			end
+			cnvobj.viewOptions.visualProp[itemType] = attr
+			if filled then
+				cnvobj.attributes.defaultVisualAttr[itemType] = GUIFW.getFilledObjAttrFunc(attr)
+			else
+				cnvobj.attributes.defaultVisualAttr[itemType] = GUIFW.getNonFilledObjAttrFunc(attr)
+			end
+			return true
+		end
+		cnvobj.getDefVisualAttr = function(itemType)
+			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or itemType > 5 then
+				return nil,"Invalid Item type"
+			end
+			return cnvobj.viewOptions.visualProp[itemType]
+		end
+		
 		-- Setup the callback functions
 		function cnvobj.cnv.map_cb()
 			GUIFW.mapCB(cnvobj)	
@@ -349,6 +451,7 @@ objFuncs = {
 		function cnvobj.cnv:motion_cb(x, y, status)
 			GUIFW.motionCB(cnvobj,x,y, status)		
 		end
+		
 		return true
 	end,
 	
@@ -418,6 +521,19 @@ local function checkPara(para)
 	if not para.grid_y or type(para.grid_y) ~= "number" then
 		return nil,"grid_y not given or not a number"
 	end
+	if para.backgroundColor then
+		if type(para.backgroundColor) ~= "table" or #para.backgroundColor ~= 3 then
+			return nil,"Background color attribute not given as a {R,G,B} table"
+		end
+		for i = 1,3 do
+			if type(para.backgroundColor[i]) ~= "number" or math.floor(para.backgroundColor[i]) ~= para.backgroundColor[i] then
+				return nil,"Background color attribute table has non integer values"
+			end
+			if para.backgroundColor[i]<0 or para.backgroundColor[i]>255 then
+				return nil,"Background color attribute table is not in the range [0,255]"
+			end
+		end
+	end
 	return true
 end
 
@@ -433,6 +549,7 @@ end
 	snapGrid = <boolean>,		-- (OPTIONAL) if true then everything works on the grid, otherwise it behaves as if grid is 1px x 1px
 	showBlockingRect = <boolean>,-- (OPTIONAL) if true then blocking rectangles are drawn on screen
 	usecrouter = <boolean>,		-- (OPTIONAL) if true then it tries to find and use the crouter module. Default is false
+	backgroundColor = {R,G,B}	-- (OPTIONAL) a table with RGB values for the background color. Default is white
 }
 
 ]]
@@ -460,7 +577,7 @@ new = function(para)
 	for k,v in pairs(para) do
 		if k == "grid_x" or k == "grid_y" or k == "snapGrid" then
 			cnvobj.grid[k] = v
-		elseif k == "gridVisibility" or k == "showBlockingRect" then
+		elseif k == "gridVisibility" or k == "showBlockingRect" or k == "backgroundColor" then
 			cnvobj.viewOptions[k] = v
 		elseif k == "usecrouter" then
 			cnvobj.options[k] = v

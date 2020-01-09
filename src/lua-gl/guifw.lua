@@ -9,6 +9,7 @@ require("iupluacd")
 local iup = iup 
 local cd = cd
 local math = math
+local type = type
 
 local RECT = require("lua-gl.rectangle")
 local LINE = require("lua-gl.line")
@@ -51,6 +52,19 @@ M.CAPROUND = cd.CAPROUND
 -- Back Opacity
 M.OPAQUE = cd.OPAQUE
 M.TRANSPARENT = cd.TRANSPARENT
+-- Fill style
+M.SOLID = cd.SOLID
+M.HOLLOW = cd.HOLLOW
+M.STIPPLE = cd.STIPPLE
+M.HATCH = cd.HATCH
+M.PATTERN = cd.PATTERN
+-- Hatch styles
+M.HORIZONTAL = cd.HORIZONTAL
+M.VERTICAL = cd.VERTICAL
+M.FDIAGONAL = cd.FDIAGNOL
+M.BDIAGONAL = cd.BDIAGNOL
+M.CROSS = cd.CROSS
+M.DIAGCROSS = cd.DIAGCROSS
 
 function mapCB(cnvobj)
 	--local cd_Canvas = cd.CreateCanvas(cd.IUP, cnvobj.cnv)
@@ -98,7 +112,7 @@ There are 5 types of items for which attributes need to be set:
 * Line Join style(join) - should be one of the constants M.MITER, M.BEVEL, M.ROUND
 * Line Cap style (cap) - should be one of the constants M.CAPFLAT, M.CAPROUND, M.CAPSQUARE
 ]]
-function setNonFilledObjAttr(attr)
+function getNonFilledObjAttrFunc(attr)
 	local color = cd.EncodeColor(attr.color[1],attr.color[2],attr.color[3])
 	local style = attr.style
 	local width = attr.width
@@ -141,15 +155,81 @@ end
 -- Function to return closure for setting attributes for non filled objects
 --[[
 The attributes to be set are:
-* Border Color(bcolor)	(OPTIONAL) - Table with RGB e.g. {127,230,111} If not given then it defaults to Fill color
-* Fill Color(fcolor)	- Table with RGB e.g. {127,230,111}
+* Fill Color(color)	- Table with RGB e.g. {127,230,111}
 * Background Opacity (bopa) - One of the constants M.OPAQUE, M.TRANSPARENT	
 * Fill interior style (style) - One of the constants M.SOLID, M.HOLLOW, M.STIPPLE, M.HATCH, M.PATTERN
 * Hatch style (hatch) (OPTIONAL) - Needed if style == M.HATCH. Must be one of the constants M.HORIZONTAL, M.VERTICAL, M.FDIAGONAL, M.BDIAGONAL, M.CROSS or M.DIAGCROSS
 * Stipple style (stipple) (OPTIONAL) - Needed if style = M.STIPPLE. Should be a  wxh matrix of zeros (0) and ones (1). The zeros are mapped to the background color or are transparent, according to the background opacity attribute. The ones are mapped to the foreground color.
 * Pattern style (pattern) (OPTIONAL) - Needed if style = M.PATTERN. Should be a wxh color matrix of tables with RGB numbers`
 ]]
-function setFilledObjAttr(attr)
+function getFilledObjAttrFunc(attr)
+	local color = cd.EncodeColor(attr.color[1],attr.color[2],attr.color[3])
+	local bopa = attr.bopa
+	local style = attr.style
+	local hatch = attr.hatch
+	local r,c
+	if attr.style == M.STIPPLE then
+		r,c = #attr.stipple,#attr.stipple[1]
+		local stipple = cd.CreateStipple(r,c)
+		for i = 0,r do
+			for j = 0,c do
+				stipple[i*c+j] = attr.stipple[i+1][j+1]
+			end
+		end
+	end
+	
+	if attr.style == M.PATTERN then
+		r,c = #attr.pattern,#attr.pattern[1]
+		local pattern = cd.CreatePattern(r,c)
+		for i = 0,r do
+			for j = 0,c do
+				pattern[i*c+j] = cd.EncodeColor(attr.pattern[i+1][j+1][1],attr.pattern[i+1][j+1][2],attr.pattern[i+1][j+1][3])
+			end
+		end
+	end
+	
+	local function foaSOHO(canvas)
+		-- Set the foreground color
+		canvas:SetForeground(color)
+		-- Set the background opacity
+		canvas:BackOpacity(bopa)
+		-- Set interior style
+		canvas:InteriorStyle(style)		
+	end
+	local function foaST(canvas)
+		-- Set the foreground color
+		canvas:SetForeground(color)		
+		-- Set the background opacity
+		canvas:BackOpacity(bopa)
+		-- Set the stipple
+		canvas:Stipple(stipple)		
+	end
+	local function foaHA(canvas)
+		-- Set the foreground color
+		canvas:SetForeground(color)		
+		-- Set the background opacity
+		canvas:BackOpacity(bopa)
+		-- Set the hatch style
+		canvas:Hatch(hatch)
+	end
+	local function foaPA(canvas)
+		-- Set the foreground color
+		canvas:SetForeground(color)		
+		-- Set the background opacity
+		canvas:BackOpacity(bopa)
+		-- Set the pattern style
+		canvas:Hatch(pattern)
+	end
+	
+	if style == M.PATTERN then
+		return foaPA
+	elseif style == M.STIPPLE then
+		return foaST
+	elseif style == M.HATCH then
+		return foaHA
+	else
+		return foaSOHO
+	end
 	
 end
 
@@ -198,9 +278,12 @@ function  render(cnvobj)
 	local canvas = cnvobj.cnv
 	local cd_bcanvas = cnvobj.cdbCanvas
 	local canvas_width, canvas_height = cnvobj.width, cnvobj.height
+	local vOptions = cnvobj.viewOptions
+	local attr = cnvobj.attributes
+	local bColor = vOptions.backgroundColor
 
 	cd_bcanvas:Activate()
-	cd_bcanvas:Background(cd.EncodeColor(255, 255, 255))
+	cd_bcanvas:Background(cd.EncodeColor(bColor[1], bColor[2], bColor[3]))
 	cd_bcanvas:Clear()
 
 	if cnvobj.viewOptions.gridVisibility then

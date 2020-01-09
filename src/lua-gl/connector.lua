@@ -10,9 +10,11 @@ local pairs = pairs
 local tostring = tostring
 local iup = iup
 
+local utility = require("lua-gl.utility")
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
 local router = require("lua-gl.router")
+local GUIFW = require("lua-gl.guifw")
 
 -- Only for debug
 local print = print
@@ -36,6 +38,7 @@ end
 			start_y = <integer>,		-- starting coordinate y of the segment
 			end_x = <integer>,			-- ending coordinate x of the segment
 			end_y = <integer>			-- ending coordinate y of the segment
+			vattr = <table>				-- (OPTIONAL) table containing the object visual attributes. If not present object drawn with default drawing settings
 		}
 	},
 	port = {		-- Array of port structures to which this connector is connected to. Needed back info to merge or delete connectors
@@ -46,7 +49,8 @@ end
 			x = <integer>,		-- X coordinate of the junction
 			y = <integer>		-- Y coordinate of the junction
 		},
-	}
+	},
+	vattr = <table>				-- (OPTIONAL) table containing the object visual attributes. If not present object drawn with default drawing settings
 }
 ]]
 -- The connector structure is located in the array cnvobj.drawn.conn
@@ -112,6 +116,37 @@ getConnFromXY = function(cnvobj,x,y,res)
 	end
 	return allConns, segInfo
 end
+
+function setConnVisualAttr(cnvobj,conn,attr)
+	local res,filled = utility.validateVisualAttr(attr)
+	if not res then
+		return res,filled
+	end
+	-- attr is valid now associate it with the object
+	conn.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
+	-- Set the attributes function in the visual properties table
+	if filled then
+		cnvobj.attributes.visualAttr[conn] = GUIFW.getFilledObjAttrFunc(attr)
+	else
+		cnvobj.attributes.visualAttr[conn] = GUIFW.getNonFilledObjAttrFunc(attr)
+	end
+end
+
+function setSegVisualAttr(cnvobj,seg,attr)
+	local res,filled = utility.validateVisualAttr(attr)
+	if not res then
+		return res,filled
+	end
+	-- attr is valid now associate it with the object
+	seg.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
+	-- Set the attributes function in the visual properties table
+	if filled then
+		cnvobj.properties.visualAttr[seg] = GUIFW.getFilledObjAttrFunc(attr)
+	else
+		cnvobj.properties.visualAttr[seg] = GUIFW.getNonFilledObjAttrFunc(attr)
+	end
+end
+
 
 local function equalCoordinate(v1,v2)
 	return v1.x == v2.x and v1.y == v2.y
