@@ -290,7 +290,7 @@ function  render(cnvobj)
 			--cd_bcanvas:SetForeground(cd.EncodeColor(0, 162, 232))
 			-- Run the visual attributes
 			shape = attr.visualAttr[item] or M[item.shape]	-- validity is not checked for the registered shape structure
-			if vAttr ~= shape.vAttr then
+			if vAttr = 100 or vAttr ~= shape.vAttr then
 				vAttr = shape.vAttr
 				shape.visualAttr(cd_bcanvas)
 			end
@@ -305,7 +305,7 @@ function  render(cnvobj)
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
 			shape = attr.visualAttr[item] or M.CONN
-			if vAttr ~= shape.vAttr then
+			if vAttr = 100 or vAttr ~= shape.vAttr then
 				vAttr = shape.vAttr
 				shape.visualAttr(cd_bcanvas)
 			end
@@ -313,7 +313,7 @@ function  render(cnvobj)
 			for j = 1,#segs do
 				s = segs[j]
 				shape = attr.visualAttr[s] or M.CONN
-				if vAttr ~= shape.vAttr then
+				if vAttr = 100 or vAttr ~= shape.vAttr then
 					vAttr = shape.vAttr
 					shape.visualAttr(cd_bcanvas)
 				end
