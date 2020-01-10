@@ -35,8 +35,13 @@ end
 function init(cnvobj)
 	GUIFW.LINE = {
 		draw = draw,
-		visualAttr = cnvobj.attributes.defaultVisualAttr[1],	-- non filled object
+		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
 		vAttr = 1
+	}
+	GUIFW.CONN = {
+		draw = draw,
+		visualAttr = cnvobj.attributes.visualAttrBank[4],	-- normal connector
+		vAttr = 4				
 	}
 	-- Register checkXY function
 	OBJ.LINE = {

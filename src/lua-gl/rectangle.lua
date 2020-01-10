@@ -59,17 +59,17 @@ end
 function init(cnvobj)
 	GUIFW.RECT = {
 		draw = drawhollow,
-		visualAttr = cnvobj.attributes.defaultVisualAttr[1],	-- non filled object
+		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
 		vAttr = 1
 	}
 	GUIFW.BLOCKINGRECT = {
 		draw = drawblockingrectangle,
-		visualAttr = cnvobj.attributes.defaultVisualAttr[2],	-- blocking rectangle
+		visualAttr = cnvobj.attributes.visualAttrBank[2],	-- blocking rectangle
 		vAttr = 2
 	}
 	GUIFW.FILLEDRECT = {
 		draw = drawfilled,
-		visualAttr = cnvobj.attributes.defaultVisualAttr[3],	-- filled object
+		visualAttr = cnvobj.attributes.visualAttrBank[3],	-- filled object
 		vAttr = 3
 	}
 	OBJ.RECT = {

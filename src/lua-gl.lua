@@ -51,17 +51,8 @@ _VERSION = "B19.12.30"
 DEBUG:
 
 TASKS:
-
-	-- So attributes need only be changed if the item changes or the new item has special attributes. Create a dirty flag which can have the above values and another value 6 corresponding to special attribute.
-
-	-- Junction drawing should be the same foreground color as connector. Junction shape and dx,dy should be set in view options. Set radius to 0 to not draw anything on the junction. JUnction shape can be rectangle or ellipse. the coordinates for the shape from center will be x-dx,y-dx to x+dx,y+dx
-	
-* Added Erase button to demo application
-* Implement generate segment modes: (Generate segment needs to return point uptill last routed)
-	* Mode 0 - Fully Manual. A single segment is made from source to destination irrespective of routing matrix
-	* Mode 1 - Fully Manual orthogonal. Segments can only be vertical or horizontal. From source to destination whichever is longer of the 2 would be returned
-	* Mode 2 - Manual orthogonal with routing matrix guidance?
-	* Mode 9 - Auto-routing with BFS algorithm.
+* Review code to make sure object, connector and segment vattr tables are not lost
+* Add Erase button to demo application
 * Fix drag segment to take care of case when connected segments of the same connector are being dragged
 * Finish loading of saved structure.
 * Finish moveSegment
@@ -69,6 +60,7 @@ TASKS:
 * Finish removeConn
 * Finish removeObj
 * Finish removePort
+* Add rotate functionality
 * Add Text functionality
 * Add arc functionality
 * Canvas scroll, zoom, pan and coordinate translation
@@ -260,6 +252,7 @@ objFuncs = {
 			cIndex = nil,	-- index of the connector in cnvobj.drawn.conn which is being drawn
 			startseg = nil,	-- index of the segment in the connector from which the segments need to be auto routed
 			start = nil,	-- Table containing the X and Y coordinates marking the reference start coordinates
+			fin = nil,		-- Table containing the X and Y coordinates marking the point up till where the segments have been generated
 			-- DRAGSEG
 			segList = nil,	-- list of segments in a structure described in the dragSegment functon documentation
 			coor1 = nil,	-- Initial starting coordinate of the 1st segement in the segList array to serve as reference of the total movement
@@ -319,10 +312,21 @@ objFuncs = {
 					- Filled object			(3)
 					- Normal Connector		(4)
 					- Jumping Connector		(5)		
+			--Junction drawing should be the same foreground color as connector. Junction shape and dx,dy should be set in view options. Set dx or dy to 0 to not draw anything on the junction. JUnction shape can be rectangle or ellipse. the coordinates for the shape from center will be x-dx,y-dx to x+dx,y+dx
+			junction = {
+				dx = <integer>,
+				dy = <integer>,			
+				shape = <string>		-- string containing one of the registered shapes
+			}
 		}
 		]]
 		cnvobj.viewOptions.gridMode = cnvobj.viewOptions.gridMode or 1
 		cnvobj.viewOptions.backgroundColor = cnvobj.viewOptions.backgroundColor or {255,255,255}
+		cnvobj.viewOptions.junction = cnvobj.viewOptions.junction or {
+				dx = 3,
+				dy = 3,
+				shape = "ELLIPSE"
+			}
 		-- Visual properties
 		local vProp = {
 			{	-- For Non Filled object
@@ -375,8 +379,8 @@ objFuncs = {
 		}
 		]]
 		cnvobj.attributes = {
-			visualAttr = setmetatable({},{__mode="k"}),	-- attr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {<integer>,<function>}. The integer points to a defaultVisualAttr index. This allows registering of new visual attributes in the defaultVisualAttr table defined below and helps optimize the render function by not executing same attributes
-			defaultVisualAttr = {
+			visualAttr = setmetatable({},{__mode="k"}),	-- attr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {<integer>,<function>}. The integer points to a visualAttrBank index. This allows registering of new visual attributes in the visualAttrBank table defined below and helps optimize the render function by not executing same attributes
+			visualAttrBank = {
 				GUIFW.getNonFilledObjAttrFunc(vProp[1]),	-- For Non Filled object
 				GUIFW.getNonFilledObjAttrFunc(vProp[2]),	-- For blocking rectangle
 				GUIFW.getFilledObjAttrFunc(vProp[3]),		-- For filled object
@@ -422,14 +426,14 @@ objFuncs = {
 			end
 			cnvobj.viewOptions.visualProp[itemType] = attr
 			if filled then
-				cnvobj.attributes.defaultVisualAttr[itemType] = GUIFW.getFilledObjAttrFunc(attr)
+				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getFilledObjAttrFunc(attr)
 			else
-				cnvobj.attributes.defaultVisualAttr[itemType] = GUIFW.getNonFilledObjAttrFunc(attr)
+				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getNonFilledObjAttrFunc(attr)
 			end
 			if itemType == 4 then
 				-- Register the new default in the GUIFW
 				GUIFW.CONN = {
-					visualAttr = cnvobj.attributes.defaultVisualAttr[4],	-- normal connector
+					visualAttr = cnvobj.attributes.visualAttrBank[4],	-- normal connector
 					vAttr = 4				
 				}
 			end
@@ -576,8 +580,17 @@ new = function(para)
 	}		-- The lua-gl object
 	
 	cnvobj.options.__OPTDATA = {
+--[[ ROUTING ALGORITHMS:
+	* Mode 0 - Fully Manual. A single segment is made from source to destination irrespective of routing matrix
+	* Mode 1 - Fully Manual orthogonal. Segments can only be vertical or horizontal. From source to destination whichever is longer of the 2 would be returned
+	* Mode 2 - Manual orthogonal with routing matrix guidance?
+	* Mode 9 - Auto-routing with BFS algorithm.
+]]
 		router = {
-			[9] = router.BFS
+			[0] = router.noRoute,
+			[1] = router.orthoRoute,
+			[2] = router.orthoRouteRM,
+			[9] = router.BFS	-- Default is the Lua implementation of the BFS algorithm for routing
 		}
 	}	-- table to store the actual options. This in effect is the data for the options table. This can be modified directly but the relation action or effect of setting the option may not happen
 	setmetatable(cnvobj.options,optMeta)
@@ -613,11 +626,6 @@ new = function(para)
 	RECT.init(cnvobj)
 	LINE.init(cnvobj)
 	ELLIPSE.init(cnvobj)
-	-- Register the default visual attribute for the connector in the GUIFW module - Connector drawing does not have its own separate module and is handled inside the render loop iteself so its registration is done here directly.
-	GUIFW.CONN = {
-		visualAttr = cnvobj.attributes.defaultVisualAttr[4],	-- normal connector
-		vAttr = 4				
-	}
 	
 	return cnvobj
 end

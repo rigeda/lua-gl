@@ -265,7 +265,11 @@ function  render(cnvobj)
 	local canvas = cnvobj.cnv
 	local cd_bcanvas = cnvobj.cdbCanvas
 	local attr = cnvobj.attributes
-	local bColor = cnvobj.viewOptions.backgroundColor
+	local vOptions = cnvobj.viewOptions
+	local jdx = vOptions.junction.dx
+	local jdy = vOptions.junction.dy
+	local jshape = vOptions.junction.shape
+	local bColor = vOptions.backgroundColor
 	local bColore = cd.EncodeColor(bColor[1], bColor[2], bColor[3])
 
 	cd_bcanvas:Activate()
@@ -277,11 +281,12 @@ function  render(cnvobj)
 	end
 	-- Now loop through the order array to draw every element in order
 	local vAttr = 100		-- Special case number which forces the run of the next visual attributes run
-	local shape
+	local shape,cshape
 	local order = cnvobj.drawn.order
 	local x1,y1,x2,y2
 	local item
 	local segs
+	local juncs
 	local s
 	for i = 1,#order do
 		item = order[i].item
@@ -290,7 +295,7 @@ function  render(cnvobj)
 			--cd_bcanvas:SetForeground(cd.EncodeColor(0, 162, 232))
 			-- Run the visual attributes
 			shape = attr.visualAttr[item] or M[item.shape]	-- validity is not checked for the registered shape structure
-			if vAttr = 100 or vAttr ~= shape.vAttr then
+			if vAttr == 100 or vAttr ~= shape.vAttr then
 				vAttr = shape.vAttr
 				shape.visualAttr(cd_bcanvas)
 			end
@@ -300,20 +305,20 @@ function  render(cnvobj)
 			y1 = cnvobj.height - y1
 			y2 = cnvobj.height - y2
 			
-			shape.draw(cnvobj,cd_bcanvas,item.shape,x1,y1,x2,y2)
+			M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,x1,y1,x2,y2)
 		else
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
-			shape = attr.visualAttr[item] or M.CONN
-			if vAttr = 100 or vAttr ~= shape.vAttr then
-				vAttr = shape.vAttr
-				shape.visualAttr(cd_bcanvas)
+			cshape = attr.visualAttr[item] or M.CONN
+			if vAttr == 100 or vAttr ~= cshape.vAttr then
+				vAttr = cshape.vAttr
+				cshape.visualAttr(cd_bcanvas)
 			end
 			segs = item.segments
 			for j = 1,#segs do
 				s = segs[j]
 				shape = attr.visualAttr[s] or M.CONN
-				if vAttr = 100 or vAttr ~= shape.vAttr then
+				if vAttr == 100 or vAttr ~= shape.vAttr then
 					vAttr = shape.vAttr
 					shape.visualAttr(cd_bcanvas)
 				end
@@ -322,7 +327,22 @@ function  render(cnvobj)
 				--y2 = cnv:InvertYAxis(y2)
 				y1 = cnvobj.height - y1
 				y2 = cnvobj.height - y2
-				M.LINE.draw(cnvobj,cd_bcanvas,"CONNECTOR",x1,y1,x2,y2)
+				M.CONN.draw(cnvobj,cd_bcanvas,"CONNECTOR",x1,y1,x2,y2)
+			end
+			-- Draw the junctions
+			if jdx~=0 and jdy~=0 then
+				if vAttr == 100 or vAttr ~= cshape.vAttr then
+					vAttr = cshape.vAttr
+					cshape.visualAttr(cd_bcanvas)
+				end
+				cd_bcanvas:InteriorStyle(M.SOLID)	-- This doesn't effect the current vAttr because connector attribute is for non filled object		
+				juncs = item.junction
+				for j = 1,#juncs do
+					x1,y1,x2,y2 = juncs[j].x-jdx,juncs[j].y-jdy,juncs[j].x+jdx,juncs[j].y+jdy
+					y1 = cnvobj.height - y1
+					y2 = cnvobj.height - y2
+					M.FILLEDELLIPSE.draw(cnvobj,cd_bcanvas,"JUNCTION",x1,y1,x2,y2)
+				end
 			end
 		end
 	end

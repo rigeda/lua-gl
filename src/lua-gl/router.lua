@@ -8,17 +8,10 @@ local min = math.min
 local max = math.max
 local abs = math.abs
 local floor = math.floor
+local rep = string.rep
 
 local tu = require("tableUtils")
 local coorc = require("lua-gl.CoordinateCalc")
-
-local crouter 
-do
-	local ret,msg = pcall(require,"luaglib.crouter")
-	if ret then
-		crouter = msg
-	end
-end
 
 local print = print
 
@@ -224,6 +217,93 @@ function newRoutingMatrix(cnvobj)
 	return rm
 end
 
+-- Routing functions for different modes
+-- Fully Manual. A single segment is made from source to destination irrespective of routing matrix
+-- use noRoute function below with jumpSeg=2 in generateSegments
+function noRoute()
+	return ""
+end
+
+-- Fully Manual orthogonal. Segments can only be vertical or horizontal. From source to destination whichever is longer of the 2 would be returned
+-- FOr the above use this function with jumpSegs = nil
+function orthoRoute(rM,srcX,srcY,destX,destY,stepX,stepY)
+	if abs(srcX-destX) > abs(srcY-destY) then
+		-- Create a horizontal path
+		if srcX > destX then
+			return rep("L",(srcX-destX)/stepX)
+		else
+			return rep("R",(destX-srcX)/stepX)
+		end
+	else
+		-- Create a vertical path
+		if srcY > destY then
+			return rep("D",(srcY-destY)/stepY)
+		else
+			return rep("U",(destY-srcY)/stepY)
+		end
+	end
+end
+
+-- Manual orthogonal with routing matrix guidance?
+function orthoRouteRM(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
+	local xmul,ymul,cX,cY
+	if srcX > destX then
+		xmul = 1
+		cX = "L"
+	else
+		xmul = -1
+		cX = "R"
+	end
+	if srcY > destY then
+		ymul = 1
+		cY = "D"
+	else
+		ymul = -1
+		cY = "U"
+	end
+	local function doX(x1,y1,x2,y2)
+		while not rm:validStep(x1,y1,x2,y2,destX,destY) do
+			x2 = x2 + xmul*stepX
+			if xmul*x2 >= xmul*srcX then
+				break
+			end
+		end
+		if xmul*x2 > xmul*srcX then 
+			return nil
+		end
+		return rep(cX,abs(x1-x2)/stepX)		
+	end
+	local function doY(x1,y1,x2,y2)
+		while not rm:validStep(x1,y1,x2,y2,destX,destY) do
+			y2 = y2 + ymul*stepY
+			if ymul*y2 >= ymul*srcY then
+				break
+			end
+		end
+		if ymul*y2 > ymul*srcY then 
+			return nil
+		end
+		return rep(cY,abs(y1-y2)/stepY)		
+	end
+	if abs(srcX-destX) > abs(srcY-destY) then
+		-- Create a horizontal path
+		local ret = doX(srcX,srcY,destX,destY)
+		if not ret then
+			return doY(srcX,srcY,destX,destY) or ""
+		else
+			return ret
+		end
+	else
+		-- Create a vertical path
+		local ret = doY(srcX,srcY,destX,destY)
+		if not ret then
+			return doX(srcX,srcY,destX,destY) or ""
+		else
+			return ret
+		end
+	end	
+end
+
 -- BFS algorithm implementation for routing connector
 -- function to find the shortest path and string between 
 -- a given source cell to a destination cell. 
@@ -308,7 +388,12 @@ end
 -- Function to generate connector segment coordinates given the starting X, Y and the ending x,y coordinates
 -- The new segments are added to the end of the segments array passed to it
 -- router is a auto-routing function to be used for routing the connector
-function generateSegments(cnvobj, X,Y,x, y,segments,router)
+-- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+-- 	= 2 generate jumping segment but don't set any special attribute
+--  = false or nil then do not generate jumping segment
+-- Function returns the x,y coordinates up to which the segments were generated
+function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
 	print("GENERATE SEGMENTS",X,Y,x,y)
 	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
@@ -375,15 +460,20 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router)
 		rM:addSegment(t,t.start_x,t.start_y,t.end_x,t.end_y)
 		i = st
     end
-	if reX ~= destX or reY ~= destY then
+	if jumpSeg and reX ~= destX or reY ~= destY then
 		-- Add a segment for the last jump, this is a jumping connector
-		segments[#segments + 1] = {
+		local s = {
 			start_x = reX,
 			start_y = reY,
 			end_x = destX,
 			end_y = destY
 		}
+		segments[#segments + 1] = s
+		reX = destX
+		reY = destY
+		-- Set the attribute for the jumping segment
+		cnvobj.attributes.visualAttr[s] = jumpSeg == 1 and {vAttr = 5,visualAttr = cnvobj.attributes.visualAttrBank[5]}	-- The default jumping connector attribute
 	end
 	print("FINISH GENSEGS")
-	return true
+	return reX,reY
 end

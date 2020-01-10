@@ -1220,7 +1220,16 @@ end
 }
 ]]
 -- If offx and offy are given numbers then this will be a non interactive move
-dragSegment = function(cnvobj,segList,offx,offy)
+-- dragRouter is the routing function to be using during dragging	-- only used if offx and offy are not given since then it will be interactive - default is cnvobj.options[0]
+-- finalRouter is the routing function to be used after the drag has ended to finally route all the connectors - default is cnvobj.options.router[9]
+-- jsFinal = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (finalRouter) after drag has ended, default = 1
+-- jsDrag = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (dragRouter) durin drag operation, default = 1
+-- jumpSeg parameter documentation says:
+-- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+-- 	= 2 generate jumping segment but don't set any special attribute
+--  = false or nil then do not generate jumping segment
+dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -1251,14 +1260,14 @@ dragSegment = function(cnvobj,segList,offx,offy)
 			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
 			-- route connector from previous end_x,end_y to the new end_x,end_y
 			local newSegs = {}
-			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs,cnvobj.options.router[9]) -- generateSegments updates routing matrix
+			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs,cnvobj.options.router[9],1) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
 			-- Add these segments after this current segment
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg+1,newSegs[j])
 			end
 			-- route connector from previous start_x,start_y to the new start_x,start_y
 			newSegs = {}
-			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs,cnvobj.options.router[9])	 -- generateSegments updates routing matrix
+			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs,cnvobj.options.router[9],1)	 -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg,newSegs[j])
 			end
@@ -1386,7 +1395,16 @@ end
 
 -- Function to draw a connector on the canvas
 -- if segs is a table of segment coordinates then this will be a non interactive draw
-drawConnector  = function(cnvobj,segs)
+-- dragRouter is the routing function to be using during dragging	-- only used if offx and offy are not given since then it will be interactive - default is cnvobj.options[9]
+-- finalRouter is the routing function to be used after the drag has ended to finally route all the connectors - default is cnvobj.options.router[9]
+-- jsFinal = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (finalRouter) after drag has ended, default = 1
+-- jsDrag = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (dragRouter) durin drag operation, default = 1
+-- jumpSeg parameter documentation says:
+-- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+-- 	= 2 generate jumping segment but don't set any special attribute
+--  = false or nil then do not generate jumping segment
+drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -1507,7 +1525,7 @@ drawConnector  = function(cnvobj,segs)
 		
 	local function setWaypoint(x,y)
 		cnvobj.op.startseg = #cnvobj.drawn.conn[#cnvobj.drawn.conn].segments+1
-		cnvobj.op.start = {x=x,y=y}
+		cnvobj.op.start = {x=cnvobj.op.fin.x,y=cnvobj.op.fin.y}
 	end
 	
 	local function endConnector()
@@ -1541,6 +1559,7 @@ drawConnector  = function(cnvobj,segs)
 		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1		-- Storing this connector in a new connector structure. Will merge it with other connectors if required in endConnector
 		cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
 		cnvobj.op.start = {x=X,y=Y}	-- snapping is done in generateSegments
+		cnvobj.op.fin = {x=X,y=Y}	-- To store the coordinates till where the connector is currently routed
 		cnvobj.op.finish = endConnector
 		--cnvobj.op.splitseg may also be set in the above loop
 		--cnvobj.op.startseg is set
@@ -1571,7 +1590,8 @@ drawConnector  = function(cnvobj,segs)
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,xo,yo,status})
 	end
 	
-	local routeFunc = cnvobj.options.router[9]
+	dragRouter = dragRouter or cnvobj.options.router[9]
+	jsDrag = jsDrag or 1
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--connectors
@@ -1607,7 +1627,7 @@ drawConnector  = function(cnvobj,segs)
 			end
 			print("DONE")
 			print("GENERATE SEGMENTS")
-			router.generateSegments(cnvobj, startX,startY,x, y,connector.segments,routeFunc)
+			cnvobj.op.fin.x,cnvobj.op.fin.y = router.generateSegments(cnvobj, startX,startY,x, y,connector.segments,dragRouter,jsDrag)
 			cnvobj:refresh()
 		end			
 	end

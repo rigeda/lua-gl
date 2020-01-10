@@ -559,7 +559,16 @@ end	-- end drawObj function
 -- Function to drag objects (dragging implies connector connections are maintained)
 -- objList is a list of object structures of the objects to be dragged
 -- if offx is not a number or not given then the move is done interactively
-dragObj = function(cnvobj,objList,offx,offy)
+-- dragRouter is the routing function to be using during dragging	-- only used if offx and offy are not given since then it will be interactive - default is cnvobj.options[0]
+-- finalRouter is the routing function to be used after the drag has ended to finally route all the connectors - default is cnvobj.options.router[9]
+-- jsFinal = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (finalRouter) after drag has ended, default = 1
+-- jsDrag = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (dragRouter) durin drag operation, default = 1
+-- jumpSeg parameter documentation says:
+-- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+-- 	= 2 generate jumping segment but don't set any special attribute
+--  = false or nil then do not generate jumping segment
+dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFinal)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -712,8 +721,32 @@ dragObj = function(cnvobj,objList,offx,offy)
 	end
 	-- Update the order number for all items 
 	fixOrder(cnvobj)
+	
+	local function regenConn(rtr,js)
+		-- Now redo the connectors
+		for i = 1,#grp do
+			local portT = grp[i].port
+			for j = 1,#portT do
+				local conn = portT[j].conn
+				for k = 1,#conn do
+					local segStart = connSrc[conn[k].id].segStart
+					for l = #conn[k].segments,segStart,-1 do
+						rm:removeSegment(conn[k].segments[l])
+						table.remove(conn[k].segments,l)
+					end
+					-- Regenerate the connector segments here
+					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,rtr,js)
+				end
+			end
+		end		
+	end
+	
+	finalRouter = finalRouter or cnvobj.options.router[9]
+	jsFinal = jsFinal or 1
 	local function dragEnd()
 		-- End the drag at this point
+		-- Regenerate the connectors
+		regenConn(finalRouter,jsFinal)
 		-- Reset the orders back
 		for i = 1,#grp do
 			local item = cnvobj.drawn.order[grp[i].order]
@@ -742,6 +775,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 		PORTS.connectOverlapPorts(cnvobj,allPorts)
 		-- Reset mode
+		cnvobj:refresh()
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 	end
@@ -767,8 +801,9 @@ dragObj = function(cnvobj,objList,offx,offy)
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})
 	end
 	
-	local routeFunc = cnvobj.options.router[9]
-
+	dragRouter = dragRouter or cnvobj.options.router[0]
+	jsDrag = jsDrag or 2
+	
 	-- motion_cb to handle object dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
@@ -778,21 +813,7 @@ dragObj = function(cnvobj,objList,offx,offy)
 		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
 		-- Now redo the connectors
-		for i = 1,#grp do
-			local portT = grp[i].port
-			for j = 1,#portT do
-				local conn = portT[j].conn
-				for k = 1,#conn do
-					local segStart = connSrc[conn[k].id].segStart
-					for l = #conn[k].segments,segStart,-1 do
-						rm:removeSegment(conn[k].segments[l])
-						table.remove(conn[k].segments,l)
-					end
-					-- Regenerate the connector segments here
-					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,routeFunc)
-				end
-			end
-		end
+		regenConn(dragRouter,jsDrag)
 		cnvobj:refresh()
 	end
 	return true
