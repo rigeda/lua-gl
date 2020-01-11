@@ -237,9 +237,9 @@ function orthoRoute(rM,srcX,srcY,destX,destY,stepX,stepY)
 	else
 		-- Create a vertical path
 		if srcY > destY then
-			return rep("D",(srcY-destY)/stepY)
+			return rep("U",(srcY-destY)/stepY)
 		else
-			return rep("U",(destY-srcY)/stepY)
+			return rep("D",(destY-srcY)/stepY)
 		end
 	end
 end
@@ -256,13 +256,13 @@ function orthoRouteRM(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 	end
 	if srcY > destY then
 		ymul = 1
-		cY = "D"
+		cY = "U"
 	else
 		ymul = -1
-		cY = "U"
+		cY = "D"
 	end
 	local function doX(x1,y1,x2,y2)
-		while not rm:validStep(x1,y1,x2,y2,destX,destY) do
+		while not rM:validStep(x1,y1,x2,y2,destX,destY) do
 			x2 = x2 + xmul*stepX
 			if xmul*x2 >= xmul*srcX then
 				break
@@ -274,7 +274,7 @@ function orthoRouteRM(rM,srcX,srcY,destX,destY,stepX,stepY,minX,minY,maxX,maxY)
 		return rep(cX,abs(x1-x2)/stepX)		
 	end
 	local function doY(x1,y1,x2,y2)
-		while not rm:validStep(x1,y1,x2,y2,destX,destY) do
+		while not rM:validStep(x1,y1,x2,y2,destX,destY) do
 			y2 = y2 + ymul*stepY
 			if ymul*y2 >= ymul*srcY then
 				break
@@ -391,10 +391,10 @@ end
 -- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
 --	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
 -- 	= 2 generate jumping segment but don't set any special attribute
---  = false or nil then do not generate jumping segment
+--  = 0 then do not generate jumping segment
 -- Function returns the x,y coordinates up to which the segments were generated
 function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
-	print("GENERATE SEGMENTS",X,Y,x,y)
+	print("GENERATE SEGMENTS",X,Y,x,y,"jumpSeg="..jumpSeg,jumpSeg>0)
 	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
 	local maxX = cnvobj.size and floor(cnvobj.size.width/2)
@@ -455,13 +455,15 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
 		reY = t.start_y + grdy* (st-i)*ystep[c]
 		t.end_y = reY
 		segments[#segments + 1] = t
+		print("Generated Segment")
 		-- Add the segment to routing matrix with t as the key
 		--print("Add segment",t.start_x,t.start_y,t.end_x,t.end_y)
 		rM:addSegment(t,t.start_x,t.start_y,t.end_x,t.end_y)
 		i = st
     end
-	if jumpSeg and reX ~= destX or reY ~= destY then
+	if jumpSeg>0 and (reX ~= destX or reY ~= destY) then
 		-- Add a segment for the last jump, this is a jumping connector
+		print("Generate jumpSeg")
 		local s = {
 			start_x = reX,
 			start_y = reY,

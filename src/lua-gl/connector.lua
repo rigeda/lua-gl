@@ -644,6 +644,10 @@ local function repairSegAndJunc(cnvobj,conn)
 					rm:addSegment(newSegs[k],newSegs[k].start_x,newSegs[k].start_y,newSegs[k].end_x,newSegs[k].end_y)
 					table.insert(segs,pos,newSegs[k])
 				end
+				-- Update the dangling nodes
+				s,e = findDangling(cnvobj,segs,true)	-- find dangling with port check enabled
+				x1,y1,x2,y2 = segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y
+				adang,bdang = s[i],e[i]
 				j = 0	-- Reset j to run with all segments again
 				overlap = nil
 			end
@@ -653,6 +657,8 @@ local function repairSegAndJunc(cnvobj,conn)
 	end		-- for i = 1,#segs do ends
 	-- Now all merging of the overlaps is done
 	-- Now check if any segment needs to split up
+	-- The loop below handles the case then 2 segments touch but not of the same equation
+	-- So they don't overlap. For example 2 segments making a T. The top of the T would need to split into 2 segments, i.e. a T should be always made of 3 segments and a junction
 	local donecoor = {}		-- Store coordinates of the end points of all the segments and also indicate how many segments connect there
 	for i = 1,#segs do
 		-- Do the starting coordinate
@@ -978,6 +984,8 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 				i = 0		-- segment index that will be traversed
 			}			
 		end
+		endPoints[segPath[1].x] = {}
+		endPoints[segPath[1].x][segPath[1].y] = 1
 		if #cnvobj:getPortFromXY(segPath[1].x,segPath[1].y) == 0 then	 -- If there is a port here then path ends here for this segment
 			segPath[1].segs = findSegs(segs,segPath[1].x,segPath[1].y,segsDone[j])	-- get all segments connected at this step
 		else
@@ -1403,7 +1411,7 @@ end
 -- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
 --	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
 -- 	= 2 generate jumping segment but don't set any special attribute
---  = false or nil then do not generate jumping segment
+--  = 0 then do not generate jumping segment
 drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"

@@ -44,7 +44,15 @@ GUI.toolbar.buttons = {
 	groupButton = iup.button{image=GUI.images.group,tip="Group Objects"},
 	portButton = iup.button{image=GUI.images.port,tip="Add Port"},
 	refreshButton = iup.button{image="IUP_NavigateRefresh",tip="Refresh Screen"},
-	connButton = iup.button{image=GUI.images.connector,tip="Draw connector"}
+	connButton = iup.button{image=GUI.images.connector,tip="Draw connector"},
+	connModeList = iup.list{
+		["1"] = "Manual",
+		["2"] = "Manual Orthogonal",
+		["3"] = "Guided Orthogonal",
+		["4"] = "Auto Router";
+		DROPDOWN = "YES",
+		VALUE = 1
+	}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -55,6 +63,7 @@ GUI.toolbar.top = iup.hbox{
 	GUI.toolbar.buttons.xygrid,
 	GUI.toolbar.buttons.showBlockingRect,
 	GUI.toolbar.buttons.refreshButton,
+	GUI.toolbar.buttons.connModeList,
 	iup.fill{};
 	margin = "2x2",
 	gap=2,

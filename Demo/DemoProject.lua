@@ -317,9 +317,41 @@ function GUI.toolbar.buttons.refreshButton:action()
 	cnvobj:refresh()
 end
 
+local mode = 0
+
 function GUI.toolbar.buttons.connButton:action()
-	cnvobj:drawConnector()
+	local router1,router2
+	local js1,js2
+	if mode == 0 then
+		router1 = cnvobj.options.router[0]
+		router2 = router1
+		js1 = 2
+		js2 = 2
+	elseif mode == 1 then
+		router1 = cnvobj.options.router[1]
+		router2 = router1
+		js1 = 0
+		js2 = 0
+	elseif mode == 2 then
+		router1 = cnvobj.options.router[2]
+		router2 = router1
+		js1 = 0
+		js2 = 0
+	else
+		router1 = cnvobj.options.router[9]
+		router2 = router1
+		js1 = 0
+		js2 = 0
+	end
+	cnvobj:drawConnector(nil,router1,js1,router2,js2)
 end
+
+function GUI.toolbar.buttons.connModeList:action(text,item,state)
+	mode = item-1
+	if item == 4 then
+		mode = 9
+	end
+end 
 
 
 -- Set the mainDlg user size to nil so that the show uses the Natural Size
