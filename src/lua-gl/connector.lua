@@ -151,21 +151,11 @@ function setConnVisualAttr(cnvobj,conn,attr,num)
 	else
 		cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
 	end
+	return true
 end
 
-function setSegVisualAttr(cnvobj,seg,attr)
-	local res,filled = utility.validateVisualAttr(attr)
-	if not res then
-		return res,filled
-	end
-	-- attr is valid now associate it with the object
-	seg.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
-	-- Set the attributes function in the visual properties table
-	if filled then
-		cnvobj.properties.visualAttr[seg] = GUIFW.getFilledObjAttrFunc(attr)
-	else
-		cnvobj.properties.visualAttr[seg] = GUIFW.getNonFilledObjAttrFunc(attr)
-	end
+function setSegVisualAttr(cnvobj,seg,attr,num)
+	return setConnVisualAttr(cnvobj,seg,attr,num)
 end
 
 
@@ -838,7 +828,13 @@ do
 			-- Copy the junctions
 			local juncS = conns[allSegs[i].conn].junction
 			tu.mergeArrays(juncS,juncD,nil,equalCoordinate)
-		end
+			-- Copy visual attributes if any
+			local  vattrS = conns[allSegs[i].conn].vattr
+			if vattrS and not connM.vattr then
+				connM.vattr = tu.copyTable(vattrS,{},true)
+				cnvobj.attributes.visualAttr[connM] = cnvobj.attributes.visualAttr[conns[allSegs[i].conn]]
+			end
+		end		-- for i = 1,#allSegs-1 do	 ends 
 		-- Create a list of connector IDs that were merged
 		local mergedIDs = {}
 		-- Remove all the merged connectors from the connectors array
@@ -1111,6 +1107,11 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 			end
 		end
 		connA[#connA].junction = jn
+		-- Not copy the vattr table if any
+		if conn.vattr then
+			connA[#connA].vattr = tu.copyTable(conn.vattr,{},true)
+			cnvobj.attributes.visualAttr[connA[#connA]] = cnvobj.attributes.visualAttr[conn]
+		end
 		j = j + 1
 	end		-- while j <= #csegs do ends
 	return connA
@@ -1249,6 +1250,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		return nil, "Coordinates not given"
 	end
 	
+	local rm = cnvobj.rM
 	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
 	table.sort(segList,function(one,two)
 			if one.conn.id == two.conn.id then
@@ -1258,6 +1260,43 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 				return one.conn.id > two.conn.id
 			end
 		end)
+	-- Extract the list of nodes that would need re-routing as a result of the drag
+	local dragNodes = {}
+	-- Function to return the list of segments whose one of the end point is x,y
+	local function segsOnNode(conn,x,y)
+		local segs = {}
+		for i = 1,#conn.segments do
+			if conn.segments[i].start_x == x and conn.segments[i].start_y == y then
+				segs[#segs + 1] = conn.segments[i]
+			elseif conn.segments[i].end_x == x and conn.segments[i].end_y == y then
+				segs[#segs + 1] = conn.segments[i]
+			end
+		end
+		return segs
+	end
+	-- Function to add x,y coordinate to dragNodes if all segments connected to it are not in the segList array
+	local function updateDragNodes(conn,x,y)
+		local segs = segsOnNode(conn,x,y)
+		local allSegs=true		-- to indicate if all segments in segs are in segList
+		for j = 1,#segs do
+			if not tu.inArray(segList,segs[j],function(v1,v2)
+				return v1.conn.segments[v1.seg] == v2
+			  end) then
+				allSegs = false
+				break
+			end
+		end
+		if not allSegs then
+			-- Not all segments connected to this node are in the move list. Add this segment to the list of dragNodes since segments would have to route from old position to new position of this node
+			tu.mergeArrays(dragNodes,{{x = x,y = y,conn=conn}},false,equalCoordinate)
+		end		
+	end
+	for i = 1,#segList do
+		local conn = segList[i].conn
+		local seg = conn.segments[segList[i].seg]	-- The segment that is being dragged
+		updateDragNodes(conn,seg.start_x,seg.start_y)
+		updateDragNodes(conn,seg.end_x,seg.end_y)
+	end
 	
 	if not interactive then
 		-- Take care of grid snapping
@@ -1266,19 +1305,6 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		-- Move each segment
 		for i = 1,#segList do
 			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
-			-- route connector from previous end_x,end_y to the new end_x,end_y
-			local newSegs = {}
-			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs,cnvobj.options.router[9],1) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
-			-- Add these segments after this current segment
-			for j = #newSegs,1,-1 do
-				table.insert(segList[i].conn.segments,segList[i].seg+1,newSegs[j])
-			end
-			-- route connector from previous start_x,start_y to the new start_x,start_y
-			newSegs = {}
-			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs,cnvobj.options.router[9],1)	 -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
-			for j = #newSegs,1,-1 do
-				table.insert(segList[i].conn.segments,segList[i].seg,newSegs[j])
-			end
 			rm:removeSegment(seg)
 			-- Move the segment
 			seg.start_x = seg.start_x + offx
@@ -1287,24 +1313,45 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			seg.end_y = seg.end_y + offy
 			rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
 		end
+		-- route segments from previous dragNodes coordinates to the new ones
+		for i = 1,#dragNodes do
+			local newSegs = {}
+			router.generateSegments(cnvobj,dragNodes[i].x+offx,seg.dragNodes[i].y+offy,dragNodes[i].x,dragNodes[i].y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
+			-- Add these segments in the connectors segment list
+			for j = #newSegs,1,-1 do
+				table.insert(dragNodes[i].conn.segments,newSegs[j])
+			end
+		end
+		local combinedMM = {}
 		for i = 1,#segList do
 			-- Check if all segments of this connector are done
 			if i == #segList or segList[i+1].conn ~= segList[i].conn then
-				-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
-				-- remove any overlaps in the final merged connector
-				local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})
-				-- Connect overlapping ports
-				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+				-- First check whether this connector was already merged into something else
+				local found
+				local connID = segList[i].conn.id
+				for j = 1,#combinedMM do
+					if tu.inArray(combinedMM[j][2],connID) then
+						found = true
+						break
+					end
+				end
+				if not found then
+					-- remove any overlaps in the final merged connector
+					local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
+					combinedMM[#combinedMM + 1] = mergeMap
+					-- Connect overlapping ports
+					connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
+				end
 			end
 		end
 		return true
 	end
 	
-	-- Setup the interactive move operation here
+	-- Setup the interactive drag operation here
 	-- Set refX,refY as the mouse coordinate on the canvas
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-	local refX,refY = gx-sx,gy-sy
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
+	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
@@ -1339,6 +1386,10 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{},true)	-- Copy the entire segments table recursively by duplicating it value by value
 	end
 	cnvobj.op.segsToRemove = {}	-- to store the segments generated after every motion_cb
+	-- fill segsToRemove with the segments in segList
+	for i = 1,#segList do
+		cnvobj.op.segsToRemove[i] = segList[i].conn.segments[segList[i].seg]
+	end
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -1352,13 +1403,13 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})	
 	end
 	
-	local routeFunc = cnvobj.options.router[9]
+	dragRouter = dragRouter or cnvobj.options.router[9]
+	jsDrag = jsDrag or 1
 
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
-		x,y = cnvobj:snap(x,y)
-		local offx,offy = x-refX,y-refY
+		local offx,offy = cnvobj:snap(x-refX,y-refY)
 		cnvobj.op.offx = offx
 		cnvobj.op.offy = offy
 
@@ -1367,15 +1418,42 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		for i = 1,#cnvobj.op.segsToRemove do
 			rm:removeSegment(cnvobj.op.segsToRemove[i])
 		end
+		-- Copy the old segment table back to the connector segment table recursively
 		for i = 1,#segList do
 			-- First copy the old segments to the connector
 			segList[i].conn.segments = 	tu.copyTable(cnvobj.op.oldSegs[i],{},true)	-- Copy the oldSegs[i] table back to the connector segments
 		end
+		
+		-- Move each segment
+		cnvobj.op.segsToRemove = {}
+		for i = 1,#segList do
+			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
+			--rm:removeSegment(seg)	-- this was already removed 
+			-- Move the segment
+			seg.start_x = seg.start_x + offx
+			seg.start_y = seg.start_y + offy
+			seg.end_x = seg.end_x + offx
+			seg.end_y = seg.end_y + offy
+			rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
+			table.insert(cnvobj.op.segsToRemove,seg)
+		end
+		
+		-- route segments from previous dragNodes coordinates to the new ones
+		for i = 1,#dragNodes do
+			local newSegs = {}
+			router.generateSegments(cnvobj,dragNodes[i].x+offx,seg.dragNodes[i].y+offy,dragNodes[i].x,dragNodes[i].y,newSegs,dragRouter,jsDrag) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
+			-- Add these segments in the connectors segment list
+			for j = #newSegs,1,-1 do
+				table.insert(dragNodes[i].conn.segments,newSegs[j])
+				table.insert(cnvobj.op.segsToRemove,newSegs[j])	-- Add all the segments in segsToRemove
+			end
+		end
+		--[[
 		for i = 1,#segList do
 			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
 			-- route connector from previous end_x,end_y to the new end_x,end_y
 			local newSegs = {}
-			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs,routeFunc)
+			router.generateSegments(cnvobj,seg.end_x+offx,seg.end_y+offy,seg.end_x,seg.end_y,newSegs,dragRouter,jsDrag)
 			-- Add these segments after this current segment
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg+1,newSegs[j])
@@ -1383,7 +1461,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			cnvobj.op.segsToRemove = newSegs
 			-- route connector from previous start_x,start_y to the new start_x,start_y
 			newSegs = {}
-			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs,routeFunc)
+			router.generateSegments(cnvobj,seg.start_x,seg.start_y,seg.start_x+offx,seg.start_y+offy,newSegs,dragRouter,jsDrag)
 			for j = #newSegs,1,-1 do
 				table.insert(segList[i].conn.segments,segList[i].seg,newSegs[j])
 				table.insert(cnvobj.op.segsToRemove,newSegs[j])
@@ -1395,7 +1473,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			seg.end_x = seg.end_x + offx
 			seg.end_y = seg.end_y + offy
 			rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
-		end
+		end]]
 	end
 	
 	return true

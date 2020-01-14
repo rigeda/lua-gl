@@ -340,8 +340,8 @@ function GUI.toolbar.buttons.connButton:action()
 	else
 		router1 = cnvobj.options.router[9]
 		router2 = router1
-		js1 = 0
-		js2 = 0
+		js1 = 1
+		js2 = 1
 	end
 	cnvobj:drawConnector(nil,router1,js1,router2,js2)
 end
@@ -353,6 +353,10 @@ function GUI.toolbar.buttons.connModeList:action(text,item,state)
 	end
 end 
 
+function GUI.toolbar.buttons.newButton:action()
+	cnvobj:erase()
+	cnvobj:refresh()
+end
 
 -- Set the mainDlg user size to nil so that the show uses the Natural Size
 GUI.mainDlg.size = nil

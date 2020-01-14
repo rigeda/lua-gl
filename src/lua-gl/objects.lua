@@ -201,6 +201,7 @@ function setObjVisualAttr(cnvobj,obj,attr,num)
 	else
 		cnvobj.attributes.visualAttr[obj] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
 	end
+	return true
 end
 
 -- Function to move a list of objects provided with the given offset offx,offy which are added to the coordinates

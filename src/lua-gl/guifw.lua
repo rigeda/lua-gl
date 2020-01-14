@@ -252,6 +252,8 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
       cnv:Line(x,0,x,h)
     end
 	if cnvobj.viewOptions.gridMode == 1 then
+		-- This method should be updated to using lines with defined line style where we can define how many pixels are balnk and how many drawn. See Lines attributes Linestyle in the CD library documentatiob
+		-- ###################################################
 		cnv:WriteMode(cd.XOR)
 		cnv:SetForeground(cd.EncodeColor(255,255,255))	-- XOR with White
 		for y=0, h, grid_y do

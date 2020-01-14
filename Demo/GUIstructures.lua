@@ -52,10 +52,12 @@ GUI.toolbar.buttons = {
 		["4"] = "Auto Router";
 		DROPDOWN = "YES",
 		VALUE = 1
-	}
+	},
+	newButton = iup.button{image="IUP_FileNew",tip="New Drawing"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
+	GUI.toolbar.buttons.newButton,
 	GUI.toolbar.buttons.saveButton,
 	GUI.toolbar.buttons.loadButton,
 	GUI.toolbar.buttons.snapGridButton,

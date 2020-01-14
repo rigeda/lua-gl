@@ -22,7 +22,7 @@ local router = require("lua-gl.router")
 local coorc = require("lua-gl.CoordinateCalc")
 local utility = require("lua-gl.utility")
 
--- Add the shapes. The shape modules will register themselves to the respective modules
+-- Add the shapes. The shape modules will register themselves to the respective modules when their init functions are called
 local RECT = require("lua-gl.rectangle")
 local ELLIPSE = require("lua-gl.ellipse")
 local LINE = require("lua-gl.line")
@@ -44,15 +44,13 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B19.12.30"
+_VERSION = "B20.01.11"
 
 --- TASKS
 --[[
 DEBUG:
 
 TASKS:
-* Review code to make sure object, connector and segment vattr tables are not lost
-* Add Erase button to demo application
 * Fix drag segment to take care of case when connected segments of the same connector are being dragged
 * Finish loading of saved structure.
 * Finish moveSegment
@@ -61,6 +59,7 @@ TASKS:
 * Finish removeObj
 * Finish removePort
 * Add rotate functionality
+* Add object resize functionality
 * Add Text functionality
 * Add arc functionality
 * Canvas scroll, zoom, pan and coordinate translation
@@ -80,7 +79,7 @@ local objFuncs
 objFuncs = {
 	
 	-- Function to move the list of items (given as a list of their IDs) by moving the all items offx and offy offsets
-	-- if offxx is not a number then the movement is done interactively with a mouse
+	-- if offx is not a number then the movement is done interactively with a mouse
 	move = function(cnvobj,items,offx,offy)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
