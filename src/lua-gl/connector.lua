@@ -1253,6 +1253,8 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		return nil, "Coordinates not given"
 	end
 	
+	print("DRAG SEGMENT START")
+	
 	local rm = cnvobj.rM
 	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
 	table.sort(segList,function(one,two)
@@ -1291,7 +1293,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		end
 		if not allSegs then
 			-- Not all segments connected to this node are in the move list. Add this segment to the list of dragNodes since segments would have to route from old position to new position of this node
-			tu.mergeArrays(dragNodes,{{x = x,y = y,conn=conn}},false,equalCoordinate)
+			tu.mergeArrays({{x = x,y = y,conn=conn}},dragNodes,false,equalCoordinate)
 		end		
 	end
 	for i = 1,#segList do
@@ -1300,6 +1302,8 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		updateDragNodes(conn,seg.start_x,seg.start_y)
 		updateDragNodes(conn,seg.end_x,seg.end_y)
 	end
+	
+	print("Number of dragnodes = ",#dragNodes)
 	
 	if not interactive then
 		-- Take care of grid snapping
@@ -1319,7 +1323,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		-- route segments from previous dragNodes coordinates to the new ones
 		for i = 1,#dragNodes do
 			local newSegs = {}
-			router.generateSegments(cnvobj,dragNodes[i].x+offx,seg.dragNodes[i].y+offy,dragNodes[i].x,dragNodes[i].y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
+			router.generateSegments(cnvobj,dragNodes[i].x+offx,dragNodes[i].y+offy,dragNodes[i].x,dragNodes[i].y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
 			-- Add these segments in the connectors segment list
 			for j = #newSegs,1,-1 do
 				table.insert(dragNodes[i].conn.segments,newSegs[j])
@@ -1412,6 +1416,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
+		--print("drag segment motion_cb")
 		local offx,offy = cnvobj:snap(x-refX,y-refY)
 		cnvobj.op.offx = offx
 		cnvobj.op.offy = offy
@@ -1444,7 +1449,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		-- route segments from previous dragNodes coordinates to the new ones
 		for i = 1,#dragNodes do
 			local newSegs = {}
-			router.generateSegments(cnvobj,dragNodes[i].x+offx,seg.dragNodes[i].y+offy,dragNodes[i].x,dragNodes[i].y,newSegs,dragRouter,jsDrag) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
+			router.generateSegments(cnvobj,dragNodes[i].x+offx,dragNodes[i].y+offy,dragNodes[i].x,dragNodes[i].y,newSegs,dragRouter,jsDrag) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
 			-- Add these segments in the connectors segment list
 			for j = #newSegs,1,-1 do
 				table.insert(dragNodes[i].conn.segments,newSegs[j])
@@ -1477,6 +1482,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			seg.end_y = seg.end_y + offy
 			rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
 		end]]
+		cnvobj:refresh()
 	end
 	
 	return true

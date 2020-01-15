@@ -185,10 +185,21 @@ local function getSelectionList(cb,noclick)
 			tu.mergeArrays(i,items,false,function(one,two) return one.id == two.id end)
 			-- Add any connectors at x,y to items
 			local c,s = cnvobj:getConnFromXY(x,y)
+			local connList = {}
+			for i = 1,#s do
+				for j = 1,#s[i].seg do
+					connList[#connList + 1] = {
+						conn = cnvobj.drawn.conn[s[i].conn],
+						seg = s[i].seg[j]
+					}
+				end
+			end
+			-- Merge into items
+			tu.mergeArrays(connList,items,false,function(one,two) return one.conn.id == two.conn.id and one.seg == two.seg end)
 			-- Update the list item control to display the items
 			list.removeitem = "ALL"
 			for i = 1,#items do
-				list.appenditem = items[i].id
+				list.appenditem = items[i].id or items[i].conn.id
 			end
 		end
 	end
@@ -237,7 +248,8 @@ function GUI.toolbar.buttons.dragButton:action()
 	-- function to handle drag
 	local function dragitems(items)
 		--print("callback dragitems")
-		print(cnvobj:dragObj(items))
+		--cnvobj:dragObj(items)
+		cnvobj:dragSegment(items)
 	end
 	-- Get the list of items
 	getSelectionList(dragitems)
