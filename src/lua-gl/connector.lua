@@ -1617,19 +1617,27 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	local function endConnector()
 		-- Check whether the new segments overlap any port
 		-- Note that ports can only happen at the start and end of the whole connector
-		-- This is because routing avoids ports unless it is the ending point		
-		local conn = cnvobj.drawn.conn[cnvobj.op.cIndex]
-		local segTable = conn.segments
-		-- Add the segments to the routing matrix
-		for i = 1,#segTable do
-			rm:addSegment(segTable[i],segTable[i].start_x,segTable[i].start_y,segTable[i].end_x,segTable[i].end_y)
-		end
+		-- This is because routing avoids ports unless it is the ending point	
+		if cnvobj.op.mode == "DRAWCONN" then
+			local conn = cnvobj.drawn.conn[cnvobj.op.cIndex]
+			local segTable = conn.segments
+			if #segTable == 0 then
+				-- Remove this connector
+				table.remove(cnvobj.drawn.order,conn.order)
+				table.remove(cnvobj.drawn.conn,cnvobj.op.cIndex)
+			else
+				-- Add the segments to the routing matrix
+				for i = 1,#segTable do
+					rm:addSegment(segTable[i],segTable[i].start_x,segTable[i].start_y,segTable[i].end_x,segTable[i].end_y)
+				end
 
-		-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
-		-- remove any overlaps in the final merged connector
-		local mergeMap = shortAndMergeConnectors(cnvobj,{conn})
-		-- Connect overlapping ports
-		connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+				-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
+				-- remove any overlaps in the final merged connector
+				local mergeMap = shortAndMergeConnectors(cnvobj,{conn})
+				-- Connect overlapping ports
+				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+			end
+		end
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 		cnvobj.cnv.button_cb = oldBCB

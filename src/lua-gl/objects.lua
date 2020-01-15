@@ -609,6 +609,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
 	local connSrc = {}	-- To store the x,y coordinate for each connector from which rerouting has to be applied and also store the segments that need to be removed
 	for i = 1,#grp do	-- For every object in the group that is moving
+		connSrc[grp[i]] = {}	-- New table for this object
 		local portT = grp[i].port	-- The port table of the object
 		for j = 1,#portT do		-- check every port for the object
 			local conn = portT[j].conn	-- Connector table of the port
@@ -619,7 +620,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 				local x,y = enx,eny
 				local jT = conn[k].junction
 				local found
-				local checkedSegs = {}		-- Array to store index of segments already traversed to prevent traversing them again
+				local checkedSegs = {}		-- Array to store segments already traversed to prevent traversing them again
 				local checkedSegsCount = 0
 				while not found do
 					-- Check if a junction exists on x,y
@@ -633,37 +634,39 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 					-- Find a segment whose one end is on x,y if none found this is the other end of the connector and would be the starting point for the connector routing
 					found = true
 					for l = 1,#segTable do
-						if not checkedSegs[l] then
+						if not tu.inArray(checkedSegs,segTable[l]) then
 							-- This segment is not traversed
 							if segTable[l].end_x == x and segTable[l].end_y == y then
 								found = false
 								x,y = segTable[l].start_x,segTable[l].start_y	-- Set x,y to the other end to traverse this segment
-								checkedSegs[l] = true		-- add it to the segments traversed
 								checkedSegsCount = checkedSegsCount + 1
+								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
 								break
 							elseif segTable[l].start_x == x and segTable[l].start_y == y then
 								found = false
 								x,y = segTable[l].end_x,segTable[l].end_y
-								checkedSegs[l] = true
 								checkedSegsCount = checkedSegsCount + 1
+								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
 								break
 							end
 						end
 					end		-- for l (segTable) ends here
 				end
-				connSrc[conn[k].id] = {x=x,y=y,segs=checkedSegs,segsCount = checkedSegsCount}		-- Source point to use for routing of the connector
-				-- Move the traversed segments to the end of the segments array
-				local segs = {}
-				for l,_ in pairs(connSrc[conn[k].id].segs) do
-					segs[#segs + 1] = l
-				end				
-				table.sort(segs)	
-				for l = #segs,1,-1 do		-- traverse in descending order to not change indexes of the lower segments
-					local item = conn[k].segments[segs[l]]
-					table.remove(conn[k].segments,segs[l])	-- Remove
-					table.insert(conn[k].segments,item)	-- Insert at end
+				-- Check if x,y is a port on another object being dragged
+				local prts = PORTS.getPortFromXY(cnvobj,x,y)
+				found = false		-- if true then all ports at this point are in the list of items to drag
+				for l = 1,#prts do
+					found = true
+					if not tu.inArray(grp,prts[l].obj) then	-- Not all ports are in the list of items to drag so x,y can be used
+						found = false
+						break
+					end
 				end
-				connSrc[conn[k].id].segStart = #conn[k].segments - #segs + 1
+				if found then
+					connSrc[grp[i]][conn[k].id] = {x=enx,y=eny,segs={}}
+				else
+					connSrc[grp[i]][conn[k].id] = {x=x,y=y,segs=checkedSegs}		-- Source point to use for routing of the connector
+				end
 			end		-- For k (connector table) ends here
 		end		-- For j (port table) ends here
 	end		-- for i (group) ends here
@@ -673,6 +676,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		offx,offy = cnvobj:snap(offx,offy)
 		shiftObjList(grp,offx,offy,rm)
 		local allPorts = {}
+		local allConns = {}
 		-- Now redo the connectors
 		for i = 1,#grp do
 			local portT = grp[i].port
@@ -680,17 +684,21 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 				local conn = portT[j].conn
 				for k = 1,#conn do
 					-- Remove the segments that need to be rerouted
-					local segStart = #conn[k].segments-connSrc[conn[k].id].segsCount+1
-					for l = #conn[k].segments,segStart,-1 do
-						rm:removeSegment(conn[k].segments[l])
-						table.remove(conn[k].segments,l)
+					local segsToRemove = connSrc[grp[i]][conn[k].id].segs
+					for l = 1,#segsToRemove do
+						local ind = tu.inArray(conn[k].segments,segsToRemove[l])
+						rm:removeSegment(conn[k].segments[ind])
+						table.remove(conn[k].segments,ind)
 					end
 					-- Regenerate the connector segments here
-					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,cnvobj.options.router[9])
+					router.generateSegments(cnvobj,connSrc[grp[i]][conn[k].id].x,connSrc[grp[i]][conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,cnvobj.options.router[9])
+					allConns[#allConns + 1] = conn[k]
 				end
 				allPorts[#allPorts + 1] = portT[j]
 			end
 		end
+		-- Short and Merge all the connectors that were connected to ports
+		CONN.shortAndMergeConnectors(cnvobj,allConns)
 		-- Check whether after drag the ports are touching other connectors then those get connected to the port
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
@@ -730,13 +738,19 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 			for j = 1,#portT do
 				local conn = portT[j].conn
 				for k = 1,#conn do
-					local segStart = connSrc[conn[k].id].segStart
-					for l = #conn[k].segments,segStart,-1 do
-						rm:removeSegment(conn[k].segments[l])
-						table.remove(conn[k].segments,l)
+					local segsToRemove = connSrc[grp[i]][conn[k].id].segs
+					for l = 1,#segsToRemove do
+						local ind = tu.inArray(conn[k].segments,segsToRemove[l])
+						rm:removeSegment(segsToRemove[l])
+						table.remove(conn[k].segments,ind)
 					end
 					-- Regenerate the connector segments here
-					router.generateSegments(cnvobj,connSrc[conn[k].id].x,connSrc[conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,rtr,js)
+					-- Add the new segments into checkedSegs for this connector for next time
+					local ptr = connSrc[grp[i]][conn[k].id]
+					ptr.segs = {}
+					router.generateSegments(cnvobj,connSrc[grp[i]][conn[k].id].x,connSrc[grp[i]][conn[k].id].y,portT[j].x,portT[j].y,ptr.segs,rtr,js)
+					-- Now add the new segments to connector segments
+					tu.mergeArrays(ptr.segs,conn[k].segments,true)
 				end
 			end
 		end		
@@ -761,6 +775,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		cnvobj.cnv.motion_cb = oldMCB
 		-- Get all the ports that were dragged
 		local allPorts = {}
+		local allConns = {}
 		for i = 1,#grp do
 			local item = cnvobj.drawn.order[grp[i].order]
 			table.remove(cnvobj.drawn.order,grp[i].order)
@@ -768,9 +783,14 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 			local portT = grp[i].port
 			for j = 1,#portT do
 				allPorts[#allPorts + 1] = portT[j]
-			end
-			
+				local conns = portT[j].conn	-- table of connectors connected to this port
+				for k = 1,#conns do		-- For every connector check its port table
+					allConns[#allConns + 1] = conns[k]
+				end
+			end			
 		end
+		-- Short and Merge all the connectors that were connected to ports
+		CONN.shortAndMergeConnectors(cnvobj,allConns)
 		-- Check whether after drag the ports are touching other connectors then those get connected to the port
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 

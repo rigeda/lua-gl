@@ -49,7 +49,7 @@ _VERSION = "B20.01.11"
 --- TASKS
 --[[
 DEBUG:
-
+* testcase1 if both objects dragged then may junctions created
 TASKS:
 * Fix drag segment to take care of case when connected segments of the same connector are being dragged
 * Finish loading of saved structure.
