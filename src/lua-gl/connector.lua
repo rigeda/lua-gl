@@ -1005,63 +1005,66 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 			else
 				-- We have segments that can be traversed
 				local sgmnt = segPath[i].segs[segPath[i].i]
-				local nxt_x,nxt_y
-				if sgmnt.start_x == segPath[i].x and sgmnt.start_y == segPath[i].y then
-					nxt_x = sgmnt.end_x
-					nxt_y = sgmnt.end_y
-				else
-					nxt_x = sgmnt.start_x
-					nxt_y = sgmnt.start_y
-				end
-				
-				-- Traverse this segment
-				segsDone[j][sgmnt] = true
-				-- Check whether the end point (nxt_x,nxt_y) of this segment lands on a port then this path ends here
-				if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then	 -- If there is a port here then path ends here for this segment
-					-- Check the end points of this new segment with the end points of other members in csegs
-					local k = j + 1
-					while k <= #csegs do	-- Loop through all the next segments in csegs
-						local ex,ey		-- to store the end point other than X,Y
-						if csegs[k].start_x == X and csegs[k].start_y == Y then
-							ex,ey = csegs[k].end_x,csegs[k].end_y
-						else
-							ex,ey = csegs[k].start_x,csegs[k].start_y
-						end
-						if sgmnt.start_x == ex and sgmnt.start_y == ey or sgmnt.end_x == ex and sgmnt.end_y == ey then
-							-- found the other point in the kth starting segment so segment j cannot split with segment k
-							-- Add the kth segment to the segsDone structure 
-							segsDone[j][csegs[k]] = true
-							-- Merge the kth segment with the jth segment (remove it from the csegs table)
-							table.remove(csegs,k)
-							k = k - 1	-- To compensate for the removed segment
-						end
-						k = k + 1
-					end		-- while k <= #csegs ends here
-					-- Store the endPoints
-					if not endPoints[sgmnt.end_x] then
-						endPoints[sgmnt.end_x] = {}
-					end
-					if not endPoints[sgmnt.end_x][sgmnt.end_y] then
-						endPoints[sgmnt.end_x][sgmnt.end_y] = 1
+				-- Check if this path is already traversed
+				if not segsDone[j][sgmnt] then
+					local nxt_x,nxt_y
+					if sgmnt.start_x == segPath[i].x and sgmnt.start_y == segPath[i].y then
+						nxt_x = sgmnt.end_x
+						nxt_y = sgmnt.end_y
 					else
-						endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
-					end
-					if not endPoints[sgmnt.start_x] then
-						endPoints[sgmnt.start_x] = {}
-					end
-					if not endPoints[sgmnt.start_x][sgmnt.start_y] then
-						endPoints[sgmnt.start_x][sgmnt.start_y] = 1
-					else
-						endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
+						nxt_x = sgmnt.start_x
+						nxt_y = sgmnt.start_y
 					end
 					
-					i = i + 1
-					segPath[i] = {i = 0}
-					segPath[i].x = nxt_x
-					segPath[i].y = nxt_y
-					segPath[i].segs = findSegs(segs,segPath[i].x,segPath[i].y,segsDone[j])
-				end		-- if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then ends
-			end
+					-- Traverse this segment
+					segsDone[j][sgmnt] = true
+					-- Check whether the end point (nxt_x,nxt_y) of this segment lands on a port then this path ends here
+					if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then	 -- If there is a port here then path ends here for this segment
+						-- Check the end points of this new segment with the end points of other members in csegs
+						local k = j + 1
+						while k <= #csegs do	-- Loop through all the next segments in csegs
+							local ex,ey		-- to store the end point other than X,Y
+							if csegs[k].start_x == X and csegs[k].start_y == Y then
+								ex,ey = csegs[k].end_x,csegs[k].end_y
+							else
+								ex,ey = csegs[k].start_x,csegs[k].start_y
+							end
+							if sgmnt.start_x == ex and sgmnt.start_y == ey or sgmnt.end_x == ex and sgmnt.end_y == ey then
+								-- found the other point in the kth starting segment so segment j cannot split with segment k
+								-- Add the kth segment to the segsDone structure 
+								segsDone[j][csegs[k]] = true
+								-- Merge the kth segment with the jth segment (remove it from the csegs table)
+								table.remove(csegs,k)
+								k = k - 1	-- To compensate for the removed segment
+							end
+							k = k + 1
+						end		-- while k <= #csegs ends here
+						-- Store the endPoints
+						if not endPoints[sgmnt.end_x] then
+							endPoints[sgmnt.end_x] = {}
+						end
+						if not endPoints[sgmnt.end_x][sgmnt.end_y] then
+							endPoints[sgmnt.end_x][sgmnt.end_y] = 1
+						else
+							endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
+						end
+						if not endPoints[sgmnt.start_x] then
+							endPoints[sgmnt.start_x] = {}
+						end
+						if not endPoints[sgmnt.start_x][sgmnt.start_y] then
+							endPoints[sgmnt.start_x][sgmnt.start_y] = 1
+						else
+							endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
+						end
+						
+						i = i + 1
+						segPath[i] = {i = 0}
+						segPath[i].x = nxt_x
+						segPath[i].y = nxt_y
+						segPath[i].segs = findSegs(segs,segPath[i].x,segPath[i].y,segsDone[j])
+					end		-- if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then ends
+				end		-- if not segsDone[j][sgmnt] ends here
+			end		-- if segPath[i].i > #segPath[i].segs ends here
 		end		-- while i > 0 ends here
 		-- Now segsDone has all the segments that connect to the csegs[j] starting connector. So we can form 1 connector using these
 		connA[#connA + 1] = {

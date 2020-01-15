@@ -663,7 +663,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 					end
 				end
 				if found then
-					connSrc[grp[i]][conn[k].id] = {x=enx,y=eny,segs={}}
+					connSrc[grp[i]][conn[k].id] = {x=enx,y=eny,segs={},single=true}	-- To route just a single connector from the port original position because connector up to there won't be able to change
 				else
 					connSrc[grp[i]][conn[k].id] = {x=x,y=y,segs=checkedSegs}		-- Source point to use for routing of the connector
 				end
@@ -681,17 +681,33 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		for i = 1,#grp do
 			local portT = grp[i].port
 			for j = 1,#portT do
+				local singleR = {}		-- To store coordinates which need only single route for the object since it routes from the place the port was before. This takes care of the case when segs in connSrc was set to an empty table above
 				local conn = portT[j].conn
 				for k = 1,#conn do
 					-- Remove the segments that need to be rerouted
 					local segsToRemove = connSrc[grp[i]][conn[k].id].segs
-					for l = 1,#segsToRemove do
-						local ind = tu.inArray(conn[k].segments,segsToRemove[l])
-						rm:removeSegment(conn[k].segments[ind])
-						table.remove(conn[k].segments,ind)
+					local doroute
+					if connSrc[grp[i]][conn[k].id].single then
+						if singleR[connSrc[grp[i]][conn[k].id].x] and singleR[connSrc[grp[i]][conn[k].id].x][connSrc[grp[i]][conn[k].id].y] then
+							doroute = false
+						else
+							singleR[connSrc[grp[i]][conn[k].id].x] = singleR[connSrc[grp[i]][conn[k].id].x] or {}
+							singleR[connSrc[grp[i]][conn[k].id].x][connSrc[grp[i]][conn[k].id].y] = true
+							doroute = true
+						end
+					else
+						for l = 1,#segsToRemove do
+							local ind = tu.inArray(conn[k].segments,segsToRemove[l])
+							rm:removeSegment(segsToRemove[l])
+							table.remove(conn[k].segments,ind)
+						end
+						doroute = true
 					end
-					-- Regenerate the connector segments here
-					router.generateSegments(cnvobj,connSrc[grp[i]][conn[k].id].x,connSrc[grp[i]][conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,cnvobj.options.router[9])
+					if doroute then
+						-- Regenerate the connector segments here
+						router.generateSegments(cnvobj,connSrc[grp[i]][conn[k].id].x,connSrc[grp[i]][conn[k].id].y,portT[j].x,portT[j].y,conn[k].segments,
+cnvobj.options.router[9])
+					end
 					allConns[#allConns + 1] = conn[k]
 				end
 				allPorts[#allPorts + 1] = portT[j]
@@ -736,21 +752,35 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		for i = 1,#grp do
 			local portT = grp[i].port
 			for j = 1,#portT do
+				local singleR = {}		-- To store coordinates which need only single route for the object since it routes from the place the port was before. This takes care of the case when segs in connSrc was set to an empty table above
 				local conn = portT[j].conn
 				for k = 1,#conn do
 					local segsToRemove = connSrc[grp[i]][conn[k].id].segs
-					for l = 1,#segsToRemove do
-						local ind = tu.inArray(conn[k].segments,segsToRemove[l])
-						rm:removeSegment(segsToRemove[l])
-						table.remove(conn[k].segments,ind)
+					local doroute = true
+					if connSrc[grp[i]][conn[k].id].single then
+						if singleR[connSrc[grp[i]][conn[k].id].x] and singleR[connSrc[grp[i]][conn[k].id].x][connSrc[grp[i]][conn[k].id].y] then
+							doroute = false
+						else
+							singleR[connSrc[grp[i]][conn[k].id].x] = singleR[connSrc[grp[i]][conn[k].id].x] or {}
+							singleR[connSrc[grp[i]][conn[k].id].x][connSrc[grp[i]][conn[k].id].y] = true
+							doroute = true
+						end
 					end
-					-- Regenerate the connector segments here
-					-- Add the new segments into checkedSegs for this connector for next time
-					local ptr = connSrc[grp[i]][conn[k].id]
-					ptr.segs = {}
-					router.generateSegments(cnvobj,connSrc[grp[i]][conn[k].id].x,connSrc[grp[i]][conn[k].id].y,portT[j].x,portT[j].y,ptr.segs,rtr,js)
-					-- Now add the new segments to connector segments
-					tu.mergeArrays(ptr.segs,conn[k].segments,true)
+					if doroute then
+						-- Remove the previously geenrated segments
+						for l = 1,#segsToRemove do
+							local ind = tu.inArray(conn[k].segments,segsToRemove[l])
+							rm:removeSegment(segsToRemove[l])
+							table.remove(conn[k].segments,ind)
+						end
+						-- Regenerate the connector segments here
+						-- Add the new segments into checkedSegs for this connector for next time
+						local ptr = connSrc[grp[i]][conn[k].id]
+						ptr.segs = {}
+						router.generateSegments(cnvobj,connSrc[grp[i]][conn[k].id].x,connSrc[grp[i]][conn[k].id].y,portT[j].x,portT[j].y,ptr.segs,rtr,js)
+						-- Now add the new segments to connector segments
+						tu.mergeArrays(ptr.segs,conn[k].segments,true)
+					end
 				end
 			end
 		end		
