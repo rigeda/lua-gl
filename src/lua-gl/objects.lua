@@ -581,6 +581,12 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		return nil, "Coordinates not given"
 	end
 	
+	finalRouter = finalRouter or cnvobj.options.router[9]
+	jsFinal = jsFinal or 1
+	
+	dragRouter = dragRouter or cnvobj.options.router[0]
+	jsDrag = jsDrag or 2
+	
 	local rm = cnvobj.rM
 	-- Collect all the objects that need to be dragged together by checking group memberships
 	local grp = {}
@@ -782,8 +788,6 @@ cnvobj.options.router[9])
 		end		
 	end
 	
-	finalRouter = finalRouter or cnvobj.options.router[9]
-	jsFinal = jsFinal or 1
 	local function dragEnd()
 		-- End the drag at this point
 		-- Regenerate the connectors
@@ -847,9 +851,6 @@ cnvobj.options.router[9])
 		-- Process any hooks 
 		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})
 	end
-	
-	dragRouter = dragRouter or cnvobj.options.router[0]
-	jsDrag = jsDrag or 2
 	
 	-- motion_cb to handle object dragging
 	function cnvobj.cnv:motion_cb(x,y,status)

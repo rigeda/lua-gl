@@ -1,5 +1,12 @@
 -- Utility functions
 
+local type = type
+local table = table
+local pairs = pairs
+local tostring = tostring
+
+local GUIFW = require("lua-gl.guifw")
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
@@ -129,4 +136,181 @@ function validateVisualAttr(attr)
 		end
 	end		-- if attr.bopa then ends here
 	return true, filled
+end
+
+-- Function to check the routing matrix against the elements in the drawn table
+-- The routing matrix functionality should be used from Lua code and not a C module
+-- So this function can be used while debugging to check the structures integrity after some step or operation to make sure the code is handling the routing matrix correctly
+function checkRM(cnvobj,dump)
+	-- Get the routing matrix
+	local rm = cnvobj.rM
+	local obj = cnvobj.drawn.obj
+	local conn = cnvobj.drawn.conn
+	local dumpStr
+	local function foundAndMatching(arr,item)
+		local found
+		local matching = true
+		local bs = arr[item]
+		if bs then	
+			found = true
+			if bs.x1 ~= item.start_x or bs.y1 ~= item.start_y or bs.x2 ~= item.end_x or bs.y2 ~= item.end_y then
+				matching = false
+			end
+		end
+		return found,matching
+	end
+	local rbs = 0
+	for k,v in pairs(rm.blksegs) do
+		rbs = rbs + 1
+	end
+	local rhs,rvs = 0,0
+	for k,v in pairs(rm.hsegs) do
+		rhs = rhs + 1
+	end
+	for k,v in pairs(rm.vsegs) do
+		rvs = rvs + 1
+	end
+	if dump then
+		-- Create a dump string
+		local dmp = {}
+		-- First add the blocking rectangles
+		dmp[#dmp + 1] = "BLOCKING RECTANGLES:"
+		local count = 0
+		for i = 1,#obj do
+			if obj[i].shape == "BLOCKINGRECT" then
+				local found, matching = foundAndMatching(rm.blksegs,obj[i])
+				local bs = rm.blksegs[obj[i]]
+				dmp[#dmp + 1] = "ID: "..obj[i].id.."\t"..tostring(obj[i]).."\t {"..obj[i].start_x..","..obj[i].start_y..","..obj[i].end_x..","..obj[i].end_y.."}\t"..(found and (matching and "Matching" or "MISMATCH:{"..bs.x1..","..bs.y1..","..bs.x2..","..bs.y2.."}")  or "MISSING!")
+				count = count + 1
+			end
+		end
+		dmp[#dmp + 1] = "Total Blocking Rectangles = "..count
+		dmp[#dmp + 1] = "Total Blocking Rectangles in routing matrix = "..rbs
+		-- Now lets look at the connectors
+		dmp[#dmp + 1] = "---------------------------------------------------\nCONNECTORS:"
+		local hs,vs = 0,0
+		for i = 1,#conn do
+			-- Segments of the connector
+			for j = 1,#conn[i].segments do
+				local seg = conn[i].segments[j]
+				if seg.start_x == seg.end_x then
+					-- Vertical segment
+					vs = vs + 1
+					local found, matching = foundAndMatching(rm.vsegs,seg)
+					local bs = rm.vsegs[seg]
+					dmp[#dmp + 1] = "ID: "..conn[i].id.."S"..j.."\t"..tostring(seg).."\t {"..seg.start_x..","..seg.start_y..","..seg.end_x..","..seg.end_y.."}\t"..(found and (matching and "Matching" or "MISMATCH:{"..bs.x1..","..bs.y1..","..bs.x2..","..bs.y2.."}")  or "MISSING!")
+				elseif seg.start_y == seg.end_y then
+					-- Horizontal segment
+					hs = hs + 1
+					local found, matching = foundAndMatching(rm.hsegs,seg)
+					local bs = rm.hsegs[seg]
+					dmp[#dmp + 1] = "ID: "..conn[i].id.."S"..j.."\t"..tostring(seg).."\t {"..seg.start_x..","..seg.start_y..","..seg.end_x..","..seg.end_y.."}\t"..(found and (matching and "Matching" or "MISMATCH:{"..bs.x1..","..bs.y1..","..bs.x2..","..bs.y2.."}")  or "MISSING!")
+				end
+			end
+		end
+		dmp[#dmp + 1] = "Total horizontal segments = "..hs
+		dmp[#dmp + 1] = "Total horizontal segments in routing matrix = "..rhs
+		dmp[#dmp + 1] = "Total vertical segments = "..vs
+		dmp[#dmp + 1] = "Total vertical segments in routing matrix = "..rvs
+		-- Now lets see and list the extra stuff in routing matrix
+		dmp[#dmp + 1] = "---------------------------------------------------\nEXTRA IN ROUTING MATRIX:"
+		dmp[#dmp + 1] = "BLOCKING RECTANGLES:"
+		for k,v in pairs(rm.blksegs) do
+			local found
+			for i = 1,#obj do
+				if obj[i] == k then
+					found = true
+					break
+				end
+			end
+			if not found then
+				dmp[#dmp + 1] = "ID: "..k.id.."\t"..tostring(k).."\t {"..k.start_x..","..k.start_y..","..k.end_x..","..k.end_y.."}\tRouting Matrix Entry:{"..v.x1..","..v.y1..","..v.x2..","..v.y2.."}"
+			end
+		end
+		dmp[#dmp + 1] = "HORIZONTAL SEGMENTS:"
+		for k,v in pairs(rm.hsegs) do
+			local found
+			for i = 1,#conn do
+				for j = 1,#conn[i].segments do
+					if k == conn[i].segments[j] then
+						found = true
+						break
+					end
+				end
+				if found then
+					break
+				end
+			end
+			if not found then
+				dmp[#dmp + 1] = "HSEGMENT: "..tostring(k).." {"..k.start_x..","..k.start_y..","..k.end_x..","..k.end_y.."}\tRouting Matrix Entry:{"..v.x1..","..v.y1..","..v.x2..","..v.y2.."}"
+			end			
+		end
+		dmp[#dmp + 1] = "VERTICAL SEGMENTS:"
+		for k,v in pairs(rm.vsegs) do
+			local found
+			for i = 1,#conn do
+				for j = 1,#conn[i].segments do
+					if k == conn[i].segments[j] then
+						found = true
+						break
+					end
+				end
+				if found then
+					break
+				end
+			end
+			if not found then
+				dmp[#dmp + 1] = "VSEGMENT: "..tostring(k).." {"..k.start_x..","..k.start_y..","..k.end_x..","..k.end_y.."}\tRouting Matrix Entry:{"..v.x1..","..v.y1..","..v.x2..","..v.y2.."}"
+			end			
+		end
+		dumpStr = table.concat(dmp,"\n")
+	end
+	local count,hs,vs = 0,0,0
+	for i = 1,#obj do
+		if obj[i].shape == "BLOCKINGRECT" then
+			local found, matching = foundAndMatching(rm.blksegs,obj[i])
+			if not found then
+				return nil,dumpStr or obj[i].id.." blocking rectangle not in routing matrix."
+			end
+			if not matching then
+				return nil,dumpStr or obj[i].id.." blocking rectangle does not match."
+			end
+			count = count + 1
+		end
+	end
+	if count ~= rbs then
+		return nil,dumpStr or count.." blocking rectangles found but routing matrix has "..rbs
+	end
+	for i = 1,#conn do
+		-- Segments of the connector
+		for j = 1,#conn[i].segments do
+			local seg = conn[i].segments[j]
+			local found,matching
+			if seg.start_x == seg.end_x then
+				-- Vertical segment
+				vs = vs + 1
+				found, matching = foundAndMatching(rm.vsegs,seg)
+			elseif seg.start_y == seg.end_y then
+				-- Horizontal segment
+				hs = hs + 1
+				found, matching = foundAndMatching(rm.hsegs,seg)
+			else
+				found = true
+				matching = true
+			end
+			if not found then
+				return nil,dumpStr or conn[i].id.."S"..j.." not in routing matrix."
+			end
+			if not matching then
+				return nil,dumpStr or conn[i].id.."S"..j.." does not match."
+			end
+		end
+	end
+	if hs ~= rhs then
+		return nil,dumpStr or hs.." horizontal segments found but routing matrix has "..rhs
+	end
+	if vs ~= rvs then
+		return nil,dumpStr or vs.." vertical segments found but routing matrix has "..rvs
+	end
+	return true,dumpStr
 end

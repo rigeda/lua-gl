@@ -471,6 +471,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
 			end_y = destY
 		}
 		segments[#segments + 1] = s
+		rM:addSegment(s,reX,reY,destX,destY)
 		reX = destX
 		reY = destY
 		-- Set the attribute for the jumping segment

@@ -49,15 +49,16 @@ _VERSION = "B20.01.11"
 --- TASKS
 --[[
 DEBUG:
-* testcase1 if both objects dragged then may junctions created
 TASKS:
-* Fix drag segment to take care of case when connected segments of the same connector are being dragged
-* Finish loading of saved structure.
+* Test drag segment
 * Finish moveSegment
 * Finish moveConn
 * Finish removeConn
 * Finish removeObj
 * Finish removePort
+* Finish cnvobj:move
+* Finish cnvobj:drag
+* Finish loading of saved structure.
 * Add rotate functionality
 * Add object resize functionality
 * Add Text functionality
@@ -118,6 +119,10 @@ objFuncs = {
 			return true
 		end
 		-- Setup the interactive move call backs
+		
+	end,
+	
+	drag = function(cnvobj,items,offx,offy)
 		
 	end,
 
