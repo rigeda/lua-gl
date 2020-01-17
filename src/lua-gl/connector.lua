@@ -1224,6 +1224,110 @@ function connectOverlapPorts(cnvobj,conn,ports)
 	return true
 end
 
+-- Function to move a list of segments (moving implies connector connections are broken)
+-- segList is a list of structures like this:
+--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}
+]]
+-- If offx and offy are given numbers then this will be a non interactive move
+moveSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	-- Check whether this is an interactive move or not
+	local interactive
+	if not offx or type(offx) ~= "number" then
+		interactive = true
+	elseif not offy or type(offy) ~= "number" then
+		return nil, "Coordinates not given"
+	end
+	
+	local rm = cnvobj.rM
+	
+	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
+	table.sort(segList,function(one,two)
+			if one.conn.id == two.conn.id then
+				-- this is the same connector
+				return one.seg > two.seg	-- sort with descending segment index
+			else
+				return one.conn.id > two.conn.id
+			end
+		end)
+	
+	-- Need to split the connector at the points which will break the connector as a result of the move
+	
+	
+	if not interactive then
+		-- Take care of grid snapping
+		offx,offy = cnvobj:snap(offx,offy)
+		
+		-- Move each segment
+		for i = 1,#segList do
+			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
+			rm:removeSegment(seg)
+			-- Move the segment
+			seg.start_x = seg.start_x + offx
+			seg.start_y = seg.start_y + offy
+			seg.end_x = seg.end_x + offx
+			seg.end_y = seg.end_y + offy
+			rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
+		end
+		local combinedMM = {}
+		for i = 1,#segList do
+			-- Check if all segments of this connector are done
+			if i == #segList or segList[i+1].conn ~= segList[i].conn then
+				-- First check whether this connector was already merged into something else
+				local found
+				local connID = segList[i].conn.id
+				for j = 1,#combinedMM do
+					if tu.inArray(combinedMM[j][2],connID) then
+						found = true
+						break
+					end
+				end
+				if not found then
+					-- remove any overlaps in the final merged connector
+					local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
+					combinedMM[#combinedMM + 1] = mergeMap
+					-- Connect overlapping ports
+					connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
+				end
+			end
+		end
+		return true
+	end
+	
+	-- Setup the interactive drag operation here
+	-- Set refX,refY as the mouse coordinate on the canvas
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
+	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
+	local oldBCB = cnvobj.cnv.button_cb
+	local oldMCB = cnvobj.cnv.motion_cb
+	
+	cnvobj.op.mode = "DRAGSEG"
+	cnvobj.op.segList = segList
+	cnvobj.op.coor1 = {x=segList[1].conn.segments[segList[1].seg].start_x,y=segList[1].conn.segments[segList[1].seg].start_y}
+	cnvobj.op.finish = dragEnd
+	cnvobj.op.offx = 0
+	cnvobj.op.offy = 0
+	cnvobj.op.oldSegs = {}	-- To backup old segment structures for all items in the segList
+	for i = 1,#segList do
+		cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{})	-- Copy the entire segments table by copying over the segment tables (NOTE: It does not duplicate the segment tables)
+	end
+	-- fill segsToRemove with the segments in segList
+	cnvobj.op.segsToRemove = {}	-- to store the segments generated after every motion_cb
+	cnvobj.op.dragSegCopy = {}
+	for i = 1,#segList do
+		cnvobj.op.segsToRemove[i] = segList[i].conn.segments[segList[i].seg]
+		-- Create a full copy of the segments being dragged
+		cnvobj.op.dragSegCopy[i] = tu.copyTable(segList[i].conn.segments[segList[i].seg],{},true)
+	end
+end
+
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
 -- segList is a list of structures like this:
 --[[
@@ -1254,7 +1358,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		return nil, "Coordinates not given"
 	end
 	
-	print("DRAG SEGMENT START")
+	--print("DRAG SEGMENT START")
 	
 	local rm = cnvobj.rM
 	
@@ -1289,6 +1393,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	end
 	local segsToRemove = {}
 	-- Function to add x,y coordinate to dragNodes if all segments connected to it are not in the segList array
+	local segsToAdd = {}
 	local function updateDragNodes(conn,x,y,segI)
 		local segs = segsOnNode(conn,x,y)
 		local allSegs=true		-- to indicate if all segments in segs are in segList
@@ -1318,14 +1423,52 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 					otherSeg = conn.segments[segs[1].seg[2]]
 					ind = segs[1].seg[2]
 				end
+				local addx,addy
 				-- Get the other coordinate of the segment
 				if otherSeg.start_x == x and otherSeg.start_y == y then
-					tu.mergeArrays({{x = otherSeg.end_x,y = otherSeg.end_y,conn=conn,offx = x-otherSeg.end_x,offy=y-otherSeg.end_y}},dragNodes,false,equalDragNode)
+					addx,addy = otherSeg.end_x,otherSeg.end_y
 				else
-					tu.mergeArrays({{x = otherSeg.start_x,y = otherSeg.start_y,conn=conn,offx = x-otherSeg.start_x,offy=y-otherSeg.start_y}},dragNodes,false,equalDragNode)
+					addx,addy = otherSeg.start_x,otherSeg.start_y
 				end
-				-- Add segment to segsToRemove
-				segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
+				-- Check whether addx,addy lies only on segments that are being dragged as well
+				local aConns,sgs = getConnFromXY(cnvobj,addx,addy,0)
+				local found
+				for i = 1,#aConns do
+					if aConns[i] == conn then
+						for j = 1,#sgs[i].seg do
+							found = true
+							if sgs[i].seg[j] ~= ind then	-- This is not the otherSeg segment
+								-- Check if this segment is also being dragged
+								local found1
+								for k = 1,#segList do
+									if segList[k].conn == conn then
+										if sgs[i].seg[j] == segList[k].seg then
+											found1 = true
+											break
+										end
+									end
+								end		-- for k = 1,#segList ends
+								if not found1 then
+									-- This segment is not being dragged then
+									found = false
+									break
+								end
+							end
+						end		-- for j=1,#sgs[i].seg ends
+						if not found then
+							break
+						end
+					end
+				end
+				if not found then
+					-- Now all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
+					tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)
+					-- Add segment to segsToRemove
+					segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
+				else
+					-- All segments connected to addx,addy are also being dragged so add otherSeg into the list of segments to drag as well
+					segsToAdd[#segsToAdd + 1] = {conn = conn, seg = ind}
+				end
 			elseif #segs[1].seg == 1 then
 				-- If add this as dragNode here then routing will be made from this dangling end of this segment with it is dragged.
 			end		
@@ -1337,6 +1480,20 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		updateDragNodes(conn,seg.start_x,seg.start_y,segList[i].seg)
 		updateDragNodes(conn,seg.end_x,seg.end_y,segList[i].seg)
 	end
+	-- Add segsToAdd into segList
+	for i = 1,#segsToAdd do
+		segList[#segList + 1] = segsToAdd[i]
+	end
+	
+	table.sort(segList,function(one,two)
+			if one.conn.id == two.conn.id then
+				-- this is the same connector
+				return one.seg > two.seg	-- sort with descending segment index
+			else
+				return one.conn.id > two.conn.id
+			end
+		end)
+	
 	-- Sort segsToRemove in descending order of segment index
 	table.sort(segsToRemove,function(one,two)
 			if one.conn.id == two.conn.id then
