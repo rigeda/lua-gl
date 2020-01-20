@@ -50,11 +50,6 @@ _VERSION = "B20.01.11"
 --[[
 DEBUG:
 TASKS:
-* Finish moveConn
-* Test moveSegment and moveConn
-* Finish removeConn
-* Finish removeObj
-* Finish removePort
 * Finish cnvobj:move
 * Finish cnvobj:drag
 * Finish loading of saved structure.
@@ -485,6 +480,7 @@ objFuncs = {
 	dragSegment = conn.dragSegment,
 	moveSegment = conn.moveSegment,
 	moveConn = conn.moveConn,
+	removeConn = conn.removeConn,
 	getConnFromID = conn.getConnFromID,
 	getConnFromXY = conn.getConnFromXY,
 	---- HOOKS--------------
@@ -500,6 +496,7 @@ objFuncs = {
 	drawObj = objects.drawObj,				-- Draw object
 	dragObj = objects.dragObj,				-- drag object(s)/group(s)
 	moveObj = objects.moveObj,				-- move object(s)
+	removeObj = objects.removeObj,
 	groupObjects = objects.groupObjects,	
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,

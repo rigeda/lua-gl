@@ -1224,6 +1224,37 @@ function connectOverlapPorts(cnvobj,conn,ports)
 	return true
 end
 
+-- Function to remove a connector
+-- Removes all references of the connector from everywhere:
+-- * cnvobj.drawn.conn
+-- * cnvobj.drawn.order
+-- * cnvobj.drawn.port
+-- * Routing Matrix
+removeConn = function(cnvobj,conn)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	-- First update the routing matrix
+	local rm = cnvobj.rM
+	for i = 1,#conn.segments do
+		rm:removeSegment(conn.segments[i])
+	end
+	-- Remove the connector from the order array
+	table.remove(cnvobj.drawn.order,conn.order)
+	fixOrder(cnvobj)
+	-- Remove references of the connector from all the ports connecting to it
+	local ind
+	for i = 1,#conn.port do
+		ind = tu.inArray(conn.port[i].conn,conn)
+		table.remove(conn.port[i].conn,ind)
+	end
+	-- Remove from the connectors array
+	ind = tu.inArray(cnvobj.drawn.conn,conn)
+	table.remove(cnvobj.drawn.conn,ind)
+	-- All done!
+	return true
+end
+
 -- Function to move a list of connectors
 -- connM is a list of connectors that need to be moved
 -- If offx and offy are given numbers then this will be a non interactive move

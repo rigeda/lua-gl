@@ -204,6 +204,52 @@ function setObjVisualAttr(cnvobj,obj,attr,num)
 	return true
 end
 
+-- Function to remove an object from all data structures
+-- Removes all references of the object from everywhere:
+-- * cnvobj.drawn.obj
+-- * cnvobj.drawn.group
+-- * cnvobj.drawn.order
+-- * cnvobj.drawn.port because ports attached to the object are also removed
+-- * Routing Matrix
+removeObj = function(cnvobj,obj)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	-- First update the routing matrix
+	if obj.shape == "BLOCKINGRECT" then
+		cnvobj.rM:removeBlockingRectangle(obj)
+	end
+	-- Remove from the order array
+	table.remove(cnvobj.drawn.order,obj.order)
+	fixOrder(cnvobj)
+	-- Remove the ports
+	local ind
+	for i = 1,#obj.port do
+		-- Remove references from any connectors it connects to
+		for j = 1,#obj.port[i].conn do
+			ind = tu.inArray(obj.port[i].conn[j].port,obj.port[i])
+			table.remove(obj.port[i].conn[j].port,ind)
+		end
+		-- Remove the port from the port array
+		ind = tu.inArray(cnvobj.drawn.port,obj.port[i])
+		table.remove(cnvobj.drawn.port,ind)
+		-- Remove the port from the routing matrix
+		cnvobj.rM:removePort(obj.port[i])
+	end
+	-- Remove references from any groups
+	if obj.group then
+		for i = 1,#obj.group do
+			local ind = tu.inArray(obj.group[i],obj)
+			table.remove(obj.group[i],ind)
+		end
+	end
+	-- remove from object array
+	ind = tu.inArray(cnvobj.drawn.obj,obj)
+	table.remove(cnvobj.drawn.obj,ind)
+	-- All done
+	return true
+end
+
 -- Function to move a list of objects provided with the given offset offx,offy which are added to the coordinates
 -- if offx is not a number or not given then the move is done interactively
 -- objList is a list of object structures of the objects to be moved

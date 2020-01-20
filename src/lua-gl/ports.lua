@@ -7,6 +7,7 @@ local tostring = tostring
 local table = table
 
 local coorc = require("lua-gl.CoordinateCalc")
+local tu = require("tableUtils")
 
 local M = {}
 package.loaded[...] = M
@@ -96,27 +97,31 @@ addPort = function(cnvobj,x,y,objID)
 	return cnvobj.drawn.port[index]
 end
 
-removePort = function(cnvobj,portID)
+-- Function to remove a port from all data structures
+-- The data structures are:
+-- * Object to which it is attached to -> port.obj.port array
+-- * cnvobj.drawn.port array
+-- * Routing Matrix
+-- * All connectors to which it is attached to -> port.conn[i].port array
+removePort = function(cnvobj,port)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
-	local ports = cnvobj.drawn.port
-	for i = 1,#ports do
-		if ports[i].id == portID then
-			-- Remove the port from the object
-			local objports = ports[i].obj.port
-			for j = 1,#objports do
-				if objports[j] == ports[i] then
-					table.remove(objports,j)
-					break
-				end
-			end
-			-- remove the port from the routing matrix
-			cnvobj.rM:removePort(ports[i])
-			table.remove(ports,i)
-			break
-		end
+	-- Remove references from any connectors it connects to
+	local ind
+	for j = 1,#port.conn do
+		ind = tu.inArray(port.conn[j].port,port)
+		table.remove(port.conn[j].port,ind)
 	end
+	-- Remove the port from the object it is attached to
+	ind = tu.inArray(port.obj.port,port)
+	table.remove(port.obj.port,ind)
+	-- Remove the port from the port array
+	ind = tu.inArray(cnvobj.drawn.port,port)
+	table.remove(cnvobj.drawn.port,ind)
+	-- Remove the port from the routing matrix
+	cnvobj.rM:removePort(port)
+	-- All Done
 	return true
 end
 
