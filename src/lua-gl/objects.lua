@@ -212,7 +212,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		return nil,"Not a valid lua-gl object"
 	end
 	-- Check whether this is an interactive move or not
-	print("MOVE OBJECT BEGIN")
+	--print("MOVE OBJECT BEGIN")
 	local interactive
 	if not offx or type(offx) ~= "number" then
 		interactive = true

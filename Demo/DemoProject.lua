@@ -199,7 +199,7 @@ local function getSelectionList(cb,noclick)
 			-- Update the list item control to display the items
 			list.removeitem = "ALL"
 			for i = 1,#items do
-				list.appenditem = items[i].id or items[i].conn.id
+				list.appenditem = items[i].id or (items[i].conn.id.."S"..tostring(items[i].seg))
 			end
 		end
 	end
@@ -237,7 +237,8 @@ end
 function GUI.toolbar.buttons.moveButton:action()
 	-- function to handle the move
 	local function moveitems(items)
-		cnvobj:moveObj(items)
+		--cnvobj:moveObj(items)
+		cnvobj:moveSegment(items)
 	end
 	-- first we need to select items
 	getSelectionList(moveitems)

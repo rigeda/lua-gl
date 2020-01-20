@@ -50,8 +50,8 @@ _VERSION = "B20.01.11"
 --[[
 DEBUG:
 TASKS:
-* Finish moveSegment
 * Finish moveConn
+* Test moveSegment and moveConn
 * Finish removeConn
 * Finish removeObj
 * Finish removePort

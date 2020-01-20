@@ -1224,6 +1224,169 @@ function connectOverlapPorts(cnvobj,conn,ports)
 	return true
 end
 
+-- Function to move a list of connectors
+-- connM is a list of connectors that need to be moved
+-- If offx and offy are given numbers then this will be a non interactive move
+moveConn = function(cnvobj,connM,offx,offy)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	-- Check whether this is an interactive move or not
+	local interactive
+	if not offx or type(offx) ~= "number" then
+		interactive = true
+	elseif not offy or type(offy) ~= "number" then
+		return nil, "Coordinates not given"
+	end
+	
+	local rm = cnvobj.rM	
+	
+	local function shiftConnList(connL,offx,offy)
+		for i = 1,#connL do
+			for j = 1,#connL[i].segments do
+				seg = connL[i].segments[j]
+				-- Move the segment coordinates with their port coordinates
+				seg.start_x = seg.start_x + offx
+				seg.start_y = seg.start_y + offy
+				seg.end_x = seg.end_x + offx
+				seg.end_y = seg.end_y + offy
+				rm:removeSegment(seg)
+				rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
+			end
+		end		-- for i = 1,#connM do ends		
+	end
+	
+	if not interactive then
+		-- Take care of grid snapping
+		offx,offy = cnvobj:snap(offx,offy)
+		shiftConnList(connM,offx,offy)
+		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+		local combinedMM = {}
+		for i = 1,#connM do
+			-- First check whether this connector was already merged into something else
+			local found
+			local connID = connM[i].id
+			for j = 1,#combinedMM do
+				for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
+					if tu.inArray(combinedMM[j][k][2],connID) then
+						found = true
+						break
+					end
+				end
+			end
+			if not found then
+				-- remove any overlaps in the final merged connector
+				local mergeMap = shortAndMergeConnectors(cnvobj,{connM[i]})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
+				combinedMM[#combinedMM + 1] = mergeMap
+				-- Connect overlapping ports
+				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
+			end
+		end		-- for i = 1,#connM do ends
+		return true
+	end		-- if not interactive then ends
+	-- Setup the interactive move operation here
+	-- Set refX,refY as the mouse coordinate on the canvas
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
+	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
+	local oldBCB = cnvobj.cnv.button_cb
+	local oldMCB = cnvobj.cnv.motion_cb
+	
+	-- Sort the group elements in ascending order ranking
+	table.sort(connM,function(one,two) 
+			return one.order < two.order
+	end)
+	
+	-- Backup the orders of the elements to move and change their orders to display in the front
+	local order = cnvobj.drawn.order
+	local oldOrder = {}
+	for i = 1,#connM do
+		oldOrder[i] = connM[i].order
+	end
+	
+	-- Move the last item in the list to the end. Last item because it is te one with the highest order
+	local item = cnvobj.drawn.order[connM[#connM].order]
+	table.remove(cnvobj.drawn.order,connM[#connM].order)
+	table.insert(cnvobj.drawn.order,item)
+	-- Move the rest of the items on the last position
+	for i = 1,#connM-1 do
+		item = cnvobj.drawn.order[connM[i].order]
+		table.remove(cnvobj.drawn.order,connM[i].order)
+		table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
+	end
+	-- Update the order number for all items 
+	fixOrder(cnvobj)
+	
+	local function moveEnd()
+		-- Reset the orders back
+		for i = 1,#connM do
+			local item = cnvobj.drawn.order[connM[i].order]
+			table.remove(cnvobj.drawn.order,connM[i].order)
+			table.insert(cnvobj.drawn.order,oldOrder[i],item)
+		end
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		-- Restore the previous button_cb and motion_cb
+		cnvobj.cnv.button_cb = oldBCB
+		cnvobj.cnv.motion_cb = oldMCB	
+		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+		local combinedMM = {}
+		for i = 1,#connM do
+			-- First check whether this connector was already merged into something else
+			local found
+			local connID = connM[i].id
+			for j = 1,#combinedMM do
+				for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
+					if tu.inArray(combinedMM[j][k][2],connID) then
+						found = true
+						break
+					end
+				end
+			end
+			if not found then
+				-- remove any overlaps in the final merged connector
+				local mergeMap = shortAndMergeConnectors(cnvobj,{connM[i]})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
+				combinedMM[#combinedMM + 1] = mergeMap
+				-- Connect overlapping ports
+				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
+			end
+		end		-- for i = 1,#connM do ends
+		
+		tu.emptyTable(cnvobj.op)
+		cnvobj.op.mode = "DISP"	-- Default display mode	
+		cnvobj:refresh()
+	end
+	
+	cnvobj.op.mode = "MOVECONN"
+	cnvobj.op.finish = moveEnd
+	cnvobj.op.coor1 = {x=connM[1].segments[1].start_x,y=connM[1].segments[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+	
+	-- button_CB to handle segment dragging
+	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+		--y = cnvobj.height - y
+		-- Check if any hooks need to be processed here
+		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
+		if button == iup.BUTTON1 and pressed == 1 then
+			moveEnd()
+		end
+		-- Process any hooks 
+		cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})	
+	end
+	
+	-- motion_cb to handle segment dragging
+	function cnvobj.cnv:motion_cb(x,y,status)
+		--y = cnvobj.height - y
+		if cnvobj.op.mode == "MOVECONN" then
+			x,y = cnvobj:snap(x-refX,y-refY)
+			local offx,offy = x+cnvobj.op.coor1.x-connM[1].segments[1].start_x,y+cnvobj.op.coor1.y-connM[1].segments[1].start_y
+			shiftConnList(connM,offx,offy)
+		end
+		cnvobj:refresh()
+	end
+	
+	return true
+end
+
 -- Function to move a list of segments (moving implies connector connections are broken)
 -- segList is a list of structures like this:
 --[[
@@ -1233,7 +1396,7 @@ end
 }
 ]]
 -- If offx and offy are given numbers then this will be a non interactive move
-moveSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
+moveSegment = function(cnvobj,segList,offx,offy)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -1258,74 +1421,108 @@ moveSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		end)
 	
 	-- Need to split the connector at the points which will break the connector as a result of the move
+	-- We need to split every connector in the list to separate the segments being moved and not being moved into different connectors
+	local connM = {}	-- List of connectors moving
+	local connNM = {}	-- List of connectors not moving
 	
+	-- Function to check if the segment segS touches any connector segment end in connA. 
+	-- If yes then it is added to that connector if not then anotehr connector is created in connA and the segment added to that
+	local function addSegmentToConn(connA,segS)
+		local found
+		for k = 1,#connA do
+			for l = 1,#connA[k].segments do
+				local seg = connA[k].segments[l]
+				if seg.start_x == segS.start_y and seg.start_y == segS.start_y or
+				  seg.end_x == segS.start_x and seg.end_y == segS.start_y or
+				  seg.start_x == segS.end_x and seg.start_y == segS.end_y or
+				  seg.end_x == segS.end_x and seg.end_y == segS.end_y then
+					found = true
+					connA[k].segments[#connA[k].segments + 1] = tu.copyTable(segS,{},true)
+					-- Add the segment to the routing Matrix
+					local nseg = connA[k].segments[#connA[k].segments]
+					rm:addSegment(nseg,nseg.start_x,nseg.start_y,nseg.end_x,nseg.end_y)
+					break
+				end
+			end	-- for j = 1,#connM[k].segments ends
+			if found then break end
+		end	-- for k = 1,#connA do ends
+		if not found then
+			-- Create another connM connector here
+			connA[#connA + 1] = {
+				id = nil,
+				order = nil,
+				segments = {
+					tu.copyTable(segS,{},true)
+				},
+				port = {},
+				junction = {}
+			}
+			connA[#connA].id = "C"..tostring(cnvobj.drawn.conn.ids + 1)
+			cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
+			local nseg = connA[#connA].segments[1]
+			rm:addSegment(nseg,nseg.start_x,nseg.start_y,nseg.end_x,nseg.end_y)
+		end		-- if not found then ends 		
+	end
 	
-	if not interactive then
-		-- Take care of grid snapping
-		offx,offy = cnvobj:snap(offx,offy)
-		
-		-- Move each segment
-		for i = 1,#segList do
-			local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
-			rm:removeSegment(seg)
-			-- Move the segment
-			seg.start_x = seg.start_x + offx
-			seg.start_y = seg.start_y + offy
-			seg.end_x = seg.end_x + offx
-			seg.end_y = seg.end_y + offy
-			rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
-		end
-		local combinedMM = {}
-		for i = 1,#segList do
-			-- Check if all segments of this connector are done
-			if i == #segList or segList[i+1].conn ~= segList[i].conn then
-				-- First check whether this connector was already merged into something else
-				local found
-				local connID = segList[i].conn.id
-				for j = 1,#combinedMM do
-					if tu.inArray(combinedMM[j][2],connID) then
-						found = true
-						break
-					end
-				end
-				if not found then
-					-- remove any overlaps in the final merged connector
-					local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
-					combinedMM[#combinedMM + 1] = mergeMap
-					-- Connect overlapping ports
-					connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
-				end
+	local cnst,cnen
+	cnst = 1
+	for i = 1,#segList do
+		if i == #segList or segList[i+1].conn ~= segList[i].conn then	
+			-- This is the last segment of this connector
+			cnen = i
+			local connMp,connNMp = #connM+1,#connNM+1
+			-- Now split this connector into multiple connectors
+			-- 1st lets get the moving connectors
+			for j = cnst,cnen do
+				-- Check if this segment is touching any other segment
+				addSegmentToConn(connM,segList[j].conn.segments[segList[j].seg])
+				rm:removeSegment(segList[j].conn.segments[segList[j].seg])
+				table.remove(segList[j].conn.segments,segList[j].seg)
+			end		-- for j = cnst,cnen do ends
+			-- Add the remaining segments of the connector to connNM connectors
+			for j = 1,#segList[i].conn.segments do
+				addSegmentToConn(connNM,segList[i].conn.segments[j])
+				rm:removeSegment(segList[i].conn.segments[j])
 			end
-		end
-		return true
+			-- Now remove the connector from the drawn connectors array and put the connectors in connM and connNM
+			local pos = tu.inArray(cnvobj.drawn.conn,segList[i].conn)
+			table.remove(cnvobj.drawn.conn,pos)
+			-- Remove the connector from the order array as well
+			pos = segList[i].conn.order
+			table.remove(cnvobj.drawn.order,pos)
+			-- Disconnect all ports in the connector
+			for j = 1,#segList[i].conn.port do
+				local prt = segList[i].conn.port[j]
+				table.remove(prt.conn,tu.inArray(prt.conn,segList[i].conn))
+			end
+			for j = connMp,#connM do
+				table.insert(cnvobj.drawn.conn,connM[j])
+				table.insert(cnvobj.drawn.order,pos,{
+						type = "connector",
+						item = connM[j]
+					})
+			end
+			for j = connNMp,#connNM do
+				table.insert(cnvobj.drawn.conn,connNM[j])
+				table.insert(cnvobj.drawn.order,pos,{
+						type = "connector",
+						item = connNM[j]
+					})
+			end
+			cnst = i + 1
+		end		-- if i == #segList or segList[i+1].conn ~= segList[i].conn ends
+	end		-- for i = 1,#segList do ends here
+	
+	fixOrder(cnvobj)
+	
+	-- run connectOverlapPorts for the connectors not being moved
+	for i = 1,#connNM do
+		connectOverlapPorts(cnvobj,connNM[i])
 	end
 	
-	-- Setup the interactive drag operation here
-	-- Set refX,refY as the mouse coordinate on the canvas
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
-	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
-	local oldBCB = cnvobj.cnv.button_cb
-	local oldMCB = cnvobj.cnv.motion_cb
 	
-	cnvobj.op.mode = "DRAGSEG"
-	cnvobj.op.segList = segList
-	cnvobj.op.coor1 = {x=segList[1].conn.segments[segList[1].seg].start_x,y=segList[1].conn.segments[segList[1].seg].start_y}
-	cnvobj.op.finish = dragEnd
-	cnvobj.op.offx = 0
-	cnvobj.op.offy = 0
-	cnvobj.op.oldSegs = {}	-- To backup old segment structures for all items in the segList
-	for i = 1,#segList do
-		cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{})	-- Copy the entire segments table by copying over the segment tables (NOTE: It does not duplicate the segment tables)
-	end
-	-- fill segsToRemove with the segments in segList
-	cnvobj.op.segsToRemove = {}	-- to store the segments generated after every motion_cb
-	cnvobj.op.dragSegCopy = {}
-	for i = 1,#segList do
-		cnvobj.op.segsToRemove[i] = segList[i].conn.segments[segList[i].seg]
-		-- Create a full copy of the segments being dragged
-		cnvobj.op.dragSegCopy[i] = tu.copyTable(segList[i].conn.segments[segList[i].seg],{},true)
-	end
+	-- Now we just need to call moveConnector
+	return moveConn(cnvobj,connM,offx,offy)
 end
 
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
@@ -1554,9 +1751,11 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 				local found
 				local connID = segList[i].conn.id
 				for j = 1,#combinedMM do
-					if tu.inArray(combinedMM[j][2],connID) then
-						found = true
-						break
+					for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
+						if tu.inArray(combinedMM[j][k][2],connID) then
+							found = true
+							break
+						end
 					end
 				end
 				if not found then
@@ -1681,9 +1880,11 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 				local found
 				local connID = segList[i].conn.id
 				for j = 1,#combinedMM do
-					if tu.inArray(combinedMM[j][2],connID) then
-						found = true
-						break
+					for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
+						if tu.inArray(combinedMM[j][k][2],connID) then
+							found = true
+							break
+						end
 					end
 				end
 				if not found then
