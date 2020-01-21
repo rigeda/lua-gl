@@ -131,7 +131,11 @@ function GUI.toolbar.buttons.fElliButton:action()
 	cnvobj:drawObj("FILLEDELLIPSE",2)	-- interactive filled ellipse drawing
 end
 
-local function getSelectionList(cb,noclick)
+-- If mode == 1 then add only objects
+-- if mode == 2 then add only connectors/segments
+-- If no mode then add both
+-- If noclick is true then the given call back is called as soon as the selection list is completed otherwise an additional click is required by the mouse before the call back is called
+local function getSelectionList(cb,noclick,mode)
 	-- Create a dialog to show the list
 	local list = iup.list{
 		visiblelines = 10,
@@ -179,23 +183,44 @@ local function getSelectionList(cb,noclick)
 	local items = {}
 	local function clickToAdd(button,pressed,x,y,status)
 		if button == iup.BUTTON1 and pressed == 1 then
-			-- Add any objects at x,y to items
-			local i = cnvobj:getObjFromXY(x,y)
-			-- Merge into items
-			tu.mergeArrays(i,items,false,function(one,two) return one.id == two.id end)
-			-- Add any connectors at x,y to items
-			local c,s = cnvobj:getConnFromXY(x,y)
-			local connList = {}
-			for i = 1,#s do
-				for j = 1,#s[i].seg do
-					connList[#connList + 1] = {
-						conn = cnvobj.drawn.conn[s[i].conn],
-						seg = s[i].seg[j]
-					}
+			if mode and mode == 1 then
+				-- Add any objects at x,y to items
+				local i = cnvobj:getObjFromXY(x,y)
+				-- Merge into items
+				tu.mergeArrays(i,items,false,function(one,two) return one.id == two.id end)
+			elseif mode and mode == 2 then
+				-- Add any connectors at x,y to items
+				local c,s = cnvobj:getConnFromXY(x,y)
+				local connList = {}
+				for i = 1,#s do
+					for j = 1,#s[i].seg do
+						connList[#connList + 1] = {
+							conn = cnvobj.drawn.conn[s[i].conn],
+							seg = s[i].seg[j]
+						}
+					end
 				end
+				-- Merge into items
+				tu.mergeArrays(connList,items,false,function(one,two) return one.conn.id == two.conn.id and one.seg == two.seg end)
+			elseif not mode then
+				-- Add any objects at x,y to items
+				local i = cnvobj:getObjFromXY(x,y)
+				-- Merge into items
+				tu.mergeArrays(i,items,false,function(one,two) return one.id == two.id end)
+				-- Add any connectors at x,y to items
+				local c,s = cnvobj:getConnFromXY(x,y)
+				local connList = {}
+				for i = 1,#s do
+					for j = 1,#s[i].seg do
+						connList[#connList + 1] = {
+							conn = cnvobj.drawn.conn[s[i].conn],
+							seg = s[i].seg[j]
+						}
+					end
+				end
+				-- Merge into items
+				tu.mergeArrays(connList,items,false,function(one,two) return one.conn.id == two.conn.id and one.seg == two.seg end)
 			end
-			-- Merge into items
-			tu.mergeArrays(connList,items,false,function(one,two) return one.conn.id == two.conn.id and one.seg == two.seg end)
 			-- Update the list item control to display the items
 			list.removeitem = "ALL"
 			for i = 1,#items do
@@ -237,11 +262,11 @@ end
 function GUI.toolbar.buttons.moveButton:action()
 	-- function to handle the move
 	local function moveitems(items)
-		--cnvobj:moveObj(items)
-		cnvobj:moveSegment(items)
+		cnvobj:moveObj(items)
+		--cnvobj:moveSegment(items)
 	end
 	-- first we need to select items
-	getSelectionList(moveitems)
+	getSelectionList(moveitems,false,1)	-- Need a click with only object selection allowed
 end
 
 -- Start drag operation
@@ -271,7 +296,7 @@ function GUI.toolbar.buttons.groupButton:action()
 		end		
 	end
 	-- Get the list of items
-	getSelectionList(groupObjects,true)
+	getSelectionList(groupObjects,true,1)
 end
 
 function GUI.toolbar.buttons.portButton:action()

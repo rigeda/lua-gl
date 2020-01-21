@@ -61,7 +61,7 @@ TASKS:
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
 * Implement action cancel by ending and then undoing it.
 * Connector labeling
-* Have to add export/print
+* Add export/print
 ]]
 
 local function getVisualAttr(cnvobj,item)
@@ -73,7 +73,19 @@ end
 local objFuncs
 objFuncs = {
 	
-	-- Function to move the list of items (given as a list of their IDs) by moving the all items offx and offy offsets
+	-- Function to save the drawn data and return it as a string that can be passed to the load function to load it into the drawn structures.
+	save = function(cnvobj)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return nil,"Not a valid lua-gl object"
+		end
+		-- First check if any operation is happenning then end it
+		if cnvobj.op.finish and type(cnvobj.op.finish) == "function" then
+			cnvobj.op.finish()
+		end
+		return tu.t2sr(cnvobj.drawn)
+	end,
+	
+	-- Function to move the list of items (given as a list of their IDs) by moving all the items offx and offy offsets	
 	-- if offx is not a number then the movement is done interactively with a mouse
 	move = function(cnvobj,items,offx,offy)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
@@ -120,16 +132,6 @@ objFuncs = {
 		
 	end,
 
-	save = function(cnvobj)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
-			return nil,"Not a valid lua-gl object"
-		end
-		-- First check if any operation is happenning then end it
-		if cnvobj.op.finish and type(cnvobj.op.finish) == "function" then
-			cnvobj.op.finish()
-		end
-		return tu.t2sr(cnvobj.drawn)
-	end,
 	-- function to load the drawn structures in str and put them in the canvas 
 	-- x and y are the coordinates where the structures will be loaded. If not given x,y will default to the center of the canvas
 	-- if interactive==true then the placed elements will be moving with the mouse pointer and left click will place them
