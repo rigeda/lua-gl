@@ -278,7 +278,7 @@ function GUI.toolbar.buttons.dragButton:action()
 		cnvobj:dragSegment(items)
 	end
 	-- Get the list of items
-	getSelectionList(dragitems)
+	getSelectionList(dragitems,false,2)
 end
 
 function GUI.toolbar.buttons.groupButton:action()

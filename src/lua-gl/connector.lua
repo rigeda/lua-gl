@@ -1638,7 +1638,55 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		end
 		if not allSegs or #segs == 1 then
 			-- Not all segments connected to this node are in the move list. So this node will give us a point from where we need to make a routing
-			-- Now check if this is a junction. If yes then this is the routing starting point. Otherwise the other end of the segment connected to this would be the starting routing point
+			-- Now check if this is a junction i.e. > 2 segments at this point. If yes then this is the routing starting point. Otherwise the other end of the segment connected to this would be the starting routing point
+			if #segs > 2 or #PORTS.getPortFromXY(cnvobj,x,y)>0 then 
+				-- This is a junction or a port exists here so routing has to be done from here so this is a drag node
+				tu.mergeArrays({{x = x,y = y,conn=conn,offx=0,offy=0}},dragNodes,false,equalDragNode)
+			elseif #segs == 2 then
+				-- This connects to only 1 segment and that is not in the drag list
+				-- Get the other segment
+				local otherSeg = segs[1]
+				local ind = tu.inArray(conn.segments,otherSeg)
+				if ind == segI then
+					otherSeg = segs[2]
+					ind = tu.inArray(conn.segments,otherSeg)
+				end
+				local addx,addy
+				-- Get the other coordinate of the segment
+				if otherSeg.start_x == x and otherSeg.start_y == y then
+					addx,addy = otherSeg.end_x,otherSeg.end_y
+				else
+					addx,addy = otherSeg.start_x,otherSeg.start_y
+				end
+				-- Now either routing has to be done from addx,addy so this will be a drag node.
+				-- Only case when this is not a drag node and this whole otherSeg should also be dragged is if addx,addy only connect to all segments (other than otherSeg) which are being dragged
+				segs = segsOnNode(conn,addx,addy)
+				allSegs = false
+				for j = 1,#segs do
+					if segs[j] ~= otherSeg then
+						allSegs = true
+						if not tu.inArray(segList,segs[j],function(v1,v2)
+							return v1.conn.segments[v1.seg] == v2
+						  end) then
+							allSegs = false
+							break
+						end
+					end
+				end
+				if not allSegs then
+					-- Not all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
+					tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)
+					-- Add segment to segsToRemove
+					segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
+				else
+					-- All segments connected to addx,addy are also being dragged so add otherSeg into the list of segments to drag as well
+					segsToAdd[#segsToAdd + 1] = {conn = conn, seg = ind}
+				end
+				
+			elseif #segs == 1 then
+				-- This is a dangling node. If I add this node to the dragNodes list then routing will be made from this dangling coordinate. So lets skip routing from here since this segment can be dragged wherever without routing to the dangling end original position
+			end
+			--[=[
 			local allConns, segs = getConnFromXY(cnvobj,x,y,0)
 			-- Should be only 1 connector there since it is a segment end point
 			if #segs[1].seg > 2 or #PORTS.getPortFromXY(cnvobj,x,y)>0 then 
@@ -1689,7 +1737,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 					end
 				end
 				if not found then
-					-- Now all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
+					-- Not all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
 					tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)
 					-- Add segment to segsToRemove
 					segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
@@ -1699,7 +1747,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 				end
 			elseif #segs[1].seg == 1 then
 				-- If add this as dragNode here then routing will be made from this dangling end of this segment with it is dragged.
-			end		
+			end		]=]
 		end
 	end
 	for i = 1,#segList do
