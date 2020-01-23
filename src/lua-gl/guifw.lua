@@ -29,6 +29,7 @@ M.DASHED = cd.DASHED
 M.DOTTED = cd.DOTTED
 M.DASH_DOT = cd.DASH_DOT
 M.DASH_DOT_DOT = cd.DASH_DOT_DOT
+M.CUSTOM = cd.CUSTOM
 -- Line Join Constants
 M.MITER = cd.MITER
 M.BEVEL = cd.BEVEL
@@ -231,6 +232,29 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
     local grid_x = cnvobj.grid.grid_x
     local grid_y = cnvobj.grid.grid_y
 	
+	if cnvobj.viewOptions.gridMode == 1 then
+		print("Set dotted grid!")
+		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
+		cnv:LineStyleDashes({1,grid_x-1},2)
+		-- Set the new custom line style
+		cnv:LineStyle(M.CUSTOM)
+		for y=0, h, grid_y do
+		  cnv:Line(0,y,w,y)
+		end
+	else
+		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
+		cnv:LineStyle(M.CONTINUOUS)
+		--first for loop to draw horizontal line
+		for y=0, h, grid_y do
+		  cnv:Line(0,y,w,y)
+		end
+		-- for loop used to draw vertical line
+		for x=0, w, grid_x do
+		  cnv:Line(x,0,x,h)
+		end		
+	end
+	--[[
+	-- cd.XOR method does not work in newer GTK
 	cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
 	-- Set the line style
 	cnv:LineStyle(M.CONTINUOUS)
@@ -261,6 +285,7 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
 		end
 		cnv:WriteMode(cd.REPLACE)
 	end		
+	]]
 end
 
 function  render(cnvobj)

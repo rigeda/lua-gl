@@ -49,6 +49,7 @@ _VERSION = "B20.01.11"
 --- TASKS
 --[[
 DEBUG:
+* CD CD_XOR drawing not working on linux
 TASKS:
 * Finish cnvobj:move
 * Finish cnvobj:drag
@@ -87,6 +88,14 @@ objFuncs = {
 	
 	-- Function to move the list of items (given as a list of their IDs) by moving all the items offx and offy offsets	
 	-- if offx is not a number then the movement is done interactively with a mouse
+	-- items is an array with either of the 2 things:
+	-- * object structure
+	-- * structure with the following data
+	--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}	]]
 	move = function(cnvobj,items,offx,offy)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
@@ -98,29 +107,26 @@ objFuncs = {
 		elseif not offx or not offy or type(offx) ~= "number" or type(offy) ~= "number" then
 			return nil, "Coordinates not given"
 		end
+		
+		-- Separate the objects list and the segments list
+		local objList = {}
+		local segList = {}
+		for i = 1,#items do
+			if items[i].id then
+				-- This must be an object
+				objList[#objList + 1] = items[i]
+			else
+				-- This must be a segment specification
+				segList[#segList + 1] = items[i]
+			end
+		end
+		-- Now we split the connectors at the segments to separate them out into connectors that need to be moved just like we did in moveSegment
+		
+		local connM = conn.splitConnectorAtSegments(cnvobj,segList)	-- connM will get the list of connectors now that have to be moved
 		if not interactive then
-			-- Just do a single move
-			-- Compile the list of objects from their item IDs
-			local itemList = {}
-			for i = 1,#items do
-				local it = items[i]:match("^(.)%d*")
-				if it == "O" then
-					itemList[i] = cnvobj:getObjFromID(items[i])
-				else
-					itemList[i] = cnvobj:getConnFromID(items[i])
-				end
-			end
-			-- sort items according to their order
-			table.sort(itemList,function(one,two)
-					return one.order < two.order
-			end)
-			for i = 1,#itemList do
-				local it = itemList[i].id:match("^(.)%d*")
-				if it == "O" then
-					
-				else
-				end
-			end
+			-- Move everything in the list by offx,offy 
+			-- Take care of grid snapping
+			offx,offy = cnvobj:snap(offx,offy)
 			
 			return true
 		end
@@ -368,7 +374,7 @@ objFuncs = {
 		--[[
 		attributes = {
 			visualAttr = <table>,			-- Hash map containing mapping from the item structure to the visual attributes function
-			defaulVisualAttr = <array>,		-- Array containing list of functions that will set the drawing settings for each of the following items:
+			visualAttrBank = <array>,		-- Array containing list of functions that will set the drawing settings for each of the following items:
 					- Items for which attributes need to be set:
 					- Non filled object		(1)
 					- Blocking rectangle	(2)

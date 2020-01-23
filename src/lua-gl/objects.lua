@@ -250,6 +250,51 @@ removeObj = function(cnvobj,obj)
 	return true
 end
 
+-- Function to return a list of all objects in objList as well as objects grouped with objects in objList
+function populateGroupMembers(objList)
+	-- Collect all the objects that need to be dragged together by checking group memberships
+	local grp = {}
+	local grpsDone = {}
+	for i = 1,#objList do
+		local obj = objList[i]
+		if obj.group then
+			if not grpsDone[obj.group] then
+				for j = 1,#obj.group do
+					grp[#grp + 1] = obj.group[j]
+				end
+				grpsDone[obj.group] = true
+			end
+		else
+			grp[#grp + 1] = obj
+		end
+	end
+	return grp
+end
+
+-- Function to disconnect all the connectors from the list of objects given
+-- Returns the list of connectors that were disconnected and the list of all ports in all the objects
+disconnectAllConnectors = function(objList)
+	local allConns = {}
+	local allPorts = {}
+	for i = 1,#objList do
+		-- Object and ports move is already done in motion_cb
+		-- Disconnect the connectors
+		local ports = objList[i].port
+		for j = 1,#ports do
+			-- Disconnect any connectors
+			local conns = ports[j].conn	-- table of connectors connected to this port
+			for k = 1,#conns do		-- For every connector check its port table
+				table.remove(conns[k].port,tu.inArray(conns[k].port,ports[j]))	-- Remove the port entry from the connector port table
+				allConns[#allConns + 1] = conns[k]
+			end
+			ports[j].conn = {}	-- Delete all the connectors from the port
+			allPorts[#allPorts + 1] = ports[j]
+		end
+	end
+	return allConns, allPorts
+end
+
+
 -- Function to move a list of objects provided with the given offset offx,offy which are added to the coordinates
 -- if offx is not a number or not given then the move is done interactively
 -- objList is a list of object structures of the objects to be moved
@@ -265,24 +310,10 @@ moveObj = function(cnvobj,objList,offx,offy)
 	elseif not offy or type(offy) ~= "number" then
 		return nil, "Coordinates not given"
 	end
-	local grp = {}	-- To compile the list of objects to move
-	local grpsDone = {}		-- To flag which groups have been checked already
 	local rm = cnvobj.rM
 	
 	-- Compile a list of objects by adding objects in the same group as the given objects
-	for i = 1,#objList do
-		local obj = objList[i]
-		if obj.group then
-			if not grpsDone[obj.group] then
-				for j = 1,#obj.group do
-					grp[#grp + 1] = obj.group[j]
-				end
-				grpsDone[obj.group] = true
-			end
-		else
-			grp[#grp + 1] = obj
-		end
-	end
+	local grp = populateGroupMembers(objList)
 	if #grp == 0 then
 		return nil,"No objects to move"
 	end
@@ -291,52 +322,26 @@ moveObj = function(cnvobj,objList,offx,offy)
 	table.sort(grp,function(one,two) 
 			return one.order < two.order
 	end)
-	
-	if not interactive then
-		-- Take care of grid snapping
-		offx,offy = cnvobj:snap(offx,offy)
-		local allConns = {}
-		local allPorts = {}
-		for i = 1,#grp do
-			-- Move the object coordinates with their port coordinates
-			grp[i].start_x = grp[i].start_x + offx
-			grp[i].start_y = grp[i].start_y + offy
-			grp[i].end_x = grp[i].end_x and (grp[i].end_x + offx)
-			grp[i].end_y = grp[i].end_y and (grp[i].end_y + offy)
-			-- If blocking rectangle then remove from routing matrix and add the new postion
-			if grp[i].shape == "BLOCKINGRECT" then
-				rm:removeBlockingRectangle(grp[i])
-				rm:addBlockingRectangle(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
-			end
-			local ports = grp[i].port
-			for j = 1,#ports do
-				rm:removePort(ports[j])	-- Remove the port from the routing matrix
-				ports[j].x = ports[j].x + offx
-				ports[j].y = ports[j].y + offy
-				-- Place the port in the routing matrix in the new position
-				rm:addPort(ports[j],ports[j].x,ports[j].y)
-				-- Disconnect any connectors
-				local conns = ports[j].conn	-- table of connectors connected to this port
-				for k = 1,#conns do		-- For every connector check its port table
-					for l = #conns[k].port,1,-1 do
-						-- Check which port matches ports[j] then remove it to disconnect the connector from the port
-						if conns[k].port[l] == ports[j] then
-							table.remove(conns[k].port,l)
-							break
-						end
-					end
-					allConns[#allConns + 1] = conns[k]
-				end
-				ports[j].conn = {}	-- Delete all the connectors from the port
-				allPorts[#allPorts + 1] = ports[j]
-			end
-		end
+
+	-- Disconnect all the connectors from the objects being moved
+	local allConns, allPorts = disconnectAllConnectors(grp)
+
+	local function makePortReconnections()
 		-- Short and Merge all the connectors that were connected to ports
 		CONN.shortAndMergeConnectors(cnvobj,allConns)
 		-- Connect ports to any overlapping connector on the port
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-		PORTS.connectOverlapPorts(cnvobj,allPorts)
+		PORTS.connectOverlapPorts(cnvobj,allPorts)		
+	end
+	
+	if not interactive then
+		-- Take care of grid snapping
+		offx,offy = cnvobj:snap(offx,offy)
+		-- Shift all the objects in the list
+		shiftObjList(grp,offx,offy,rm)
+		-- Make all the port reconnections
+		makePortReconnections()
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -380,36 +385,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 		-- Restore the previous button_cb and motion_cb
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB	
-		print("Move end changed Button_CB and Motion_CB",cnvobj.op.coor1)
-		local allConns = {}
-		local allPorts = {}
-		for i = 1,#grp do
-			-- Object and ports move is already done in motion_cb
-			-- Disconnect the connectors
-			local ports = grp[i].port
-			for j = 1,#ports do
-				-- Disconnect any connectors
-				local conns = ports[j].conn	-- table of connectors connected to this port
-				for k = 1,#conns do		-- For every connector check its port table
-					for l = #conns[k].port,1,-1 do
-						-- Check which port matches ports[j] then remove it to disconnect the connector from the port
-						if conns[k].port[l] == ports[j] then
-							table.remove(conns[k].port,l)
-							break
-						end
-					end
-					allConns[#allConns + 1] = conns[k]
-				end
-				ports[j].conn = {}	-- Delete all the connectors from the port
-				allPorts[#allPorts + 1] = ports[j]
-			end
-		end
-		-- Short and Merge all the connectors that were connected to ports
-		CONN.shortAndMergeConnectors(cnvobj,allConns)
-		-- Connect ports to any overlapping connector on the port
-		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
-		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-		PORTS.connectOverlapPorts(cnvobj,allPorts)
+		-- Make all the port reconnections here
+		makePortReconnections()
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 	end
@@ -635,21 +612,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	
 	local rm = cnvobj.rM
 	-- Collect all the objects that need to be dragged together by checking group memberships
-	local grp = {}
-	local grpsDone = {}
-	for i = 1,#objList do
-		local obj = objList[i]
-		if obj.group then
-			if not grpsDone[obj.group] then
-				for j = 1,#obj.group do
-					grp[#grp + 1] = obj.group[j]
-				end
-				grpsDone[obj.group] = true
-			end
-		else
-			grp[#grp + 1] = obj
-		end
-	end
+	local grp = populateGroupMembers(objList)
 	if #grp == 0 then
 		return nil,"No objects to drag"
 	end

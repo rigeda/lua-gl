@@ -1224,6 +1224,33 @@ function connectOverlapPorts(cnvobj,conn,ports)
 	return true
 end
 
+-- Function to repair each connector and connect to any overlapping ports
+-- All data structures are updated
+function connectOverlapPortsConnList(cnvobj,connList)
+	-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+	local combinedMM = {}
+	for i = 1,#connList do
+		-- First check whether this connector was already merged into something else
+		local found
+		local connID = connList[i].id
+		for j = 1,#combinedMM do
+			for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
+				if tu.inArray(combinedMM[j][k][2],connID) then
+					found = true
+					break
+				end
+			end
+		end
+		if not found then
+			-- remove any overlaps in the final merged connector
+			local mergeMap = shortAndMergeConnectors(cnvobj,{connList[i]})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
+			combinedMM[#combinedMM + 1] = mergeMap
+			-- Connect overlapping ports
+			connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
+		end
+	end		-- for i = 1,#connM do ends
+	return true
+end
 -- Function to remove a connector
 -- Removes all references of the connector from everywhere:
 -- * cnvobj.drawn.conn
@@ -1252,6 +1279,19 @@ removeConn = function(cnvobj,conn)
 	ind = tu.inArray(cnvobj.drawn.conn,conn)
 	table.remove(cnvobj.drawn.conn,ind)
 	-- All done!
+	return true
+end
+
+-- Function to disconnect all ports in the connector list
+-- The prot structure as well as connector structure is updated to remove the link
+disconnectAllPorts = function(connList)
+	for i = 1,#connList do
+		for j = 1,#connList[i].port do
+			local prt = connList[i].port[j]
+			table.remove(prt.conn,tu.inArray(prt.conn,connList[i]))
+		end
+		tu.emptyArray(connList[i].port)	-- All ports removed
+	end	
 	return true
 end
 
@@ -1287,34 +1327,18 @@ moveConn = function(cnvobj,connM,offx,offy)
 		end		-- for i = 1,#connM do ends		
 	end
 	
+	-- Disconnect all ports in the connector
+	disconnectAllPorts(connM)
+	
 	if not interactive then
 		-- Take care of grid snapping
 		offx,offy = cnvobj:snap(offx,offy)
 		shiftConnList(connM,offx,offy)
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
-		local combinedMM = {}
-		for i = 1,#connM do
-			-- First check whether this connector was already merged into something else
-			local found
-			local connID = connM[i].id
-			for j = 1,#combinedMM do
-				for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
-					if tu.inArray(combinedMM[j][k][2],connID) then
-						found = true
-						break
-					end
-				end
-			end
-			if not found then
-				-- remove any overlaps in the final merged connector
-				local mergeMap = shortAndMergeConnectors(cnvobj,{connM[i]})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
-				combinedMM[#combinedMM + 1] = mergeMap
-				-- Connect overlapping ports
-				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
-			end
-		end		-- for i = 1,#connM do ends
+		connectOverlapPortsConnList(cnvobj,connM)
 		return true
 	end		-- if not interactive then ends
+	
 	-- Setup the interactive move operation here
 	-- Set refX,refY as the mouse coordinate on the canvas
 	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
@@ -1361,27 +1385,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB	
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
-		local combinedMM = {}
-		for i = 1,#connM do
-			-- First check whether this connector was already merged into something else
-			local found
-			local connID = connM[i].id
-			for j = 1,#combinedMM do
-				for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
-					if tu.inArray(combinedMM[j][k][2],connID) then
-						found = true
-						break
-					end
-				end
-			end
-			if not found then
-				-- remove any overlaps in the final merged connector
-				local mergeMap = shortAndMergeConnectors(cnvobj,{connM[i]})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
-				combinedMM[#combinedMM + 1] = mergeMap
-				-- Connect overlapping ports
-				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
-			end
-		end		-- for i = 1,#connM do ends
+		connectOverlapPortsConnList(cnvobj,connM)
 		
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode	
@@ -1418,7 +1422,8 @@ moveConn = function(cnvobj,connM,offx,offy)
 	return true
 end
 
--- Function to move a list of segments (moving implies connector connections are broken)
+-- Function to split connectors based on the segments passed. The segments in the passed list are separated into a different connector (multiple connectors if they are not touching) and
+-- the remaining segments are separated into a different connector (multiple connectors if they are not touching)
 -- segList is a list of structures like this:
 --[[
 {
@@ -1426,17 +1431,11 @@ end
 	seg = <integer>					-- segment index of the connector
 }
 ]]
--- If offx and offy are given numbers then this will be a non interactive move
-moveSegment = function(cnvobj,segList,offx,offy)
+-- Returns the list of connectors formed by the segments in the segList and also the list of connectors formed by the remaining segments of all the connectors
+-- All data structures are updated
+splitConnectorAtSegments = function(cnvobj,segList)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
-	end
-	-- Check whether this is an interactive move or not
-	local interactive
-	if not offx or type(offx) ~= "number" then
-		interactive = true
-	elseif not offy or type(offy) ~= "number" then
-		return nil, "Coordinates not given"
 	end
 	
 	local rm = cnvobj.rM
@@ -1478,7 +1477,7 @@ moveSegment = function(cnvobj,segList,offx,offy)
 			if found then break end
 		end	-- for k = 1,#connA do ends
 		if not found then
-			-- Create another connM connector here
+			-- Create another connA connector here
 			connA[#connA + 1] = {
 				id = nil,
 				order = nil,
@@ -1501,7 +1500,7 @@ moveSegment = function(cnvobj,segList,offx,offy)
 		if i == #segList or segList[i+1].conn ~= segList[i].conn then	
 			-- This is the last segment of this connector
 			cnen = i
-			local connMp,connNMp = #connM+1,#connNM+1
+			local connMp,connNMp = #connM+1,#connNM+1	-- Pointers to connM and connNM to tell which items were added for this connector
 			-- Now split this connector into multiple connectors
 			-- 1st lets get the moving connectors
 			for j = cnst,cnen do
@@ -1522,20 +1521,17 @@ moveSegment = function(cnvobj,segList,offx,offy)
 			pos = segList[i].conn.order
 			table.remove(cnvobj.drawn.order,pos)
 			-- Disconnect all ports in the connector
-			for j = 1,#segList[i].conn.port do
-				local prt = segList[i].conn.port[j]
-				table.remove(prt.conn,tu.inArray(prt.conn,segList[i].conn))
-			end
+			disconnectAllPorts({segList[i].conn})
 			for j = connMp,#connM do
-				table.insert(cnvobj.drawn.conn,connM[j])
-				table.insert(cnvobj.drawn.order,pos,{
+				table.insert(cnvobj.drawn.conn,connM[j])	-- put connM in drawn connectors
+				table.insert(cnvobj.drawn.order,pos,{		-- put connM in the order array
 						type = "connector",
 						item = connM[j]
 					})
 			end
 			for j = connNMp,#connNM do
-				table.insert(cnvobj.drawn.conn,connNM[j])
-				table.insert(cnvobj.drawn.order,pos,{
+				table.insert(cnvobj.drawn.conn,connNM[j])	-- put connNM in drawn connectors
+				table.insert(cnvobj.drawn.order,pos,{		-- put connNM in the order array
 						type = "connector",
 						item = connNM[j]
 					})
@@ -1546,14 +1542,34 @@ moveSegment = function(cnvobj,segList,offx,offy)
 	
 	fixOrder(cnvobj)
 	
-	-- run connectOverlapPorts for the connectors not being moved
+	-- run connectOverlapPorts for the connectors that resulted from the segments not in segList
 	for i = 1,#connNM do
 		connectOverlapPorts(cnvobj,connNM[i])
 	end
 	
+	-- run connectOverlapPorts for the connectors that resulted from the segments in segList
+	for i = 1,#connM do
+		connectOverlapPorts(cnvobj,connM[i])
+	end
 	
+	return connM,connNM
+end
+
+-- Function to move a list of segments (moving implies connector connections are broken)
+-- segList is a list of structures like this:
+--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}
+]]
+-- If offx and offy are given numbers then this will be a non interactive move
+moveSegment = function(cnvobj,segList,offx,offy)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end	
 	-- Now we just need to call moveConnector
-	return moveConn(cnvobj,connM,offx,offy)
+	return moveConn(cnvobj,splitConnectorAtSegments(cnvobj,segList),offx,offy)
 end
 
 -- Function to drag a list of segments (dragging implies connector connections are maintained)
