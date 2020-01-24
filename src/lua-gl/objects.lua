@@ -92,7 +92,7 @@ local function fixOrder(cnvobj)
 end
 
 -- Function just offsets the objects (in grp array) and associated port coordinates. It does not handle the port connections which have to be updated
-local shiftObjList = function(grp,offx,offy,rm)
+shiftObjList = function(grp,offx,offy,rm)
 	for i = 1,#grp do
 		grp[i].start_x = grp[i].start_x + offx
 		grp[i].start_y = grp[i].start_y + offy
@@ -294,7 +294,6 @@ disconnectAllConnectors = function(objList)
 	return allConns, allPorts
 end
 
-
 -- Function to move a list of objects provided with the given offset offx,offy which are added to the coordinates
 -- if offx is not a number or not given then the move is done interactively
 -- objList is a list of object structures of the objects to be moved
@@ -326,22 +325,18 @@ moveObj = function(cnvobj,objList,offx,offy)
 	-- Disconnect all the connectors from the objects being moved
 	local allConns, allPorts = disconnectAllConnectors(grp)
 
-	local function makePortReconnections()
-		-- Short and Merge all the connectors that were connected to ports
-		CONN.shortAndMergeConnectors(cnvobj,allConns)
-		-- Connect ports to any overlapping connector on the port
-		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
-		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-		PORTS.connectOverlapPorts(cnvobj,allPorts)		
-	end
-	
 	if not interactive then
 		-- Take care of grid snapping
 		offx,offy = cnvobj:snap(offx,offy)
 		-- Shift all the objects in the list
 		shiftObjList(grp,offx,offy,rm)
 		-- Make all the port reconnections
-		makePortReconnections()
+		-- Short and Merge all the connectors that were connected to ports
+		CONN.shortAndMergeConnectors(cnvobj,allConns)
+		-- Connect ports to any overlapping connector on the port
+		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+		PORTS.connectOverlapPorts(cnvobj,allPorts)		
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -386,7 +381,12 @@ moveObj = function(cnvobj,objList,offx,offy)
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB	
 		-- Make all the port reconnections here
-		makePortReconnections()
+		-- Short and Merge all the connectors that were connected to ports
+		CONN.shortAndMergeConnectors(cnvobj,allConns)
+		-- Connect ports to any overlapping connector on the port
+		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+		PORTS.connectOverlapPorts(cnvobj,allPorts)		
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
 	end
@@ -400,10 +400,10 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
-		print("BUTTON_CB execution",button,iup.BUTTON1,pressed)
+		--print("BUTTON_CB execution",button,iup.BUTTON1,pressed)
 		if button == iup.BUTTON1 and pressed == 1 then
 			-- End the move
-			print("BUTTON_CB ending move",cnvobj.op.coor1)
+			--print("BUTTON_CB ending move",cnvobj.op.coor1)
 			moveEnd()
 		end
 		-- Process any hooks 
@@ -418,8 +418,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 			x,y = cnvobj:snap(x-refX,y-refY)
 			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 			shiftObjList(grp,offx,offy,rm)
+			cnvobj:refresh()
 		end
-		cnvobj:refresh()
 	end	
 	return true
 end

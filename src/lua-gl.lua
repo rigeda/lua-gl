@@ -69,6 +69,15 @@ local function getVisualAttr(cnvobj,item)
 	return cnvobj.attributes.visualAttr[item]
 end
 
+-- Function to fix the order of all the items in the order table
+local function fixOrder(cnvobj)
+	-- Fix the order of all the items
+	for i = 1,#cnvobj.drawn.order do
+		cnvobj.drawn.order[i].item.order = i
+	end
+	return true
+end
+
 
 -- This is the metatable that contains the API of the library that can be used by the host program
 local objFuncs
@@ -120,18 +129,170 @@ objFuncs = {
 				segList[#segList + 1] = items[i]
 			end
 		end
-		-- Now we split the connectors at the segments to separate them out into connectors that need to be moved just like we did in moveSegment
-		
+		-- If these are all objects or all segments then just redirect
+		if #objList == 0 then
+			conn.moveSegment(cnvobj,segList,offx,offy)
+		elseif #segList == 0 then
+			objects.moveObj(cnvobj,objList,offx,offy)
+		end
+		-- Now we split the connectors at the segments to separate them out into connectors that need to be moved just like we did in moveSegment		
 		local connM = conn.splitConnectorAtSegments(cnvobj,segList)	-- connM will get the list of connectors now that have to be moved
+		
+		-- Disconnect all ports in the connector
+		conn.disconnectAllPorts(connM)
+		
+		-- Setup the objects for move
+		local rm = cnvobj.rM
+		
+		-- Compile a list of objects by adding objects in the same group as the given objects
+		local grp = objects.populateGroupMembers(objList)
+		if #grp == 0 then
+			return nil,"No objects to move"
+		end
+		
+		-- Disconnect all the connectors from the objects being moved
+		local allConns, allPorts = objects.disconnectAllConnectors(grp)
+		-- Merge allConns with connM
+		tu.mergeArray(connM,allConns,false)
+		
 		if not interactive then
 			-- Move everything in the list by offx,offy 
 			-- Take care of grid snapping
 			offx,offy = cnvobj:snap(offx,offy)
-			
+			-- Shift all the objects in the list
+			objects.shiftObjList(grp,offx,offy,rm)
+			-- Now move the connectors
+			conn.shiftConnList(connM,offx,offy,rm)
+
+			-- WRAP UP
+			-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+			conn.assimilateConnList(cnvobj,allConns)
+			-- Connect ports to any overlapping connector on the port. These are the ports that were moved with the objects
+			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+			PORTS.connectOverlapPorts(cnvobj,allPorts)		
 			return true
 		end
-		-- Setup the interactive move call backs
+		-- Setup the interactive move operation here
+		-- Set refX,refY as the mouse coordinate on the canvas
+		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
+		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
+		local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
+		local oldBCB = cnvobj.cnv.button_cb
+		local oldMCB = cnvobj.cnv.motion_cb
 		
+		-- Sort the group elements in ascending order ranking
+		table.sort(grp,function(one,two) 
+				return one.order < two.order
+		end)
+
+		-- Sort the connector elements in ascending order ranking
+		table.sort(connM,function(one,two) 
+				return one.order < two.order
+		end)
+		
+		-- Backup the orders of the elements to move and change their orders to display in the front
+		local order = cnvobj.drawn.order
+		local oldObjOrder = {}
+		for i = 1,#grp do
+			oldObjOrder[i] = grp[i].order
+		end
+		-- Move the last item in the list to the end. Last item because it is te one with the highest order
+		local item = cnvobj.drawn.order[grp[#grp].order]
+		table.remove(cnvobj.drawn.order,grp[#grp].order)
+		table.insert(cnvobj.drawn.order,item)
+		-- Move the rest of the items on the last position
+		for i = 1,#grp-1 do
+			item = cnvobj.drawn.order[grp[i].order]
+			table.remove(cnvobj.drawn.order,grp[i].order)
+			table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
+		end
+		
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		
+		-- Backup the orders of the elements to move and change their orders to display in the front
+		local oldConnOrder = {}
+		for i = 1,#connM do
+			oldConnOrder[i] = connM[i].order
+		end
+		
+		-- Move the last item in the list to the end. Last item because it is te one with the highest order
+		item = cnvobj.drawn.order[connM[#connM].order]
+		table.remove(cnvobj.drawn.order,connM[#connM].order)
+		table.insert(cnvobj.drawn.order,item)
+		-- Move the rest of the items on the last position
+		for i = 1,#connM-1 do
+			item = cnvobj.drawn.order[connM[i].order]
+			table.remove(cnvobj.drawn.order,connM[i].order)
+			table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
+		end
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		
+		local function moveEnd()
+			-- Disconnect connectors connected to the ports and reconnect any connectors touching the current port positions
+			-- Reset the orders back
+			-- First do the connectors
+			for i = 1,#connM do
+				local item = cnvobj.drawn.order[connM[i].order]
+				table.remove(cnvobj.drawn.order,connM[i].order)
+				table.insert(cnvobj.drawn.order,oldConnOrder[i],item)
+			end
+			-- Update the order number for all items 
+			fixOrder(cnvobj)
+			-- Now do the objects
+			for i = 1,#grp do
+				local item = cnvobj.drawn.order[grp[i].order]
+				table.remove(cnvobj.drawn.order,grp[i].order)
+				table.insert(cnvobj.drawn.order,oldObjOrder[i],item)
+			end
+			-- Update the order number for all items 
+			fixOrder(cnvobj)
+			-- Restore the previous button_cb and motion_cb
+			cnvobj.cnv.button_cb = oldBCB
+			cnvobj.cnv.motion_cb = oldMCB	
+			
+			-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+			conn.assimilateConnList(cnvobj,allConns)
+			-- Connect ports to any overlapping connector on the port. These are the ports that were moved with the objects
+			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+			PORTS.connectOverlapPorts(cnvobj,allPorts)		
+			
+			tu.emptyTable(cnvobj.op)
+			cnvobj.op.mode = "DISP"	-- Default display mode
+		end
+		
+		cnvobj.op.mode = "MOVE"	-- Set the mode to drawing object
+		cnvobj.op.finish = moveEnd
+		cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+		
+		-- button_CB to handle interactive move ending
+		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+			-- Check if any hooks need to be processed here
+			cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
+			if button == iup.BUTTON1 and pressed == 1 then
+				-- End the move
+				moveEnd()
+			end
+			-- Process any hooks 
+			cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y,status})
+		end
+		
+		function cnvobj.cnv:motion_cb(x,y,status)
+			-- Move all items in the grp 
+			if cnvobj.op.mode == "MOVE" then
+				x,y = cnvobj:snap(x-refX,y-refY)
+				local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
+				-- Now move the objects
+				objects.shiftObjList(grp,offx,offy,rm)
+				-- Now move the connectors
+				conn.shiftConnList(connM,offx,offy,rm)				
+				cnvobj:refresh()
+			end
+		end	
+		return true
 	end,
 	
 	drag = function(cnvobj,items,offx,offy)

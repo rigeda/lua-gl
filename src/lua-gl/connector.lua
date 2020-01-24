@@ -1224,9 +1224,9 @@ function connectOverlapPorts(cnvobj,conn,ports)
 	return true
 end
 
--- Function to repair each connector and connect to any overlapping ports
+-- Function to merge each connector with other connectors it touches and then connect it to ports it touches
 -- All data structures are updated
-function connectOverlapPortsConnList(cnvobj,connList)
+function assimilateConnList(cnvobj,connList)
 	-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
 	local combinedMM = {}
 	for i = 1,#connList do
@@ -1282,6 +1282,22 @@ removeConn = function(cnvobj,conn)
 	return true
 end
 
+-- Function just offsets the connectors (in list connL). It does not handle the port connections which have to be updated
+function shiftConnList(connL,offx,offy,rm)
+	for i = 1,#connL do
+		for j = 1,#connL[i].segments do
+			local seg = connL[i].segments[j]
+			-- Move the segment coordinates with their port coordinates
+			seg.start_x = seg.start_x + offx
+			seg.start_y = seg.start_y + offy
+			seg.end_x = seg.end_x + offx
+			seg.end_y = seg.end_y + offy
+			rm:removeSegment(seg)
+			rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
+		end
+	end		-- for i = 1,#connM do ends		
+end
+
 -- Function to disconnect all ports in the connector list
 -- The prot structure as well as connector structure is updated to remove the link
 disconnectAllPorts = function(connList)
@@ -1312,30 +1328,15 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	local rm = cnvobj.rM	
 	
-	local function shiftConnList(connL,offx,offy)
-		for i = 1,#connL do
-			for j = 1,#connL[i].segments do
-				seg = connL[i].segments[j]
-				-- Move the segment coordinates with their port coordinates
-				seg.start_x = seg.start_x + offx
-				seg.start_y = seg.start_y + offy
-				seg.end_x = seg.end_x + offx
-				seg.end_y = seg.end_y + offy
-				rm:removeSegment(seg)
-				rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
-			end
-		end		-- for i = 1,#connM do ends		
-	end
-	
 	-- Disconnect all ports in the connector
 	disconnectAllPorts(connM)
 	
 	if not interactive then
 		-- Take care of grid snapping
 		offx,offy = cnvobj:snap(offx,offy)
-		shiftConnList(connM,offx,offy)
+		shiftConnList(connM,offx,offy,rm)
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
-		connectOverlapPortsConnList(cnvobj,connM)
+		assimilateConnList(cnvobj,connM)
 		return true
 	end		-- if not interactive then ends
 	
@@ -1385,7 +1386,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB	
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
-		connectOverlapPortsConnList(cnvobj,connM)
+		assimilateConnList(cnvobj,connM)
 		
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode	
@@ -1398,10 +1399,10 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		--y = cnvobj.height - y
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
 		if button == iup.BUTTON1 and pressed == 1 then
+			-- End the move
 			moveEnd()
 		end
 		-- Process any hooks 
@@ -1410,13 +1411,12 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
-		--y = cnvobj.height - y
 		if cnvobj.op.mode == "MOVECONN" then
 			x,y = cnvobj:snap(x-refX,y-refY)
 			local offx,offy = x+cnvobj.op.coor1.x-connM[1].segments[1].start_x,y+cnvobj.op.coor1.y-connM[1].segments[1].start_y
-			shiftConnList(connM,offx,offy)
+			shiftConnList(connM,offx,offy,rm)
+			cnvobj:refresh()
 		end
-		cnvobj:refresh()
 	end
 	
 	return true
