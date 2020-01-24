@@ -580,6 +580,101 @@ drawObj = function(cnvobj,shape,pts,coords)
 	end    
 end	-- end drawObj function
 
+-- Function to return the list of nodes from where each connector needs to be routed to a particular port when an object is dragged. If the segment connected to the port exists in segList then that node is not added to be routed
+-- segList is a list of structures like this:
+--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}
+]]
+-- objList is a list of objects
+generateRoutingStartNodes = function(cnvobj,objList,segList)
+	-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
+	segList = segList or {}
+	local connSrc = {}	-- To store the x,y coordinate for each connector from which rerouting has to be applied and also store the segments that need to be removed
+	for i = 1,#objList do	-- For every object in the group that is moving
+		connSrc[objList[i]] = {}	-- New table for this object
+		local portT = objList[i].port	-- The port table of the object
+		for j = 1,#portT do		-- check every port for the object
+			connSrc[objList[i]][portT[j]] = {}	-- Each port can have multiple connectors that may need routing
+			local conn = portT[j].conn	-- Connector table of the port
+			local enx,eny = portT[j].x,portT[j].y	-- This will be the end point where the segments connect to
+			for k = 1,#conn do		-- for all connectors connected to this port of this object
+				-- Find the 1st junction or if none the starting point of the connector
+				local segTable = conn[k].segments
+				local x,y = enx,eny
+				local jT = conn[k].junction
+				local found,segDragging	-- segDragging if true means that the segment of conn[k] connected to portT[j] is in segList so this connector routing to the port should not be done and it is skipped from adding to connSrc
+				local checkedSegs = {}		-- Array to store segments already traversed to prevent traversing them again
+				local checkedSegsCount = 0
+				while not found do
+					-- Check if a junction exists on x,y
+					for l = 1,#jT do
+						if jT[l].x == x and jT[l].y == y then
+							found = true
+							break
+						end
+					end
+					if found then break end
+					-- Find a segment whose one end is on x,y if none found this is the other end of the connector and would be the starting point for the connector routing
+					found = true
+					for l = 1,#segTable do
+						if not tu.inArray(checkedSegs,segTable[l]) then
+							-- This segment is not traversed
+							if segTable[l].end_x == x and segTable[l].end_y == y then
+								found = false
+								x,y = segTable[l].start_x,segTable[l].start_y	-- Set x,y to the other end to traverse this segment
+								checkedSegsCount = checkedSegsCount + 1
+								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
+								-- Check if this segment exists in segList
+								for m = 1,#segList do
+									if segList[m].conn = conn[k] and l == segList[m].seg then
+										segDragging = true
+										break
+									end
+								end
+								break
+							elseif segTable[l].start_x == x and segTable[l].start_y == y then
+								found = false
+								x,y = segTable[l].end_x,segTable[l].end_y
+								checkedSegsCount = checkedSegsCount + 1
+								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
+								-- Check if this segment exists in segList
+								for m = 1,#segList do
+									if segList[m].conn = conn[k] and l == segList[m].seg then
+										segDragging = true
+										break
+									end
+								end
+								break
+							end
+						end
+					end		-- for l (segTable) ends here
+				end
+				if not segDragging then
+					-- Check if x,y is a port on another object being dragged
+					local prts = PORTS.getPortFromXY(cnvobj,x,y)
+					found = false		-- if true then all ports at this point are in the list of items to drag
+					for l = 1,#prts do
+						found = true
+						if not tu.inArray(objList,prts[l].obj) then	-- Not all ports are in the list of items to drag so x,y can be used
+							found = false
+							break
+						end
+					end
+					if found then
+						connSrc[objList[i]][portT[j]][conn[k].id] = {coor=prts[1],segs=checkedSegs,dynamic=true}	-- To make the routing point dynamic to where the moved object is
+					else
+						connSrc[objList[i]][portT[j]][conn[k].id] = {coor={x=x,y=y},segs=checkedSegs}		-- Source point to use for routing of the connector
+					end
+				end		-- if not segDragging ends
+			end		-- For k (connector table) ends here
+		end		-- For j (port table) ends here
+	end		-- for i (group) ends here	
+	return connSrc
+end
+
 -- Function to drag objects (dragging implies connector connections are maintained)
 -- objList is a list of object structures of the objects to be dragged
 -- if offx is not a number or not given then the move is done interactively
@@ -622,70 +717,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	end)
 	
 	-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
-	local connSrc = {}	-- To store the x,y coordinate for each connector from which rerouting has to be applied and also store the segments that need to be removed
-	for i = 1,#grp do	-- For every object in the group that is moving
-		connSrc[grp[i]] = {}	-- New table for this object
-		local portT = grp[i].port	-- The port table of the object
-		for j = 1,#portT do		-- check every port for the object
-			connSrc[grp[i]][portT[j]] = {}
-			local conn = portT[j].conn	-- Connector table of the port
-			local enx,eny = portT[j].x,portT[j].y	-- This will be the end point where the segments connect to
-			for k = 1,#conn do		-- for all connectors connected to this port of this object
-				-- Find the 1st junction or if none the starting point of the connector
-				local segTable = conn[k].segments
-				local x,y = enx,eny
-				local jT = conn[k].junction
-				local found
-				local checkedSegs = {}		-- Array to store segments already traversed to prevent traversing them again
-				local checkedSegsCount = 0
-				while not found do
-					-- Check if a junction exists on x,y
-					for l = 1,#jT do
-						if jT[l].x == x and jT[l].y == y then
-							found = true
-							break
-						end
-					end
-					if found then break end
-					-- Find a segment whose one end is on x,y if none found this is the other end of the connector and would be the starting point for the connector routing
-					found = true
-					for l = 1,#segTable do
-						if not tu.inArray(checkedSegs,segTable[l]) then
-							-- This segment is not traversed
-							if segTable[l].end_x == x and segTable[l].end_y == y then
-								found = false
-								x,y = segTable[l].start_x,segTable[l].start_y	-- Set x,y to the other end to traverse this segment
-								checkedSegsCount = checkedSegsCount + 1
-								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
-								break
-							elseif segTable[l].start_x == x and segTable[l].start_y == y then
-								found = false
-								x,y = segTable[l].end_x,segTable[l].end_y
-								checkedSegsCount = checkedSegsCount + 1
-								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
-								break
-							end
-						end
-					end		-- for l (segTable) ends here
-				end
-				-- Check if x,y is a port on another object being dragged
-				local prts = PORTS.getPortFromXY(cnvobj,x,y)
-				found = false		-- if true then all ports at this point are in the list of items to drag
-				for l = 1,#prts do
-					found = true
-					if not tu.inArray(grp,prts[l].obj) then	-- Not all ports are in the list of items to drag so x,y can be used
-						found = false
-						break
-					end
-				end
-				if found then
-					connSrc[grp[i]][portT[j]][conn[k].id] = {coor=prts[1],segs=checkedSegs,dynamic=true}	-- To make the routing point dynamic to where the moved object is
-				else
-					connSrc[grp[i]][portT[j]][conn[k].id] = {coor={x=x,y=y},segs=checkedSegs}		-- Source point to use for routing of the connector
-				end
-			end		-- For k (connector table) ends here
-		end		-- For j (port table) ends here
-	end		-- for i (group) ends here
+	local connSrc = generateRoutingStartNodes(cnvobj,grp)
 		
 	if not interactive then
 		-- Take care of grid snapping

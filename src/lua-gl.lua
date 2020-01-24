@@ -146,9 +146,6 @@ objFuncs = {
 		
 		-- Compile a list of objects by adding objects in the same group as the given objects
 		local grp = objects.populateGroupMembers(objList)
-		if #grp == 0 then
-			return nil,"No objects to move"
-		end
 		
 		-- Disconnect all the connectors from the objects being moved
 		local allConns, allPorts = objects.disconnectAllConnectors(grp)
@@ -295,8 +292,85 @@ objFuncs = {
 		return true
 	end,
 	
-	drag = function(cnvobj,items,offx,offy)
+	drag = function(cnvobj,items,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+			return nil,"Not a valid lua-gl object"
+		end
+		-- Check whether this is an interactive move or not
+		local interactive
+		if not offx or type(offx) ~= "number" then
+			interactive = true
+		elseif not offy or type(offy) ~= "number" then
+			return nil, "Coordinates not given"
+		end
 		
+		local rm = cnvobj.rM
+		
+		finalRouter = finalRouter or cnvobj.options.router[9]
+		jsFinal = jsFinal or 1
+		
+		dragRouter = dragRouter or cnvobj.options.router[0]
+		jsDrag = jsDrag or 2
+		
+		-- Separate the objects list and the segments list
+		local objList = {}
+		local segList = {}
+		for i = 1,#items do
+			if items[i].id then
+				-- This must be an object
+				objList[#objList + 1] = items[i]
+			else
+				-- This must be a segment specification
+				segList[#segList + 1] = items[i]
+			end
+		end
+		-- If these are all objects or all segments then just redirect
+		if #objList == 0 then
+			conn.moveSegment(cnvobj,segList,offx,offy)
+		elseif #segList == 0 then
+			objects.moveObj(cnvobj,objList,offx,offy)
+		end
+		
+		-- Collect all the objects that need to be dragged together by checking group memberships
+		local grp = objects.populateGroupMembers(objList)
+		-- Sort the group elements in ascending order ranking
+		table.sort(grp,function(one,two) 
+				return one.order < two.order
+		end)
+		
+		-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
+		local connSrc = objects.generateRoutingStartNodes(cnvobj,grp,segList)
+		
+		local dragNodes,segsToRemove,connList = conn.generateDragNodes(cnvobj,segList)
+		
+		-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
+		table.sort(segList,function(one,two)
+				if one.conn.id == two.conn.id then
+					-- this is the same connector
+					return one.seg > two.seg	-- sort with descending segment index
+				else
+					return one.conn.id > two.conn.id
+				end
+			end)
+		
+		-- Sort segsToRemove in descending order of segment index
+		table.sort(segsToRemove,function(one,two)
+				if one.conn.id == two.conn.id then
+					-- this is the same connector
+					return one.segI > two.segI	-- sort with descending segment index
+				else
+					return one.conn.id > two.conn.id
+				end
+			end)
+		
+		--print("Number of dragnodes = ",#dragNodes)
+		-- Disconnect all ports
+		conn.disconnectAllPorts(connList)
+			
+		if not interactive then
+			-- Take care of grid snapping
+			offx,offy = cnvobj:snap(offx,offy)
+		end
 	end,
 
 	-- function to load the drawn structures in str and put them in the canvas 

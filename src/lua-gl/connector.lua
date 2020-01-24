@@ -1572,55 +1572,7 @@ moveSegment = function(cnvobj,segList,offx,offy)
 	return moveConn(cnvobj,splitConnectorAtSegments(cnvobj,segList),offx,offy)
 end
 
--- Function to drag a list of segments (dragging implies connector connections are maintained)
--- segList is a list of structures like this:
---[[
-{
-	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
-	seg = <integer>					-- segment index of the connector
-}
-]]
--- If offx and offy are given numbers then this will be a non interactive move
--- dragRouter is the routing function to be using during dragging	-- only used if offx and offy are not given since then it will be interactive - default is cnvobj.options[0]
--- finalRouter is the routing function to be used after the drag has ended to finally route all the connectors - default is cnvobj.options.router[9]
--- jsFinal = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (finalRouter) after drag has ended, default = 1
--- jsDrag = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (dragRouter) durin drag operation, default = 1
--- jumpSeg parameter documentation says:
--- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
---	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
--- 	= 2 generate jumping segment but don't set any special attribute
---  = false or nil then do not generate jumping segment
-dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
-	if not cnvobj or type(cnvobj) ~= "table" then
-		return nil,"Not a valid lua-gl object"
-	end
-	-- Check whether this is an interactive move or not
-	local interactive
-	if not offx or type(offx) ~= "number" then
-		interactive = true
-	elseif not offy or type(offy) ~= "number" then
-		return nil, "Coordinates not given"
-	end
-	
-	--print("DRAG SEGMENT START")
-	
-	local rm = cnvobj.rM
-	
-	finalRouter = finalRouter or cnvobj.options.router[9]
-	jsFinal = jsFinal or 1
-	
-	dragRouter = dragRouter or cnvobj.options.router[0]
-	jsDrag = jsDrag or 2
-
-	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
-	table.sort(segList,function(one,two)
-			if one.conn.id == two.conn.id then
-				-- this is the same connector
-				return one.seg > two.seg	-- sort with descending segment index
-			else
-				return one.conn.id > two.conn.id
-			end
-		end)
+generateDragNodes = function(cnvobj,segList)
 	-- Extract the list of nodes that would need re-routing as a result of the drag
 	local dragNodes = {}
 	-- Function to return the list of segments whose one of the end point is x,y
@@ -1702,81 +1654,71 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			elseif #segs == 1 then
 				-- This is a dangling node. If I add this node to the dragNodes list then routing will be made from this dangling coordinate. So lets skip routing from here since this segment can be dragged wherever without routing to the dangling end original position
 			end
-			--[=[
-			local allConns, segs = getConnFromXY(cnvobj,x,y,0)
-			-- Should be only 1 connector there since it is a segment end point
-			if #segs[1].seg > 2 or #PORTS.getPortFromXY(cnvobj,x,y)>0 then 
-				tu.mergeArrays({{x = x,y = y,conn=conn,offx=0,offy=0}},dragNodes,false,equalDragNode)
-			elseif #segs[1].seg == 2 then
-				-- Get the other segment
-				local otherSeg = conn.segments[segs[1].seg[1]]
-				local ind = segs[1].seg[1]
-				if segs[1].seg[1] == segI then
-					otherSeg = conn.segments[segs[1].seg[2]]
-					ind = segs[1].seg[2]
-				end
-				local addx,addy
-				-- Get the other coordinate of the segment
-				if otherSeg.start_x == x and otherSeg.start_y == y then
-					addx,addy = otherSeg.end_x,otherSeg.end_y
-				else
-					addx,addy = otherSeg.start_x,otherSeg.start_y
-				end
-				-- Check whether addx,addy lies only on segments that are being dragged as well
-				local aConns,sgs = getConnFromXY(cnvobj,addx,addy,0)
-				local found
-				for i = 1,#aConns do
-					if aConns[i] == conn then
-						for j = 1,#sgs[i].seg do
-							found = true
-							if sgs[i].seg[j] ~= ind then	-- This is not the otherSeg segment
-								-- Check if this segment is also being dragged
-								local found1
-								for k = 1,#segList do
-									if segList[k].conn == conn then
-										if sgs[i].seg[j] == segList[k].seg then
-											found1 = true
-											break
-										end
-									end
-								end		-- for k = 1,#segList ends
-								if not found1 then
-									-- This segment is not being dragged then
-									found = false
-									break
-								end
-							end
-						end		-- for j=1,#sgs[i].seg ends
-						if not found then
-							break
-						end
-					end
-				end
-				if not found then
-					-- Not all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
-					tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)
-					-- Add segment to segsToRemove
-					segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
-				else
-					-- All segments connected to addx,addy are also being dragged so add otherSeg into the list of segments to drag as well
-					segsToAdd[#segsToAdd + 1] = {conn = conn, seg = ind}
-				end
-			elseif #segs[1].seg == 1 then
-				-- If add this as dragNode here then routing will be made from this dangling end of this segment with it is dragged.
-			end		]=]
 		end
 	end
+	
+	local connList = {}
+
 	for i = 1,#segList do
 		local conn = segList[i].conn
 		local seg = conn.segments[segList[i].seg]	-- The segment that is being dragged
 		updateDragNodes(conn,seg.start_x,seg.start_y,segList[i].seg)
 		updateDragNodes(conn,seg.end_x,seg.end_y,segList[i].seg)
+		-- Check if all segments of this connector are done
+		if i == #segList or segList[i+1].conn ~= conn then
+			connList[#connList + 1] = conn
+		end
 	end
 	-- Add segsToAdd into segList
 	for i = 1,#segsToAdd do
 		segList[#segList + 1] = segsToAdd[i]
 	end
+	return dragNodes,segsToRemove,connList
+end
+
+-- Function to drag a list of segments (dragging implies connector connections are maintained)
+-- segList is a list of structures like this:
+--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}
+]]
+-- If offx and offy are given numbers then this will be a non interactive move
+-- dragRouter is the routing function to be using during dragging	-- only used if offx and offy are not given since then it will be interactive - default is cnvobj.options[0]
+-- finalRouter is the routing function to be used after the drag has ended to finally route all the connectors - default is cnvobj.options.router[9]
+-- jsFinal = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (finalRouter) after drag has ended, default = 1
+-- jsDrag = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (dragRouter) durin drag operation, default = 1
+-- jumpSeg parameter documentation says:
+-- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+-- 	= 2 generate jumping segment but don't set any special attribute
+--  = false or nil then do not generate jumping segment
+dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	-- Check whether this is an interactive move or not
+	local interactive
+	if not offx or type(offx) ~= "number" then
+		interactive = true
+	elseif not offy or type(offy) ~= "number" then
+		return nil, "Coordinates not given"
+	end
 	
+	--print("DRAG SEGMENT START")
+	
+	local rm = cnvobj.rM
+	
+	finalRouter = finalRouter or cnvobj.options.router[9]
+	jsFinal = jsFinal or 1
+	
+	dragRouter = dragRouter or cnvobj.options.router[0]
+	jsDrag = jsDrag or 2
+
+	local dragNodes,segsToRemove,connList = generateDragNodes(cnvobj,segList)
+	
+	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
 	table.sort(segList,function(one,two)
 			if one.conn.id == two.conn.id then
 				-- this is the same connector
@@ -1796,7 +1738,9 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			end
 		end)
 	
-	print("Number of dragnodes = ",#dragNodes)
+	--print("Number of dragnodes = ",#dragNodes)
+	-- Disconnect all ports
+	disconnectAllPorts(connList)
 	
 	if not interactive then
 		-- Take care of grid snapping
@@ -1838,6 +1782,8 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 				table.insert(dragNodes[i].conn.segments,newSegs[j])
 			end
 		end
+		assimilateConnList(cnvobj,connList)
+		--[[
 		local combinedMM = {}
 		for i = 1,#segList do
 			-- Check if all segments of this connector are done
@@ -1862,6 +1808,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 				end
 			end
 		end
+		]]
 		return true
 	end
 	
@@ -1966,6 +1913,9 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		local offx,offy = cnvobj:snap(x-refX,y-refY)
 
 		regenSegments(finalRouter,jsFinal,offx,offy)
+		-- Assimilate the modified connectors
+		assimilateConnList(cnvobj,connList)
+		--[[
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
 		local combinedMM = {}
 		for i = 1,#segList do
@@ -1990,7 +1940,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 					connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
 				end
 			end
-		end
+		end]]
 		--[[
 		local stat,dump = utility.checkRM(cnvobj,true)
 		if not stat then
