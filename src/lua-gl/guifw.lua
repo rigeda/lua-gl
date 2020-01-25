@@ -235,14 +235,21 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
 	if cnvobj.viewOptions.gridMode == 1 then
 		print("Set dotted grid!")
 		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
-		cnv:LineStyleDashes({1,grid_x-1},2)
+		--cnv:LineStyleDashes({1,grid_x-1},2)
 		-- Set the new custom line style
-		cnv:LineStyle(M.CUSTOM)
-		cnv:LineWidth(2)
+		--cnv:LineStyle(M.CUSTOM)
+		cnv:LineWidth(1)
 		cnv:LineJoin(M.MITER)
 		cnv:LineCap(M.CAPFLAT)
 		for y=0, h, grid_y do
 		  cnv:Line(0,y,w,y)
+		end
+		-- Now draw the background rectangles
+		cnv:SetForeground(bColore)
+		cnv:BackOpacity(M.OPAQUE)
+		cnv:InteriorStyle(M.SOLID)	
+		for x = 0,w,grid_x do
+			cnv:Box(x+1, x+grid_x-1, 0, h)
 		end
 	else
 		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color

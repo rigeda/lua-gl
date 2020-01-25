@@ -1572,8 +1572,12 @@ moveSegment = function(cnvobj,segList,offx,offy)
 	return moveConn(cnvobj,splitConnectorAtSegments(cnvobj,segList),offx,offy)
 end
 
-generateDragNodes = function(cnvobj,segList)
+-- Function to get the coordinates from where each segment in seglist would need rerouting when it is dragged. Only the starting coordinate of the routing and the offset of that coordinate from the segment end is needed. Since in the drag operation the segment is moved by a certain offset. So after the move by the offset simply generate segments from all starting coordinates in dragnodes to the new coordinates obtained by adding the drag offset and the offset stored in the dragnodes structure to reach their respective segment ends.
+-- objList is a list of objects that are being dragged together.
+-- If a segment is connected to a port of an object in objList then its end is not added in dragNodes since it will not need rerouting
+generateRoutingStartNodes = function(cnvobj,segList,objList)
 	-- Extract the list of nodes that would need re-routing as a result of the drag
+	objList = objList or {}
 	local dragNodes = {}
 	-- Function to return the list of segments whose one of the end point is x,y
 	local function segsOnNode(conn,x,y)
@@ -1606,9 +1610,19 @@ generateDragNodes = function(cnvobj,segList)
 		end
 		if not allSegs or #segs == 1 then
 			-- Not all segments connected to this node are in the move list. So this node will give us a point from where we need to make a routing
+			-- Get the ports on this node
+			local prts = PORTS.getPortFromXY(cnvobj,x,y)
+			-- Check if all ports lie on objects in objList
+			local allPorts = true
+			for j = 1,#objList do
+				if not tu.inArray(prts,objList[j],function(one,two) return one.obj == two end) then
+					allPorts = false
+					break
+				end
+			end
 			-- Now check if this is a junction i.e. > 2 segments at this point. If yes then this is the routing starting point. Otherwise the other end of the segment connected to this would be the starting routing point
-			if #segs > 2 or #PORTS.getPortFromXY(cnvobj,x,y)>0 then 
-				-- This is a junction or a port exists here so routing has to be done from here so this is a drag node
+			if #segs > 2 or (#prts>0 and not allPorts) then 
+				-- This is a junction or a ports exists here and not all of them are in objList so routing has to be done from here so this is a drag node
 				tu.mergeArrays({{x = x,y = y,conn=conn,offx=0,offy=0}},dragNodes,false,equalDragNode)
 			elseif #segs == 2 then
 				-- This connects to only 1 segment and that is not in the drag list
@@ -1643,7 +1657,7 @@ generateDragNodes = function(cnvobj,segList)
 				end
 				if not allSegs then
 					-- Not all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
-					tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)
+					tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
 					-- Add segment to segsToRemove
 					segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
 				else
@@ -1653,6 +1667,7 @@ generateDragNodes = function(cnvobj,segList)
 				
 			elseif #segs == 1 then
 				-- This is a dangling node. If I add this node to the dragNodes list then routing will be made from this dangling coordinate. So lets skip routing from here since this segment can be dragged wherever without routing to the dangling end original position
+				-- This is also the case when there are ports here and all ports are in objList. In that case also we want no routing to happen so skip dragNodes.
 			end
 		end
 	end
@@ -1716,7 +1731,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	dragRouter = dragRouter or cnvobj.options.router[0]
 	jsDrag = jsDrag or 2
 
-	local dragNodes,segsToRemove,connList = generateDragNodes(cnvobj,segList)
+	local dragNodes,segsToRemove,connList = generateRoutingStartNodes(cnvobj,segList)
 	
 	-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
 	table.sort(segList,function(one,two)

@@ -341,7 +341,7 @@ objFuncs = {
 		-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
 		local connSrc = objects.generateRoutingStartNodes(cnvobj,grp,segList)
 		
-		local dragNodes,segsToRemove,connList = conn.generateDragNodes(cnvobj,segList)
+		local dragNodes,segsToRemove,connList = conn.generateRoutingStartNodes(cnvobj,segList)
 		
 		-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
 		table.sort(segList,function(one,two)
@@ -370,6 +370,44 @@ objFuncs = {
 		if not interactive then
 			-- Take care of grid snapping
 			offx,offy = cnvobj:snap(offx,offy)
+			-- Move each segment
+			for i = 1,#segList do
+				local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
+				rm:removeSegment(seg)
+				-- Move the segment
+				seg.start_x = seg.start_x + offx
+				seg.start_y = seg.start_y + offy
+				seg.end_x = seg.end_x + offx
+				seg.end_y = seg.end_y + offy
+				rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
+			end
+			-- Remove the segments that would be rerouted from routing matrix
+			for i = 1,#segsToRemove do
+				rm:removeSegment(segsToRemove[i].seg)
+				table.remove(segsToRemove[i].conn.segments,segsToRemove[i].segI)
+			end
+			-- route segments from previous dragNodes coordinates to the new ones
+			for i = 1,#dragNodes do
+				local newSegs = {}
+				local node = dragNodes[i]
+				--print("DRAG NODES: ",offx+dragNodes[i].offx,offy+dragNodes[i].offy)
+				-- Remove the segments of the connector from routing matrix to allow the routing to use the space used by the connector
+				for j = 1,#node.conn.segments do
+					rm:removeSegment(node.conn.segments[j])
+				end
+				router.generateSegments(cnvobj,node.x+offx+node.offx,node.y+offy+node.offy,node.x,node.y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use finalrouter 
+				-- Add the segments back in again
+				for j = 1,#node.conn.segments do
+					local seg = node.conn.segments[j]
+					rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
+				end
+				-- Add these segments in the connectors segment list
+				for j = #newSegs,1,-1 do
+					table.insert(dragNodes[i].conn.segments,newSegs[j])
+				end
+			end
+			assimilateConnList(cnvobj,connList)
+			return true
 		end
 	end,
 
