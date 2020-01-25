@@ -49,9 +49,8 @@ _VERSION = "B20.01.11"
 --- TASKS
 --[[
 DEBUG:
-* CD CD_XOR drawing not working on linux
+
 TASKS:
-* Finish cnvobj:move
 * Finish cnvobj:drag
 * Finish loading of saved structure.
 * Add rotate functionality
@@ -167,7 +166,7 @@ objFuncs = {
 			-- Connect ports to any overlapping connector on the port. These are the ports that were moved with the objects
 			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-			PORTS.connectOverlapPorts(cnvobj,allPorts)		
+			ports.connectOverlapPorts(cnvobj,allPorts)		
 			return true
 		end
 		-- Setup the interactive move operation here
@@ -255,7 +254,7 @@ objFuncs = {
 			-- Connect ports to any overlapping connector on the port. These are the ports that were moved with the objects
 			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-			PORTS.connectOverlapPorts(cnvobj,allPorts)		
+			ports.connectOverlapPorts(cnvobj,allPorts)		
 			
 			tu.emptyTable(cnvobj.op)
 			cnvobj.op.mode = "DISP"	-- Default display mode
@@ -341,7 +340,7 @@ objFuncs = {
 		-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
 		local connSrc = objects.generateRoutingStartNodes(cnvobj,grp,segList)
 		
-		local dragNodes,segsToRemove,connList = conn.generateRoutingStartNodes(cnvobj,segList)
+		local dragNodes,segsToRemove,connList = conn.generateRoutingStartNodes(cnvobj,segList,grp)
 		
 		-- Sort seglist by connector ID and for the same connector with descending segment index so if there are multiple segments that are being dragged for the same connector we handle them in descending order without changing the index of the next one in line
 		table.sort(segList,function(one,two)
@@ -370,6 +369,8 @@ objFuncs = {
 		if not interactive then
 			-- Take care of grid snapping
 			offx,offy = cnvobj:snap(offx,offy)
+			
+			-- HANDLE THE SEGMENT DRAG FIRST
 			-- Move each segment
 			for i = 1,#segList do
 				local seg = segList[i].conn.segments[segList[i].seg]	-- The segment that is being dragged
@@ -403,12 +404,174 @@ objFuncs = {
 				end
 				-- Add these segments in the connectors segment list
 				for j = #newSegs,1,-1 do
-					table.insert(dragNodes[i].conn.segments,newSegs[j])
+					table.insert(node.conn.segments,newSegs[j])
 				end
 			end
-			assimilateConnList(cnvobj,connList)
+			conn.assimilateConnList(cnvobj,connList)
+			
+			-- HANDLE THE OBJECT DRAG HERE
+			objects.shiftObjList(grp,offx,offy,rm)
+			local allPorts,allConns = objects.getAllPortsAndConnectors(grp)
+			-- Regenerate the segments according to the coordinates calculated in connSrc
+			objects.regenConn(grp,connSrc,finalRouter,jsFinal)
+			-- Short and Merge all the connectors that were connected to ports
+			conn.shortAndMergeConnectors(cnvobj,allConns)
+			-- Check whether after drag the ports are touching other connectors then those get connected to the port
+			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+			ports.connectOverlapPorts(cnvobj,allPorts)
 			return true
 		end
+		-- Setup the interactive move operation here
+		-- Set refX,refY as the mouse coordinate on the canvas
+		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+		local refX,refY = gx-sx,gy-sy
+		local oldBCB = cnvobj.cnv.button_cb
+		local oldMCB = cnvobj.cnv.motion_cb
+		-- Backup the orders of the elements to move and change their orders to display in the front
+		local order = cnvobj.drawn.order
+		local oldObjOrder = {}
+		for i = 1,#grp do
+			oldObjOrder[i] = grp[i].order
+		end
+		-- Move the last item in the list to the end. Last item because it is te one with the highest order
+		local item = cnvobj.drawn.order[grp[#grp].order]
+		table.remove(cnvobj.drawn.order,grp[#grp].order)
+		table.insert(cnvobj.drawn.order,item)
+		-- Move the rest of the items on the last position
+		for i = 1,#grp-1 do
+			item = cnvobj.drawn.order[grp[i].order]
+			table.remove(cnvobj.drawn.order,grp[i].order)
+			table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
+		end
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		
+		-- Sort the connector elements in ascending order ranking
+		table.sort(connList,function(one,two) 
+				return one.order < two.order
+		end)
+		
+		-- Backup the orders of the connectors
+		local oldConnOrder = {}
+		for i = 1,#connList do
+			oldConnOrder[i] = connList[i].order
+		end
+		
+		-- Move the last item in the list to the end. Last item because it is te one with the highest order
+		item = cnvobj.drawn.order[connList[#connList].order]
+		table.remove(cnvobj.drawn.order,connList[#connList].order)
+		table.insert(cnvobj.drawn.order,item)
+		-- Move the rest of the items on the last position
+		for i = 1,#connList-1 do
+			item = cnvobj.drawn.order[connList[i].order]
+			table.remove(cnvobj.drawn.order,connList[i].order)
+			table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
+		end
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		
+		local function dragEnd()
+			-- End the drag at this point
+			-- Reset the orders back
+			-- First do the connectors
+			for i = 1,#connM do
+				local item = cnvobj.drawn.order[connM[i].order]
+				table.remove(cnvobj.drawn.order,connM[i].order)
+				table.insert(cnvobj.drawn.order,oldConnOrder[i],item)
+			end
+			-- Update the order number for all items 
+			fixOrder(cnvobj)
+			-- Now do the objects
+			for i = 1,#grp do
+				local item = cnvobj.drawn.order[grp[i].order]
+				table.remove(cnvobj.drawn.order,grp[i].order)
+				table.insert(cnvobj.drawn.order,oldObjOrder[i],item)
+			end
+			-- Update the order number for all items 
+			fixOrder(cnvobj)
+			
+			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
+			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
+			local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
+			local offx,offy = cnvobj:snap(x-refX,y-refY)
+
+			conn.regenSegments(cnvobj,segList,segsToRemove,dragNodes,finalRouter,jsFinal,offx,offy)
+			-- Assimilate the modified connectors
+			conn.assimilateConnList(cnvobj,connList)
+			
+			-- Regenerate the segments according to the coordinates calculated in connSrc
+			objects.regenConn(grp,connSrc,finalRouter,jsFinal)
+			-- Restore the previous button_cb and motion_cb
+			cnvobj.cnv.button_cb = oldBCB
+			cnvobj.cnv.motion_cb = oldMCB
+			-- Get all the ports that were dragged
+			local allPorts,allConns = objects.getAllPortsAndConnectors(grp)
+			-- Short and Merge all the connectors that were connected to ports
+			conn.shortAndMergeConnectors(cnvobj,allConns)
+			-- Check whether after drag the ports are touching other connectors then those get connected to the port
+			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+			ports.connectOverlapPorts(cnvobj,allPorts)
+			-- Reset mode
+			cnvobj:refresh()
+			tu.emptyTable(cnvobj.op)
+			cnvobj.op.mode = "DISP"	-- Default display mode
+		end
+		
+			
+		cnvobj.op.mode = "DRAG"
+		cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+		cnvobj.op.finish = dragEnd
+		cnvobj.op.offx = 0
+		cnvobj.op.offy = 0
+		cnvobj.op.oldSegs = {}	-- To backup old segment structures for all items in the segList
+		for i = 1,#segList do
+			cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{})	-- Copy the entire segments table by copying over the segment tables (NOTE: It does not duplicate the segment tables)
+		end
+		-- fill segsToRemove with the segments in segList
+		cnvobj.op.segsToRemove = {}	-- to store the segments generated after every motion_cb
+		cnvobj.op.dragSegCopy = {}
+		for i = 1,#segList do
+			cnvobj.op.segsToRemove[i] = segList[i].conn.segments[segList[i].seg]
+			-- Create a full copy of the segments being dragged
+			cnvobj.op.dragSegCopy[i] = tu.copyTable(segList[i].conn.segments[segList[i].seg],{},true)
+		end
+
+		
+		-- button_CB to handle object dragging
+		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+			--y = cnvobj.height - y
+			-- Check if any hooks need to be processed here
+			--print("DRAG button_Cb")
+			cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
+			if button == iup.BUTTON1 and pressed == 1 then
+				--print("Drag end")
+				dragEnd()
+			end
+			-- Process any hooks 
+			cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y, status})
+		end
+		
+		-- motion_cb to handle object dragging
+		function cnvobj.cnv:motion_cb(x,y,status)
+			--y = cnvobj.height - y
+			-- Move all items in the grp 
+			--local xo,yo = x,y
+			x,y = cnvobj:snap(x-refX,y-refY)
+			cnvobj.op.offx = x
+			cnvobj.op.offy = y
+
+			conn.regenSegments(cnvobj,segList,segsToRemove,dragNodes,dragRouter,jsDrag,x,y)
+			
+			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
+			objects.shiftObjList(grp,offx,offy,rm)
+			-- Regenerate the segments according to the coordinates calculated in connSrc
+			objects.regenConn(grp,connSrc,dragRouter,jsDrag)
+			cnvobj:refresh()
+		end
+		return true
 	end,
 
 	-- function to load the drawn structures in str and put them in the canvas 

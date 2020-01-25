@@ -262,11 +262,11 @@ end
 function GUI.toolbar.buttons.moveButton:action()
 	-- function to handle the move
 	local function moveitems(items)
-		cnvobj:moveObj(items)
+		cnvobj:move(items)
 		--cnvobj:moveSegment(items)
 	end
 	-- first we need to select items
-	getSelectionList(moveitems,false,1)	-- Need a click with only object selection allowed
+	getSelectionList(moveitems,false)	-- Need a click 
 end
 
 -- Start drag operation
@@ -275,10 +275,10 @@ function GUI.toolbar.buttons.dragButton:action()
 	local function dragitems(items)
 		--print("callback dragitems")
 		--cnvobj:dragObj(items)
-		cnvobj:dragSegment(items)
+		cnvobj:drag(items)
 	end
 	-- Get the list of items
-	getSelectionList(dragitems,false,2)
+	getSelectionList(dragitems,false)
 end
 
 function GUI.toolbar.buttons.groupButton:action()
