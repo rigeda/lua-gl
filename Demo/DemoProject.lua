@@ -206,7 +206,11 @@ local function getSelectionList(cb,noclick,mode)
 				-- Add any objects at x,y to items
 				local i = cnvobj:getObjFromXY(x,y)
 				-- Merge into items
-				tu.mergeArrays(i,items,false,function(one,two) return one.id == two.id end)
+				if #i > 0 then
+					tu.mergeArrays(i,items,false,function(one,two) 
+						return two.id and one.id == two.id
+					  end)
+				end
 				-- Add any connectors at x,y to items
 				local c,s = cnvobj:getConnFromXY(x,y)
 				local connList = {}
@@ -219,7 +223,11 @@ local function getSelectionList(cb,noclick,mode)
 					end
 				end
 				-- Merge into items
-				tu.mergeArrays(connList,items,false,function(one,two) return one.conn.id == two.conn.id and one.seg == two.seg end)
+				if #connList > 0 then
+					tu.mergeArrays(connList,items,false,function(one,two) 
+						return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+					  end)
+				end
 			end
 			-- Update the list item control to display the items
 			list.removeitem = "ALL"

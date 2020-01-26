@@ -1596,7 +1596,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	local segsToAdd = {}
 	local function updateDragNodes(conn,x,y,segI)
 		local segs = segsOnNode(conn,x,y)
-		local allSegs=true		-- to indicate if all segments in segs are in segList
+		local allSegs=true		-- to indicate if all segments in segs are in segList (at least 1 segment is in segList which coordinate is x,y)
 		for j = 1,#segs do
 			if not tu.inArray(segList,segs[j],function(v1,v2)
 				return v1.conn.segments[v1.seg] == v2
@@ -1614,8 +1614,8 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 			local prts = PORTS.getPortFromXY(cnvobj,x,y)
 			-- Check if all ports lie on objects in objList
 			local allPorts = true
-			for j = 1,#objList do
-				if not tu.inArray(prts,objList[j],function(one,two) return one.obj == two end) then
+			for j = 1,#prts do
+				if not tu.inArray(objList,prts[j],function(one,two) return one == two.obj end) then
 					allPorts = false
 					break
 				end
@@ -1655,11 +1655,36 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 						end
 					end
 				end
+				-- if allSegs is true then there are more segments at addx,addy other than otherSeg and all are in segList. So otherSeg should be added to segsToAdd
 				if not allSegs then
-					-- Not all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
-					tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
-					-- Add segment to segsToRemove
-					segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
+					-- EITHER otherSeg is the only segment at addx,addy so it could be either dangling or have a port OR other segments on addx,addy were not all in segList
+					if #segs == 1 then
+						-- Check if this is a port
+						-- Get the ports on this node
+						prts = PORTS.getPortFromXY(cnvobj,addx,addy)
+						-- Check if all ports lie on objects in objList
+						local allPorts = true
+						for j = 1,#prts do
+							if not tu.inArray(objList,prts[j],function(one,two) return one == two.obj end) then
+								allPorts = false
+								break
+							end
+						end
+						if not (#prts > 0 and allPorts) then	
+							-- otherSeg connects to a port which is not in objList or it is dangling
+							tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
+							-- Add segment to segsToRemove
+							segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
+						else
+							-- otherseg connects to ports which are in objList (objects being dragged) so we add otherSeg to the segsToAdd
+							segsToAdd[#segsToAdd + 1] = {conn = conn, seg = ind}
+						end
+					else
+						-- Not all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
+						tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
+						-- Add segment to segsToRemove
+						segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
+					end
 				else
 					-- All segments connected to addx,addy are also being dragged so add otherSeg into the list of segments to drag as well
 					segsToAdd[#segsToAdd + 1] = {conn = conn, seg = ind}
@@ -1691,7 +1716,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	return dragNodes,segsToRemove,connList
 end
 
-function regenSegments(cnvobj,segList,segsToRemove,dragNodes,rtr,js,offx,offy)
+function regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,rtr,js,offx,offy)
 	-- Now shift the segments and redo the connectors
 	-- Remove the old additions from routing matrix
 	for i = 1,#cnvobj.op.segsToRemove do
@@ -1907,7 +1932,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
 		local offx,offy = cnvobj:snap(x-refX,y-refY)
 
-		regenSegments(cnvobj,segList,segsToRemove,dragNodes,finalRouter,jsFinal,offx,offy)
+		regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,finalRouter,jsFinal,offx,offy)
 		-- Assimilate the modified connectors
 		assimilateConnList(cnvobj,connList)
 		--[[
@@ -1990,7 +2015,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		cnvobj.op.offx = offx
 		cnvobj.op.offy = offy
 
-		regenSegments(cnvobj,segList,segsToRemove,dragNodes,dragRouter,jsDrag,offx,offy)
+		regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,dragRouter,jsDrag,offx,offy)
 		cnvobj:refresh()
 	end
 	

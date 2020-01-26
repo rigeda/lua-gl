@@ -51,12 +51,12 @@ function init(cnvobj)
 	-- Register drawing functions
 	GUIFW.ELLIPSE = {
 		draw = drawhollow,
-		visualAttr = cnvobj.attributes.visualAttrBank[3],	-- filled object
+		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
 		vAttr = 3
 	}
 	GUIFW.FILLEDELLIPSE = {
 		draw = drawfilled,
-		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
+		visualAttr = cnvobj.attributes.visualAttrBank[3],	-- filled object
 		vAttr = 1
 	}
 	-- Register checkXY function

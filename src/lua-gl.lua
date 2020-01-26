@@ -21,6 +21,7 @@ local tu = require("tableUtils")
 local router = require("lua-gl.router")
 local coorc = require("lua-gl.CoordinateCalc")
 local utility = require("lua-gl.utility")
+local iup = iup
 
 -- Add the shapes. The shape modules will register themselves to the respective modules when their init functions are called
 local RECT = require("lua-gl.rectangle")
@@ -51,7 +52,6 @@ _VERSION = "B20.01.11"
 DEBUG:
 
 TASKS:
-* Finish cnvobj:drag
 * Finish loading of saved structure.
 * Add rotate functionality
 * Add object resize functionality
@@ -84,7 +84,7 @@ objFuncs = {
 	
 	-- Function to save the drawn data and return it as a string that can be passed to the load function to load it into the drawn structures.
 	save = function(cnvobj)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
 		-- First check if any operation is happenning then end it
@@ -105,14 +105,14 @@ objFuncs = {
 	seg = <integer>					-- segment index of the connector
 }	]]
 	move = function(cnvobj,items,offx,offy)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
 		-- Check whether this is an interactive move or not
 		local interactive
-		if offx and type(offx) ~= "number" then
+		if not offx or type(offx) ~= "number" then
 			interactive = true
-		elseif not offx or not offy or type(offx) ~= "number" or type(offy) ~= "number" then
+		elseif not offy or type(offy) ~= "number" then
 			return nil, "Coordinates not given"
 		end
 		
@@ -130,9 +130,9 @@ objFuncs = {
 		end
 		-- If these are all objects or all segments then just redirect
 		if #objList == 0 then
-			conn.moveSegment(cnvobj,segList,offx,offy)
+			return conn.moveSegment(cnvobj,segList,offx,offy)
 		elseif #segList == 0 then
-			objects.moveObj(cnvobj,objList,offx,offy)
+			return objects.moveObj(cnvobj,objList,offx,offy)
 		end
 		-- Now we split the connectors at the segments to separate them out into connectors that need to be moved just like we did in moveSegment		
 		local connM = conn.splitConnectorAtSegments(cnvobj,segList)	-- connM will get the list of connectors now that have to be moved
@@ -149,7 +149,7 @@ objFuncs = {
 		-- Disconnect all the connectors from the objects being moved
 		local allConns, allPorts = objects.disconnectAllConnectors(grp)
 		-- Merge allConns with connM
-		tu.mergeArray(connM,allConns,false)
+		tu.mergeArrays(connM,allConns,false)
 		
 		if not interactive then
 			-- Move everything in the list by offx,offy 
@@ -255,7 +255,7 @@ objFuncs = {
 			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 			ports.connectOverlapPorts(cnvobj,allPorts)		
-			
+			cnvobj:refresh()
 			tu.emptyTable(cnvobj.op)
 			cnvobj.op.mode = "DISP"	-- Default display mode
 		end
@@ -292,7 +292,7 @@ objFuncs = {
 	end,
 	
 	drag = function(cnvobj,items,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
 		-- Check whether this is an interactive move or not
@@ -325,9 +325,9 @@ objFuncs = {
 		end
 		-- If these are all objects or all segments then just redirect
 		if #objList == 0 then
-			conn.moveSegment(cnvobj,segList,offx,offy)
+			return conn.dragSegment(cnvobj,segList,offx,offy)
 		elseif #segList == 0 then
-			objects.moveObj(cnvobj,objList,offx,offy)
+			return objects.dragObj(cnvobj,objList,offx,offy)
 		end
 		
 		-- Collect all the objects that need to be dragged together by checking group memberships
@@ -413,7 +413,7 @@ objFuncs = {
 			objects.shiftObjList(grp,offx,offy,rm)
 			local allPorts,allConns = objects.getAllPortsAndConnectors(grp)
 			-- Regenerate the segments according to the coordinates calculated in connSrc
-			objects.regenConn(grp,connSrc,finalRouter,jsFinal)
+			objects.regenConn(cnvobj,rm,grp,connSrc,finalRouter,jsFinal)
 			-- Short and Merge all the connectors that were connected to ports
 			conn.shortAndMergeConnectors(cnvobj,allConns)
 			-- Check whether after drag the ports are touching other connectors then those get connected to the port
@@ -476,9 +476,9 @@ objFuncs = {
 			-- End the drag at this point
 			-- Reset the orders back
 			-- First do the connectors
-			for i = 1,#connM do
-				local item = cnvobj.drawn.order[connM[i].order]
-				table.remove(cnvobj.drawn.order,connM[i].order)
+			for i = 1,#connList do
+				local item = cnvobj.drawn.order[connList[i].order]
+				table.remove(cnvobj.drawn.order,connList[i].order)
 				table.insert(cnvobj.drawn.order,oldConnOrder[i],item)
 			end
 			-- Update the order number for all items 
@@ -497,12 +497,12 @@ objFuncs = {
 			local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
 			local offx,offy = cnvobj:snap(x-refX,y-refY)
 
-			conn.regenSegments(cnvobj,segList,segsToRemove,dragNodes,finalRouter,jsFinal,offx,offy)
+			conn.regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,finalRouter,jsFinal,offx,offy)
 			-- Assimilate the modified connectors
 			conn.assimilateConnList(cnvobj,connList)
 			
 			-- Regenerate the segments according to the coordinates calculated in connSrc
-			objects.regenConn(grp,connSrc,finalRouter,jsFinal)
+			objects.regenConn(cnvobj,rm,grp,connSrc,finalRouter,jsFinal)
 			-- Restore the previous button_cb and motion_cb
 			cnvobj.cnv.button_cb = oldBCB
 			cnvobj.cnv.motion_cb = oldMCB
@@ -563,12 +563,12 @@ objFuncs = {
 			cnvobj.op.offx = x
 			cnvobj.op.offy = y
 
-			conn.regenSegments(cnvobj,segList,segsToRemove,dragNodes,dragRouter,jsDrag,x,y)
+			conn.regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,dragRouter,jsDrag,x,y)
 			
 			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
 			objects.shiftObjList(grp,offx,offy,rm)
 			-- Regenerate the segments according to the coordinates calculated in connSrc
-			objects.regenConn(grp,connSrc,dragRouter,jsDrag)
+			objects.regenConn(cnvobj,rm,grp,connSrc,dragRouter,jsDrag)
 			cnvobj:refresh()
 		end
 		return true
@@ -578,7 +578,7 @@ objFuncs = {
 	-- x and y are the coordinates where the structures will be loaded. If not given x,y will default to the center of the canvas
 	-- if interactive==true then the placed elements will be moving with the mouse pointer and left click will place them
 	load = function(cnvobj,str,x,y,interactive)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj) ~= objFuncs then
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
 		local tab = tu.s2tr(str)
@@ -921,9 +921,9 @@ objFuncs = {
 
 	---- CONNECTORS---------
 	drawConnector = conn.drawConnector,		-- draw connector
-	dragSegment = conn.dragSegment,
-	moveSegment = conn.moveSegment,
-	moveConn = conn.moveConn,
+	--dragSegment = conn.dragSegment,
+	--moveSegment = conn.moveSegment,
+	--moveConn = conn.moveConn,
 	removeConn = conn.removeConn,
 	getConnFromID = conn.getConnFromID,
 	getConnFromXY = conn.getConnFromXY,
@@ -938,8 +938,8 @@ objFuncs = {
 	getPortFromXY = ports.getPortFromXY,	-- get the port structure close to x,y
 	---- OBJECTS------------
 	drawObj = objects.drawObj,				-- Draw object
-	dragObj = objects.dragObj,				-- drag object(s)/group(s)
-	moveObj = objects.moveObj,				-- move object(s)
+	--dragObj = objects.dragObj,				-- drag object(s)/group(s)
+	--moveObj = objects.moveObj,				-- move object(s)
 	removeObj = objects.removeObj,
 	groupObjects = objects.groupObjects,	
 	getObjFromID = objects.getObjFromID,
