@@ -33,8 +33,8 @@ GUI.toolbar.buttons = {
 	bRectButton = iup.button{image=GUI.images.blockingrectangle,tip="Draw a blocking rectangle"},	-- Button to draw blocking rectangle
 	elliButton = iup.button{image=GUI.images.ellipse,tip="Draw an Ellipse object"},	-- Button to draw ellipse
 	fElliButton = iup.button{image=GUI.images.filledellipse,tip="Draw a Filled Ellipse object"},	-- Button to draw filled ellipse
-	saveButton = iup.button{image="IUP_FileSave",tip="Save image to file"},	-- Button to save drawing
-	loadButton = iup.button{image="IUP_FileOpen",tip="Load image from file"},	-- Button to load drawing
+	saveButton = iup.button{image="IUP_FileSave",tip="Save to file"},	-- Button to save drawing
+	loadButton = iup.button{image="IUP_FileOpen",tip="Load from file"},	-- Button to load drawing
 	snapGridButton = iup.button{image=GUI.images.ongrid,tip="Set snapping off"},
 	showGridButton = iup.toggle{image=GUI.images.grid,tip="Turn off grid",value="ON"},
 	xygrid = iup.button{image=GUI.images.xygrid,tip="Change Grid size"},

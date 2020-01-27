@@ -94,7 +94,7 @@ objFuncs = {
 		return tu.t2sr(cnvobj.drawn)
 	end,
 	
-	-- Function to move the list of items (given as a list of their IDs) by moving all the items offx and offy offsets	
+	-- Function to move the list of items by moving all the items offx and offy offsets	
 	-- if offx is not a number then the movement is done interactively with a mouse
 	-- items is an array with either of the 2 things:
 	-- * object structure
@@ -291,6 +291,16 @@ objFuncs = {
 		return true
 	end,
 	
+	-- Function to drag a list of items by moving all the items offx and offy offsets	
+	-- if offx is not a number then the movement is done interactively with a mouse
+	-- items is an array with either of the 2 things:
+	-- * object structure
+	-- * structure with the following data
+	--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}	]]
 	drag = function(cnvobj,items,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
@@ -575,30 +585,98 @@ objFuncs = {
 	end,
 
 	-- function to load the drawn structures in str and put them in the canvas 
-	-- x and y are the coordinates where the structures will be loaded. If not given x,y will default to the center of the canvas
-	-- if interactive==true then the placed elements will be moving with the mouse pointer and left click will place them
+	-- x and y are the coordinates where the structures will be loaded. If x,y are not given then they default to center of the canvas
+	-- If interactive is true then x,y are ignored and the placement of the loaded structure is done with a mouse with the loaded structure's
+	-- 1st item's start_x and start_y coincident on the mouse location
 	load = function(cnvobj,str,x,y,interactive)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
+		
+		-- Check whether this is an interactive move or not
+		if not interactive and (not x or type(x) ~= "number" or not y or type(y) ~= "number") then
+			return nil, "Not interactive and Coordinates not given"
+		end
+		
+		local rm = cnvobj.rM
+		
 		local tab = tu.s2tr(str)
-		if not tab then return nil,"No data found" end
-		x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
-		y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
-		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
-		-- Now append the data in tab into the cnvobj.drawn structure
+		if not tab or (#tab.obj == 0 and #tab.conn == 0) then return nil,"No data found" end
+		
+		-- Lets find the extreme dimensions of the data being loaded
 		-- obj array copy
 		local objS = tab.obj
+		local connS = tab.conn
+		local minX,maxX,minY,maxY 
+		if #objS > 0 then
+			minX,minY = objS[1].start_x,objS[1].start_y
+			maxX,maxY = minX,minY
+		else
+			minX,minY = conn[1].segments[1].start_x,conn[1].segments[1].start_y
+			maxX,maxY = minX,minY
+		end
+		local function storeMaxMin(x,y)
+			if x < minX then
+				minX = x
+			end
+			if x > maxX then
+				maxX = x
+			end
+			if y < minY then
+				minY = y
+			end
+			if y > maxY then
+				maxY = y
+			end
+		end
+		for i = 1,#objS do
+			storeMaxMin(objS[i].start_x,objS[i].start_y)
+			storeMaxMin(objS[i].end_x,objS[i].end_y)
+		end
+		for i = 1,#connS do
+			for j = 1,#connS[i].segments do
+				storeMaxMin(connS[i].segments[j].start_x,connS[i].segments[j].start_y)
+				storeMaxMin(connS[i].segments[j].end_x,connS[i].segments[j].end_y)
+			end
+		end
+		
+		-- Get the center coordinates where the 
+		local ctrX,ctrY = math.floor((maxX-minX)/2),math.floor((maxY-minY)/2)
+		if not interactive then
+			x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
+			y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
+			x,y = cnvobj:snap(x,y)
+		else
+			-- Mouse coordinates on the canas
+			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+			x,y = gx-sx,gy-sy
+		end
+		-- Now append the data in tab into the cnvobj.drawn structure. The elements of the drawn structure are:
+		-- * obj
+		-- * port
+		-- * conn
+		-- * group
+		-- * order
+		
+		-- Offset to move each item for placement
+		local offx,offy = x-ctrX,y-ctrY
+		local items = {}	-- To store all objects and connector segments in case it is interactive move then we will send this to move API
+		
 		local objD = cnvobj.drawn.obj
-		local offx,offy = x-objS[1].start_x,y-objS[1].start_y
 		for i = 1,#objS do
 			objD[#objD + 1] = objS[i]
+			objD.ids = objD.ids + 1
 			objS[i].id = "O"..tostring(objD.ids + 1)
 			objS[i].start_x = objS[i].start_x + offx
 			objS[i].start_y = objS[i].start_y + offy
 			objS[i].end_x = objS[i].end_x + offx
 			objS[i].end_y = objS[i].end_y + offx
-			objD.ids = objD.ids + 1
+			items[#items + 1] = objS[i]
+			-- Add to routing matrix
+			if objS[i].shape == "BLOCKINGRECT" then
+				rm:addBlockingRectangle(objS[i],objS[i].start_x,objS[i].start_y,objS[i].end_x,objS[i].end_y)
+			end
 		end
 		
 		-- port array copy
@@ -610,6 +688,8 @@ objFuncs = {
 			portD.ids = portD.ids + 1
 			portS[i].x = portS[i].x + offx
 			portS[i].y = portS[i].y + offy
+			-- Add to routing matrix
+			rm:addPort(portS[i],portS[i].x,portS[i].y)
 		end
 		
 		-- group array copy
@@ -620,7 +700,6 @@ objFuncs = {
 		end
 		
 		-- conn array copy
-		local connS = tab.conn
 		local connD = cnvobj.drawn.conn
 		for i = 1,#connS do
 			connD[#connD + 1] = connS[i]
@@ -633,6 +712,12 @@ objFuncs = {
 				segs[j].start_y = segs[j].start_y + offy
 				segs[j].end_x = segs[j].end_x + offx
 				segs[j].end_y = segs[j].end_y + offy
+				items[#items + 1] = {
+					conn = connS[i],
+					seg = j
+				}
+				-- Add to routing Matrix
+				rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
 			end
 			-- Update all junctions
 			local junc = connS[i].junction
@@ -654,9 +739,16 @@ objFuncs = {
 		
 		-- Everything is loaded now
 		if not interactive then
+			-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
+			conn.assimilateConnList(cnvobj,connS)
+			-- Connect ports to any overlapping connector on the port. These are the ports that were moved with the objects
+			conn.connectOverlapPorts(cnvobj,nil,portS)	-- This takes care of splitting the connector segments as well if needed
+			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
+			ports.connectOverlapPorts(cnvobj,portS)		
 			return true
 		end
-		-- Setup the interactive movement here
+		-- For interactive move just create the item list and send it to the Move API
+		return cnvobj:move(items)
 	end,
 
 	erase = function(cnvobj)

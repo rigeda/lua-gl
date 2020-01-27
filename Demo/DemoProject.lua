@@ -45,6 +45,40 @@ local MODE
 
 --********************* Callbacks *************
 
+-- TO save data to file
+function GUI.toolbar.buttons.saveButton:action()
+	local fileDlg = iup.filedlg{
+		dialogtype = "SAVE",
+		extfilter = "Demo Files|*.dia",
+		title = "Select file to save drawing...",
+		extdefault = "dia"
+	} 
+	fileDlg:popup(iup.CENTER, iup.CENTER)
+	if fileDlg.status == "-1" then
+		return
+	end
+	local f = io.open(fileDlg.value,"w+")
+	f:write(cnvobj:save())
+	f:close()
+end
+
+-- To load data from a file
+function GUI.toolbar.buttons.loadButton:action()
+	local fileDlg = iup.filedlg{
+		dialogtype = "OPEN",
+		extfilter = "Demo Files|*.dia",
+		title = "Select file to save drawing...",
+		extdefault = "dia"
+	} 
+	fileDlg:popup(iup.CENTER, iup.CENTER)
+	if fileDlg.status == "-1" then
+		return
+	end
+	f = io.open(fileDlg.value,"r")
+	local s = f:read("*a")
+	f:close()
+	cnvobj:load(s,nil,nil,true)	
+end
 
 -- Turn ON/OFF snapping ont he grid
 function GUI.toolbar.buttons.snapGridButton:action()
