@@ -1388,14 +1388,15 @@ moveConn = function(cnvobj,connM,offx,offy)
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
 		assimilateConnList(cnvobj,connM)
 		
-		tu.emptyTable(cnvobj.op)
-		cnvobj.op.mode = "DISP"	-- Default display mode	
+		cnvobj.op[#cnvobj.op] = nil
 		cnvobj:refresh()
 	end
 	
-	cnvobj.op.mode = "MOVECONN"
-	cnvobj.op.finish = moveEnd
-	cnvobj.op.coor1 = {x=connM[1].segments[1].start_x,y=connM[1].segments[1].start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
+	local op = {}
+	cnvobj.op[#cnvobj.op + 1] = op
+	op.mode = "MOVECONN"
+	op.finish = moveEnd
+	op.coor1 = {x=connM[1].segments[1].start_x,y=connM[1].segments[1].start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -1411,9 +1412,9 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
-		if cnvobj.op.mode == "MOVECONN" then
+		if op.mode == "MOVECONN" then
 			x,y = cnvobj:snap(x-refX,y-refY)
-			local offx,offy = x+cnvobj.op.coor1.x-connM[1].segments[1].start_x,y+cnvobj.op.coor1.y-connM[1].segments[1].start_y
+			local offx,offy = x+op.coor1.x-connM[1].segments[1].start_x,y+op.coor1.y-connM[1].segments[1].start_y
 			shiftConnList(connM,offx,offy,rm)
 			cnvobj:refresh()
 		end
@@ -1902,32 +1903,34 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
+	local op = {}
+	
 	local function dragEnd()
 		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
 		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
 		local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
 		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
-		local offx,offy = x+cnvobj.op.coor1.x-segList[1].seg.start_x,y+cnvobj.op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
+		local offx,offy = x+op.coor1.x-segList[1].seg.start_x,y+op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
 
-		regenSegments(cnvobj,cnvobj.op,finalRouter,jsFinal,offx,offy,x,y)
+		regenSegments(cnvobj,op,finalRouter,jsFinal,offx,offy,x,y)
 		-- Assimilate the modified connectors
 		assimilateConnList(cnvobj,connList)
 		-- Reset mode
-		tu.emptyTable(cnvobj.op)
-		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.op[#cnvobj.op] = nil
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
 		cnvobj:refresh()
 	end
 		
-	cnvobj.op.mode = "DRAGSEG"
-	cnvobj.op.segList = segList
-	cnvobj.op.coor1 = {x=segList[1].seg.start_x,y=segList[1].seg.start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
-	cnvobj.op.finish = dragEnd
-	cnvobj.op.dragNodes = dragNodes
+	cnvobj.op[#cnvobj.op + 1] = op
+	op.mode = "DRAGSEG"
+	op.segList = segList
+	op.coor1 = {x=segList[1].seg.start_x,y=segList[1].seg.start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
+	op.finish = dragEnd
+	op.dragNodes = dragNodes
 	
 	-- fill segsToRemove with the segments in segList
-	cnvobj.op.segsToRemove = segsToRemove
+	op.segsToRemove = segsToRemove
 
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -1946,9 +1949,9 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		--y = cnvobj.height - y
 		--print("drag segment motion_cb")
 		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
-		local offx,offy = x+cnvobj.op.coor1.x-segList[1].seg.start_x,y+cnvobj.op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
+		local offx,offy = x+op.coor1.x-segList[1].seg.start_x,y+op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
 		
-		regenSegments(cnvobj,cnvobj.op,dragRouter,jsDrag,offx,offy,x,y)
+		regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy,x,y)
 		cnvobj:refresh()
 	end
 	
@@ -2084,23 +2087,25 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	-- Backup the old button_cb and motion_cb functions
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
+	
+	local op = {}
 		
 	local function setWaypoint(x,y)
-		cnvobj.op.startseg = #cnvobj.drawn.conn[#cnvobj.drawn.conn].segments+1
-		cnvobj.op.start = {x=cnvobj.op.fin.x,y=cnvobj.op.fin.y}
+		op.startseg = #cnvobj.drawn.conn[#cnvobj.drawn.conn].segments+1
+		op.start = {x=op.fin.x,y=op.fin.y}
 	end
 	
 	local function endConnector()
 		-- Check whether the new segments overlap any port
 		-- Note that ports can only happen at the start and end of the whole connector
 		-- This is because routing avoids ports unless it is the ending point	
-		if cnvobj.op.mode == "DRAWCONN" then
-			local conn = cnvobj.drawn.conn[cnvobj.op.cIndex]
+		if cnvobj.op[#cnvobj.op].mode == "DRAWCONN" then
+			local conn = cnvobj.drawn.conn[op.cIndex]
 			local segTable = conn.segments
 			if #segTable == 0 then
 				-- Remove this connector
 				table.remove(cnvobj.drawn.order,conn.order)
-				table.remove(cnvobj.drawn.conn,cnvobj.op.cIndex)
+				table.remove(cnvobj.drawn.conn,op.cIndex)
 			else
 				-- Add the segments to the routing matrix
 				for i = 1,#segTable do
@@ -2114,8 +2119,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 				connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
 			end
 		end
-		tu.emptyTable(cnvobj.op)
-		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.op[#cnvobj.op] = nil
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
 	end		-- Function endConnector ends here
@@ -2123,14 +2127,14 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	local function startConnector(X,Y)
 		print("START CONNECTOR")
 		local conn = cnvobj.drawn.conn
-		cnvobj.op.startseg = 1		-- segment number from where to generate the segments
+		op.startseg = 1		-- segment number from where to generate the segments
 		-- Check if the starting point lays on another connector
-		cnvobj.op.connID = "C"..tostring(cnvobj.drawn.conn.ids + 1)
-		cnvobj.op.cIndex = #cnvobj.drawn.conn + 1		-- Storing this connector in a new connector structure. Will merge it with other connectors if required in endConnector
-		cnvobj.op.mode = "DRAWCONN"	-- Set the mode to drawing object
-		cnvobj.op.start = {x=X,y=Y}	-- snapping is done in generateSegments
-		cnvobj.op.fin = {x=X,y=Y}	-- To store the coordinates till where the connector is currently routed
-		cnvobj.op.finish = endConnector
+		op.connID = "C"..tostring(cnvobj.drawn.conn.ids + 1)
+		op.cIndex = #cnvobj.drawn.conn + 1		-- Storing this connector in a new connector structure. Will merge it with other connectors if required in endConnector
+		op.mode = "DRAWCONN"	-- Set the mode to drawing object
+		op.start = {x=X,y=Y}	-- snapping is done in generateSegments
+		op.fin = {x=X,y=Y}	-- To store the coordinates till where the connector is currently routed
+		op.finish = endConnector
 		--cnvobj.op.splitseg may also be set in the above loop
 		--cnvobj.op.startseg is set
 	end
@@ -2143,7 +2147,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 		local xo,yo = x,y
 		x,y = cnvobj:snap(x,y)
 		if button == iup.BUTTON1 and pressed == 1 then
-			if cnvobj.op.mode ~= "DRAWCONN" then
+			if cnvobj.op[#cnvobj.op].mode ~= "DRAWCONN" then
 				print("Start connector drawing at ",x,y)
 				startConnector(x,y)
 			elseif #cnvobj:getPortFromXY(x, y) > 0 or #getConnFromXY(cnvobj,x,y,0) > 1 then	-- 1 is the connector being drawn right now
@@ -2165,17 +2169,17 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--connectors
-		if cnvobj.op.mode == "DRAWCONN" then
+		if cnvobj.op[#cnvobj.op].mode == "DRAWCONN" then
 			--y = cnvobj.height - y
-			local cIndex = cnvobj.op.cIndex
-			local segStart = cnvobj.op.startseg
-			local startX = cnvobj.op.start.x
-			local startY = cnvobj.op.start.y
+			local cIndex = op.cIndex
+			local segStart = op.startseg
+			local startX = op.start.x
+			local startY = op.start.y
 			if not cnvobj.drawn.conn[cIndex] then
 				-- new connector object described below:
 				cnvobj.drawn.conn[cIndex] = {
 					segments = {},
-					id=cnvobj.op.connID,
+					id=op.connID,
 					order=#cnvobj.drawn.order+1,
 					junction={},
 					port={}
@@ -2185,7 +2189,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 				-- Add the connector to be drawn in the order array
 				cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
 					type = "connector",
-					item = cnvobj.drawn.conn[cnvobj.op.cIndex]
+					item = cnvobj.drawn.conn[op.cIndex]
 				}
 			end
 			local connector = cnvobj.drawn.conn[cIndex]
@@ -2197,7 +2201,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 			end
 			print("DONE")
 			print("GENERATE SEGMENTS")
-			cnvobj.op.fin.x,cnvobj.op.fin.y = router.generateSegments(cnvobj, startX,startY,x, y,connector.segments,dragRouter,jsDrag)
+			op.fin.x,op.fin.y = router.generateSegments(cnvobj, startX,startY,x, y,connector.segments,dragRouter,jsDrag)
 			cnvobj:refresh()
 		end			
 	end

@@ -405,14 +405,15 @@ moveObj = function(cnvobj,objList,offx,offy)
 		-- Connect ports to any overlapping connector on the port
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
-		PORTS.connectOverlapPorts(cnvobj,allPorts)		
-		tu.emptyTable(cnvobj.op)
-		cnvobj.op.mode = "DISP"	-- Default display mode
+		PORTS.connectOverlapPorts(cnvobj,allPorts)	
+		cnvobj.op[#cnvobj.op] = nil
 	end
 	
-	cnvobj.op.mode = "MOVEOBJ"	-- Set the mode to drawing object
-	cnvobj.op.finish = moveEnd
-	cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+	local op = {}
+	cnvobj.op[#cnvobj.op + 1] = op
+	op.mode = "MOVEOBJ"	-- Set the mode to drawing object
+	op.finish = moveEnd
+	op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 	
 	-- button_CB to handle interactive move ending
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -422,7 +423,6 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--print("BUTTON_CB execution",button,iup.BUTTON1,pressed)
 		if button == iup.BUTTON1 and pressed == 1 then
 			-- End the move
-			--print("BUTTON_CB ending move",cnvobj.op.coor1)
 			moveEnd()
 		end
 		-- Process any hooks 
@@ -433,9 +433,9 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--y = cnvobj.height - y
 		-- Move all items in the grp 
 		--local xo,yo = x,y
-		if cnvobj.op.mode == "MOVEOBJ" then
+		if op.mode == "MOVEOBJ" then
 			x,y = cnvobj:snap(x-refX,y-refY)
-			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
+			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y
 			shiftObjList(grp,offx,offy,rm)
 			cnvobj:refresh()
 		end
@@ -514,21 +514,20 @@ drawObj = function(cnvobj,shape,pts,coords)
 		--print("drawEnd called")
 		-- End the drawing
 		-- Check if this is a zero dimension object then do not add anything
-		local t = objs[cnvobj.op.index]
+		local t = objs[cnvobj.op[#cnvobj.op].index]
 		if t.start_x == t.end_x and t.start_y == t.end_y then
 			-- Zero dimension object not allowed
 			-- Remove object from the object and the order arrays
 			table.remove(cnvobj.drawn.order,t.order)
 			fixOrder(cnvobj)
-			table.remove(objs,cnvobj.op.index)
+			table.remove(objs,cnvobj.op[#cnvobj.op].index)
 		else
 			-- If blocking rectangle then add to routing matrix
 			if shape == "BLOCKINGRECT" then
 				rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
 			end		
 		end
-		tu.emptyTable(cnvobj.op)
-		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.op[#cnvobj.op] = nil
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB		
 	end
@@ -549,15 +548,17 @@ drawObj = function(cnvobj,shape,pts,coords)
 		x,y = cnvobj:snap(x,y)
 		
 		if button == iup.BUTTON1 and pressed == 1 then
-			if cnvobj.op.mode == "DRAWOBJ" then
+			if cnvobj.op[#cnvobj.op].mode == "DRAWOBJ" then
 				drawEnd()
 			else
 				-- Start the drawing
-				cnvobj.op.mode = "DRAWOBJ"	-- Set the mode to drawing object
-				cnvobj.op.obj = shape
-				cnvobj.op.finish = drawEnd
-				cnvobj.op.order = #cnvobj.drawn.order + 1
-				cnvobj.op.index = #objs + 1
+				local op = {}
+				cnvobj.op[#cnvobj.op + 1] = op
+				op.mode = "DRAWOBJ"	-- Set the mode to drawing object
+				op.obj = shape
+				op.finish = drawEnd
+				op.order = #cnvobj.drawn.order + 1
+				op.index = #objs + 1
 				local t = {}
 				t.id = "O"..tostring(objs.ids + 1)
 				t.shape = shape
@@ -571,7 +572,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 				objs[#objs + 1] = t
 				objs.ids = objs.ids + 1
 				-- Add the object to be drawn in the order array
-				cnvobj.drawn.order[cnvobj.op.order] = {
+				cnvobj.drawn.order[op.order] = {
 					type = "object",
 					item = t
 				}
@@ -589,7 +590,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 	end
 	
 	function cnvobj.cnv:motion_cb(x, y, status)
-		if cnvobj.op.mode == "DRAWOBJ" then
+		if cnvobj.op[#cnvobj.op].mode == "DRAWOBJ" then
 			--y = cnvobj.height - y
 			x,y = cnvobj:snap(x,y)
 			objs[#objs].end_x = x
@@ -863,16 +864,16 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		PORTS.connectOverlapPorts(cnvobj,allPorts)
 		-- Reset mode
 		cnvobj:refresh()
-		tu.emptyTable(cnvobj.op)
-		cnvobj.op.mode = "DISP"	-- Default display mode
+		cnvobj.op[#cnvobj.op] = nil
 	end
 	
-		
-	cnvobj.op.mode = "DRAGOBJ"
-	cnvobj.op.grp = grp
-	cnvobj.op.oldOrder = oldOrder
-	cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
-	cnvobj.op.finish = dragEnd
+	local op = {}
+	cnvobj.op[#cnvobj.op + 1] = op
+	op.mode = "DRAGOBJ"
+	op.grp = grp
+	op.oldOrder = oldOrder
+	op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+	op.finish = dragEnd
 	
 	-- button_CB to handle object dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -894,7 +895,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		x,y = cnvobj:snap(x-refX,y-refY)
-		local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
+		local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y
 		shiftObjList(grp,offx,offy,rm)
 		-- Regenerate the segments according to the coordinates calculated in connSrc
 		regenConn(cnvobj,rm,grp,connSrc,dragRouter,jsDrag)

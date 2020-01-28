@@ -89,8 +89,9 @@ objFuncs = {
 			return nil,"Not a valid lua-gl object"
 		end
 		-- First check if any operation is happenning then end it
-		if cnvobj.op.finish and type(cnvobj.op.finish) == "function" then
-			cnvobj.op.finish()
+		local op = cnvobj.op
+		while op[#op].finish and type(op[#op].finish) == "function" do
+			op[#op].finish()
 		end
 		return tu.t2sr(cnvobj.drawn)
 	end,
@@ -257,13 +258,14 @@ objFuncs = {
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 			ports.connectOverlapPorts(cnvobj,allPorts)		
 			cnvobj:refresh()
-			tu.emptyTable(cnvobj.op)
-			cnvobj.op.mode = "DISP"	-- Default display mode
+			cnvobj.op[#cnvobj.op] = nil
 		end
 		
-		cnvobj.op.mode = "MOVE"	-- Set the mode to drawing object
-		cnvobj.op.finish = moveEnd
-		cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+		local op = {}
+		cnvobj.op[#cnvobj.op + 1] = op
+		op.mode = "MOVE"	-- Set the mode to drawing object
+		op.finish = moveEnd
+		op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 		
 		-- button_CB to handle interactive move ending
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -279,9 +281,9 @@ objFuncs = {
 		
 		function cnvobj.cnv:motion_cb(x,y,status)
 			-- Move all items in the grp 
-			if cnvobj.op.mode == "MOVE" then
+			if op.mode == "MOVE" then
 				x,y = cnvobj:snap(x-refX,y-refY)
-				local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
+				local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y
 				-- Now move the objects
 				objects.shiftObjList(grp,offx,offy,rm)
 				-- Now move the connectors
@@ -494,6 +496,8 @@ objFuncs = {
 		-- Update the order number for all items 
 		fixOrder(cnvobj)
 		
+		local op = {}
+		
 		local function dragEnd()
 			-- End the drag at this point
 			-- Reset the orders back
@@ -518,9 +522,9 @@ objFuncs = {
 			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
 			local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
-			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
+			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
 
-			conn.regenSegments(cnvobj,cnvobj.op,finalRouter,jsFinal,offx,offy,x,y)
+			conn.regenSegments(cnvobj,op,finalRouter,jsFinal,offx,offy,x,y)
 			-- Disconnect all ports
 			conn.disconnectAllPorts(connList)
 			-- Assimilate the modified connectors
@@ -541,19 +545,18 @@ objFuncs = {
 			ports.connectOverlapPorts(cnvobj,allPorts)
 			-- Reset mode
 			cnvobj:refresh()
-			tu.emptyTable(cnvobj.op)
-			cnvobj.op.mode = "DISP"	-- Default display mode
+			cnvobj.op[#cnvobj.op] = nil
 		end
 		
-			
-		cnvobj.op.mode = "DRAG"
-		cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
-		cnvobj.op.finish = dragEnd
+		cnvobj.op[#cnvobj.op + 1] = op
+		op.mode = "DRAG"
+		op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+		op.finish = dragEnd
 		
 		-- fill segsToRemove with the segments in segList
-		cnvobj.op.segsToRemove = segsToRemove	-- to store the segments generated after every motion_cb
-		cnvobj.op.dragNodes = dragNodes
-		cnvobj.op.segList = segList
+		op.segsToRemove = segsToRemove	-- to store the segments generated after every motion_cb
+		op.dragNodes = dragNodes
+		op.segList = segList
 		
 		-- button_CB to handle object dragging
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -574,9 +577,9 @@ objFuncs = {
 			--y = cnvobj.height - y
 			-- Drag the connectors
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
-			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
+			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
 		
-			conn.regenSegments(cnvobj,cnvobj.op,dragRouter,jsDrag,offx,offy,x,y)
+			conn.regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy,x,y)
 			
 			-- Drag the objects			
 			objects.shiftObjList(grp,offx,offy,rm)
@@ -775,7 +778,8 @@ objFuncs = {
 		}
 		cnvobj.hook = {ids=0}	-- Array of hook structure. See structure of hook in hooks.lua
 		-- .op is a member table used for holding temporary data and setting up modes of operation of the canvas
-		cnvobj.op = {
+		cnvobj.op = {}	-- STack to store operation temporary data
+		cnvobj.op[1] = {
 			mode="DISP",	-- To indicate the operation mode of the canvas. The following modes are known:
 							-- * DISP = This is the normal mode where the mouse pointer is not associated with anything and it is not in the middle of any operation
 							-- * DRAWCONN = A connector is being drawn in interactive mode

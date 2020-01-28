@@ -233,7 +233,7 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
     local grid_y = cnvobj.grid.grid_y
 	
 	if cnvobj.viewOptions.gridMode == 1 then
-		print("Set dotted grid!")
+		--print("Set dotted grid!")
 		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
 		--cnv:LineStyleDashes({1,grid_x-1},2)
 		-- Set the new custom line style
@@ -266,39 +266,6 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
 		  cnv:Line(x,0,x,h)
 		end		
 	end
-	--[[
-	-- cd.XOR method does not work in newer GTK
-	cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
-	-- Set the line style
-	cnv:LineStyle(M.CONTINUOUS)
-	-- Set line width
-	cnv:LineWidth(1)
-	-- Set Line Join
-	cnv:LineJoin(M.MITER)
-	-- Set Line cap
-	cnv:LineCap(M.CAPFLAT)
-    --first for loop to draw horizontal line
-    for y=0, h, grid_y do
-      cnv:Line(0,y,w,y)
-    end
-	if cnvobj.viewOptions.gridMode == 1 then
-		cnv:SetForeground(bColore)		-- Draw with backfround color
-	end		
-    -- for loop used to draw vertical line
-    for x=0, w, grid_x do
-      cnv:Line(x,0,x,h)
-    end
-	if cnvobj.viewOptions.gridMode == 1 then
-		-- This method should be updated to using lines with defined line style where we can define how many pixels are balnk and how many drawn. See Lines attributes Linestyle in the CD library documentatiob
-		-- ###################################################
-		cnv:WriteMode(cd.XOR)
-		cnv:SetForeground(cd.EncodeColor(255,255,255))	-- XOR with White
-		for y=0, h, grid_y do
-		  cnv:Line(0,y,w,y)
-		end
-		cnv:WriteMode(cd.REPLACE)
-	end		
-	]]
 end
 
 function  render(cnvobj)
