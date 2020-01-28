@@ -94,7 +94,7 @@ getConnFromXY = function(cnvobj,x,y,res)
 	end
 	local conns = cnvobj.drawn.conn
 	if #conns == 0 then
-		return {}
+		return {},{}
 	end
 	res = res or floor(min(cnvobj.grid.grid_x,cnvobj.grid.grid_y)/2)
 	local pS = res == 0 and coorc.pointOnSegment or coorc.pointNearSegment

@@ -237,7 +237,7 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
 		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
 		--cnv:LineStyleDashes({1,grid_x-1},2)
 		-- Set the new custom line style
-		--cnv:LineStyle(M.CUSTOM)
+		cnv:LineStyle(M.CONTINUOUS)
 		cnv:LineWidth(1)
 		cnv:LineJoin(M.MITER)
 		cnv:LineCap(M.CAPFLAT)
