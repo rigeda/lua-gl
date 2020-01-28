@@ -1,4 +1,5 @@
 f = io.open("../test/demo.dia","r")
+--f = io.open("E:/test.dia","r")
 s = f:read("*a")
 f:close()
 t = tu.s2tr(s)

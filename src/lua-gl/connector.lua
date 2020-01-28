@@ -1395,7 +1395,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	cnvobj.op.mode = "MOVECONN"
 	cnvobj.op.finish = moveEnd
-	cnvobj.op.coor1 = {x=connM[1].segments[1].start_x,y=connM[1].segments[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+	cnvobj.op.coor1 = {x=connM[1].segments[1].start_x,y=connM[1].segments[1].start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -1699,6 +1699,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	
 	local connList = {}	-- To create a list of all connectors in segList
 
+	-- Run loop for all the segments in the segList and for each end of each segment find the drag node coordinate and any segments that need to be removed or added in the drag operation
 	for i = 1,#segList do
 		local conn = segList[i].conn
 		local seg = conn.segments[segList[i].seg]	-- The segment that is being dragged
@@ -1716,41 +1717,33 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	return dragNodes,segsToRemove,connList
 end
 
-function regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,rtr,js,offx,offy)
-	-- Now shift the segments and redo the connectors
-	-- Remove the old additions from routing matrix
-	for i = 1,#cnvobj.op.segsToRemove do
-		rm:removeSegment(cnvobj.op.segsToRemove[i])
+-- Function to remove the segments in op.segsToRemove and then create the drag of the segments in op.segList and then regenerate the segments as guided by op.dragNodes
+function regenSegments(cnvobj,op,rtr,js,offx,offy,toffx,toffy)
+	-- Remove the segments that need to be removed for this drag step
+	local segsToRemove = op.segsToRemove
+	local rm = cnvobj.rM
+	for i = 1,#segsToRemove do
+		rm:removeSegment(segsToRemove[i].seg)
+		table.remove(segsToRemove[i].conn.segments,tu.inArray(segsToRemove[i].conn.segments,segsToRemove[i].seg))
 	end
-	-- Copy the old segment table back to the connector segment table recursively
-	-- NOTE: oldSegs did not create duplicate copies of the segment tables so that we don't have to remove and add them again and again to the routing matrix (because the segment table itself is the key in the routing matrix)
-	-- So we store copies of the segments to be moved in cnvobj.op.dragSegCopy since those are the only old tables that are modified
-	for i = 1,#segList do
-		-- First copy the old segments to the connector
-		segList[i].conn.segments = 	tu.copyTable(cnvobj.op.oldSegs[i],{})	-- Copy the oldSegs[i] table back to the connector segments
-	end
-	--print(offx,offy)
 	-- Move each segment
-	cnvobj.op.segsToRemove = {}
+	op.segsToRemove = {}
+	segsToRemove = op.segsToRemove
+	local dragNodes = op.dragNodes
+	local segList = op.segList
 	for i = 1,#segList do
-		local seg = tu.copyTable(cnvobj.op.dragSegCopy[i],{},true)	-- Get the segment being dragged from the copy created
+		local seg = segList[i].seg
 		--rm:removeSegment(seg)	-- this was already removed because is always added to segsToRemove table
 		-- Move the segment
 		seg.start_x = seg.start_x + offx
 		seg.start_y = seg.start_y + offy
 		seg.end_x = seg.end_x + offx
 		seg.end_y = seg.end_y + offy
+		-- Update the coordinates in the routing matrix
+		rm:removeSegment(seg)	
 		rm:addSegment(seg,seg.start_x,seg.start_y,seg.end_x,seg.end_y)
-		segList[i].conn.segments[segList[i].seg] = seg
-		table.insert(cnvobj.op.segsToRemove,seg)
 	end
 	
-	-- Remove the segments that would be rerouted from the routing matrix
-	for i = 1,#segsToRemove do
-		rm:removeSegment(segsToRemove[i].seg)	-- This would remove them the 1st time regenSegments is called. After that they are never added back again so this call would not do anything
-		-- THerefore for subsequent regenSegments call at the point before this loop the routing matrix will be inconsistent with the drawn connector since it will not have the segments mentioned in segsToRemove but the connector will have them since the old segments were copied over
-		table.remove(segsToRemove[i].conn.segments,segsToRemove[i].segI)
-	end
 	-- route segments from previous dragNodes coordinates to the new ones
 	for i = 1,#dragNodes do
 		local newSegs = {}
@@ -1760,7 +1753,7 @@ function regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,rtr,js,offx,offy
 		for j = 1,#node.conn.segments do
 			rm:removeSegment(node.conn.segments[j])
 		end
-		router.generateSegments(cnvobj,node.x+offx+node.offx,node.y+offy+node.offy,node.x,node.y,newSegs,rtr,js) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
+		router.generateSegments(cnvobj,node.x+toffx+node.offx,node.y+toffy+node.offy,node.x,node.y,newSegs,rtr,js) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
 		-- Add the segments back in again
 		for j = 1,#node.conn.segments do
 			local seg = node.conn.segments[j]
@@ -1770,7 +1763,7 @@ function regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,rtr,js,offx,offy
 		-- Add these segments in the connectors segment list
 		for j = #newSegs,1,-1 do
 			table.insert(dragNodes[i].conn.segments,newSegs[j])
-			table.insert(cnvobj.op.segsToRemove,newSegs[j])	-- Add all the segments in segsToRemove
+			table.insert(segsToRemove,{seg=newSegs[j],conn=dragNodes[i].conn})	-- Add all the segments in segsToRemove
 		end
 	end
 	--[[
@@ -1889,33 +1882,16 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			end
 		end
 		assimilateConnList(cnvobj,connList)
-		--[[
-		local combinedMM = {}
-		for i = 1,#segList do
-			-- Check if all segments of this connector are done
-			if i == #segList or segList[i+1].conn ~= segList[i].conn then
-				-- First check whether this connector was already merged into something else
-				local found
-				local connID = segList[i].conn.id
-				for j = 1,#combinedMM do
-					for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
-						if tu.inArray(combinedMM[j][k][2],connID) then
-							found = true
-							break
-						end
-					end
-				end
-				if not found then
-					-- remove any overlaps in the final merged connector
-					local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
-					combinedMM[#combinedMM + 1] = mergeMap
-					-- Connect overlapping ports
-					connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
-				end
-			end
-		end
-		]]
 		return true
+	end
+	
+	-- Convert segList and segsToRemove into segment structure pointers rather than segment Indexes
+	for i = 1,#segList do
+		segList[i].seg = segList[i].conn.segments[segList[i].seg]
+	end
+	
+	for i = 1,#segsToRemove do
+		segsToRemove[i].segI = nil
 	end
 	
 	-- Setup the interactive drag operation here
@@ -1930,44 +1906,12 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
 		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
 		local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
-		local offx,offy = cnvobj:snap(x-refX,y-refY)
+		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
+		local offx,offy = x+cnvobj.op.coor1.x-segList[1].seg.start_x,y+cnvobj.op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
 
-		regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,finalRouter,jsFinal,offx,offy)
+		regenSegments(cnvobj,cnvobj.op,finalRouter,jsFinal,offx,offy,x,y)
 		-- Assimilate the modified connectors
 		assimilateConnList(cnvobj,connList)
-		--[[
-		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
-		local combinedMM = {}
-		for i = 1,#segList do
-			-- Check if all segments of this connector are done
-			if i == #segList or segList[i+1].conn ~= segList[i].conn then
-				-- First check whether this connector was already merged into something else
-				local found
-				local connID = segList[i].conn.id
-				for j = 1,#combinedMM do
-					for k = 1,#combinedMM[j] do	-- Loop through the array of merge maps
-						if tu.inArray(combinedMM[j][k][2],connID) then
-							found = true
-							break
-						end
-					end
-				end
-				if not found then
-					-- remove any overlaps in the final merged connector
-					local mergeMap = shortAndMergeConnectors(cnvobj,{segList[i].conn})	-- Note shortAndMergeConnectors also runs repairSegAndJunc
-					combinedMM[#combinedMM + 1] = mergeMap
-					-- Connect overlapping ports
-					connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		
-				end
-			end
-		end]]
-		--[[
-		local stat,dump = utility.checkRM(cnvobj,true)
-		if not stat then
-			print("ROUTING MATRIX IN ERROR!!")
-			print(dump)
-		end
-		]]
 		-- Reset mode
 		tu.emptyTable(cnvobj.op)
 		cnvobj.op.mode = "DISP"	-- Default display mode
@@ -1978,22 +1922,12 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		
 	cnvobj.op.mode = "DRAGSEG"
 	cnvobj.op.segList = segList
-	cnvobj.op.coor1 = {x=segList[1].conn.segments[segList[1].seg].start_x,y=segList[1].conn.segments[segList[1].seg].start_y}
+	cnvobj.op.coor1 = {x=segList[1].seg.start_x,y=segList[1].seg.start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
 	cnvobj.op.finish = dragEnd
-	cnvobj.op.offx = 0
-	cnvobj.op.offy = 0
-	cnvobj.op.oldSegs = {}	-- To backup old segment structures for all items in the segList
-	for i = 1,#segList do
-		cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{})	-- Copy the entire segments table by copying over the segment tables (NOTE: It does not duplicate the segment tables)
-	end
+	cnvobj.op.dragNodes = dragNodes
+	
 	-- fill segsToRemove with the segments in segList
-	cnvobj.op.segsToRemove = {}	-- to store the segments generated after every motion_cb
-	cnvobj.op.dragSegCopy = {}
-	for i = 1,#segList do
-		cnvobj.op.segsToRemove[i] = segList[i].conn.segments[segList[i].seg]
-		-- Create a full copy of the segments being dragged
-		cnvobj.op.dragSegCopy[i] = tu.copyTable(segList[i].conn.segments[segList[i].seg],{},true)
-	end
+	cnvobj.op.segsToRemove = segsToRemove
 
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -2011,11 +1945,10 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
 		--print("drag segment motion_cb")
-		local offx,offy = cnvobj:snap(x-refX,y-refY)
-		cnvobj.op.offx = offx
-		cnvobj.op.offy = offy
-
-		regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,dragRouter,jsDrag,offx,offy)
+		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
+		local offx,offy = x+cnvobj.op.coor1.x-segList[1].seg.start_x,y+cnvobj.op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
+		
+		regenSegments(cnvobj,cnvobj.op,dragRouter,jsDrag,offx,offy,x,y)
 		cnvobj:refresh()
 	end
 	

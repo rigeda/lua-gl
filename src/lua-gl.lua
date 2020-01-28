@@ -52,7 +52,7 @@ _VERSION = "B20.01.11"
 DEBUG:
 
 TASKS:
-* Finish loading of saved structure.
+* Create an op stack for all operations to allow hierarchy of operations
 * Add rotate functionality
 * Add object resize functionality
 * Add Text functionality
@@ -373,8 +373,6 @@ objFuncs = {
 			end)
 		
 		--print("Number of dragnodes = ",#dragNodes)
-		-- Disconnect all ports
-		conn.disconnectAllPorts(connList)
 			
 		if not interactive then
 			-- Take care of grid snapping
@@ -417,6 +415,9 @@ objFuncs = {
 					table.insert(node.conn.segments,newSegs[j])
 				end
 			end
+			-- Disconnect all ports
+			conn.disconnectAllPorts(connList)
+			-- Now assimilate all the connectors by shorting to touching ports and connectors and repairing all segments
 			conn.assimilateConnList(cnvobj,connList)
 			
 			-- HANDLE THE OBJECT DRAG HERE
@@ -433,6 +434,16 @@ objFuncs = {
 			return true
 		end
 		-- Setup the interactive move operation here
+		
+		-- Convert segList and segsToRemove into segment structure pointers rather than segment Indexes
+		for i = 1,#segList do
+			segList[i].seg = segList[i].conn.segments[segList[i].seg]
+		end
+		
+		for i = 1,#segsToRemove do
+			segsToRemove[i].segI = nil
+		end
+		
 		-- Set refX,refY as the mouse coordinate on the canvas
 		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
 		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
@@ -505,9 +516,12 @@ objFuncs = {
 			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
 			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
 			local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
-			local offx,offy = cnvobj:snap(x-refX,y-refY)
+			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
+			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
 
-			conn.regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,finalRouter,jsFinal,offx,offy)
+			conn.regenSegments(cnvobj,cnvobj.op,finalRouter,jsFinal,offx,offy,x,y)
+			-- Disconnect all ports
+			conn.disconnectAllPorts(connList)
 			-- Assimilate the modified connectors
 			conn.assimilateConnList(cnvobj,connList)
 			
@@ -534,21 +548,11 @@ objFuncs = {
 		cnvobj.op.mode = "DRAG"
 		cnvobj.op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
 		cnvobj.op.finish = dragEnd
-		cnvobj.op.offx = 0
-		cnvobj.op.offy = 0
-		cnvobj.op.oldSegs = {}	-- To backup old segment structures for all items in the segList
-		for i = 1,#segList do
-			cnvobj.op.oldSegs[i] = tu.copyTable(segList[i].conn.segments,{})	-- Copy the entire segments table by copying over the segment tables (NOTE: It does not duplicate the segment tables)
-		end
+		
 		-- fill segsToRemove with the segments in segList
-		cnvobj.op.segsToRemove = {}	-- to store the segments generated after every motion_cb
-		cnvobj.op.dragSegCopy = {}
-		for i = 1,#segList do
-			cnvobj.op.segsToRemove[i] = segList[i].conn.segments[segList[i].seg]
-			-- Create a full copy of the segments being dragged
-			cnvobj.op.dragSegCopy[i] = tu.copyTable(segList[i].conn.segments[segList[i].seg],{},true)
-		end
-
+		cnvobj.op.segsToRemove = segsToRemove	-- to store the segments generated after every motion_cb
+		cnvobj.op.dragNodes = dragNodes
+		cnvobj.op.segList = segList
 		
 		-- button_CB to handle object dragging
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -567,15 +571,13 @@ objFuncs = {
 		-- motion_cb to handle object dragging
 		function cnvobj.cnv:motion_cb(x,y,status)
 			--y = cnvobj.height - y
-			-- Move all items in the grp 
-			--local xo,yo = x,y
-			x,y = cnvobj:snap(x-refX,y-refY)
-			cnvobj.op.offx = x
-			cnvobj.op.offy = y
-
-			conn.regenSegments(cnvobj,rm,segList,segsToRemove,dragNodes,dragRouter,jsDrag,x,y)
+			-- Drag the connectors
+			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
+			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
+		
+			conn.regenSegments(cnvobj,cnvobj.op,dragRouter,jsDrag,offx,offy,x,y)
 			
-			local offx,offy = x+cnvobj.op.coor1.x-grp[1].start_x,y+cnvobj.op.coor1.y-grp[1].start_y
+			-- Drag the objects			
 			objects.shiftObjList(grp,offx,offy,rm)
 			-- Regenerate the segments according to the coordinates calculated in connSrc
 			objects.regenConn(cnvobj,rm,grp,connSrc,dragRouter,jsDrag)
@@ -641,7 +643,7 @@ objFuncs = {
 		end
 		
 		-- Get the center coordinates where the 
-		local ctrX,ctrY = math.floor((maxX-minX)/2),math.floor((maxY-minY)/2)
+		local ctrX,ctrY = math.floor((maxX+minX)/2),math.floor((maxY+minY)/2)
 		if not interactive then
 			x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
 			y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
@@ -671,7 +673,7 @@ objFuncs = {
 			objS[i].start_x = objS[i].start_x + offx
 			objS[i].start_y = objS[i].start_y + offy
 			objS[i].end_x = objS[i].end_x + offx
-			objS[i].end_y = objS[i].end_y + offx
+			objS[i].end_y = objS[i].end_y + offy
 			items[#items + 1] = objS[i]
 			-- Add to routing matrix
 			if objS[i].shape == "BLOCKINGRECT" then
@@ -788,11 +790,9 @@ objFuncs = {
 			start = nil,	-- Table containing the X and Y coordinates marking the reference start coordinates
 			fin = nil,		-- Table containing the X and Y coordinates marking the point up till where the segments have been generated
 			-- DRAGSEG
-			segList = nil,	-- list of segments in a structure described in the dragSegment functon documentation
+			segList = nil,	-- list of segments in a structure. Every item contains 2 elemts conn pointing to the connector structure and seg pointing to the segment structure being dragged from the connector
 			coor1 = nil,	-- Initial starting coordinate of the 1st segement in the segList array to serve as reference of the total movement
-			offx = nil,		-- To store the last x offset applied to the segments being moved
-			offy = nil,		-- To store the last y offset applied to the segments being moved
-			oldSegs = nil,	-- To store the old segments table for the all the connectors whose segments are being dragged i.e. in the segList
+			segsToRemove = nil,		-- List of segments (similar structure as segList) to be removed in the next drag regenerate segment operation
 			-- MOVEOBJ
 			coor1 = nil,	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 			-- DRAGOBJ

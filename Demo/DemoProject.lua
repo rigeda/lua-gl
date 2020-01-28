@@ -77,7 +77,8 @@ function GUI.toolbar.buttons.loadButton:action()
 	f = io.open(fileDlg.value,"r")
 	local s = f:read("*a")
 	f:close()
-	cnvobj:load(s,nil,nil,true)	
+	--cnvobj:load(s,nil,nil,true)	
+	cnvobj:load(s,450,300)
 end
 
 -- Turn ON/OFF snapping ont he grid
