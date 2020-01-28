@@ -53,6 +53,7 @@ DEBUG:
 
 TASKS:
 * Create an op stack for all operations to allow hierarchy of operations
+* Add order up for all the dragSegments
 * Add rotate functionality
 * Add object resize functionality
 * Add Text functionality
