@@ -52,8 +52,6 @@ _VERSION = "B20.01.29"
 DEBUG:
 
 TASKS:
-* Add rotate functionality
-* Add flip horizontal/vertical functionality
 * Add object resize functionality
 * Add Text functionality
 * Add arc functionality
@@ -119,8 +117,8 @@ objFuncs = {
 		return tu.t2sr(cnvobj.drawn)
 	end,
 	
-	-- Function to rotate the list of items around a reference point given by refx,refy
-	-- angle can be one of the following 90,180,270
+	-- Function to rotate or flip the list of items around a reference point given by refx,refy
+	-- para can be one of the following 90,180,270,h,v. If 90,180,270 then that rotation is applied. If h then horizontal flip otherwise vertical flip
 	-- items is an array with either of the 2 things:
 	-- * object structure
 	-- * structure with the following data
@@ -132,13 +130,48 @@ objFuncs = {
 	-- This is a non interactive function totally 
 	-- It just transforms the coordinates of the items does not short or repair the connectors or ports etc.
 	-- It also does not try to separate the segments from its connectors or disconnect the object ports from its connectors
-	rotate = function(cnvobj,items,refx,refy,angle)
-		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
-			return nil,"Not a valid lua-gl object"
+	rotateFlip = function(items,refx,refy,para)
+		if para ~= 90 and para ~= 180 and para ~= 270 and para ~= "h" and para ~= "v" then
+			return nil,"Not a valid rotation angle or flip direction"
 		end
+		
+		local rot = {
+			[90] = function(x,y)
+				return refx+refy-y,x-refx+refy
+			end,
+			[180] = function(x,y)
+				return 2*refx-x,2*refy-y
+			end,
+			[270] = function(x,y)
+				return refx-refy+y,refx+refy-x
+			end,
+			h = function(x,y)
+				return 2*refx-x,y
+			end,
+			v = function(v,y
+				return x,2*refy-y
+			end
+		}
+		
 		local objList,segList = separateObjSeg(items)
-		
-		
+		-- Rotate the objects
+		for i = 1,#objList do
+			-- Rotate the object
+			objList[i].start_x,objList[i].start_y = rot[para](objList[i].start_x,objList[i].start_y)
+			objList[i].end_x,objList[i].end_y = rot[para](objList[i].end_x,objList[i].end_y)
+			-- Rotate the port coordinates as well
+			local prts = objList[i].port
+			for j = 1,#prts do
+				prts[j].x,prts[j].y = rot[para](prts[j].x,prts[j].y)
+			end
+		end
+		-- Rotate the segments
+		for i = 1,#segList do
+			local seg = segList[i].conn.segments[segList[i].seg]
+			seg.start_x,seg.start_y = rot[para](seg.start_x,seg.start_y)
+			seg.end_x,seg.end_y = rot[para](seg.end_x,seg.end_y)
+		end
+		return true
 	end,
 	
 	-- Function to move the list of items by moving all the items offx and offy offsets	
@@ -563,7 +596,7 @@ objFuncs = {
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
 
-			conn.regenSegments(cnvobj,op,finalRouter,jsFinal,offx,offy,x,y)
+			conn.regenSegments(cnvobj,op,finalRouter,jsFinal,offx,offy)
 			-- Disconnect all ports
 			conn.disconnectAllPorts(connList)
 			-- Assimilate the modified connectors
@@ -618,7 +651,7 @@ objFuncs = {
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
 		
-			conn.regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy,x,y)
+			conn.regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy)
 			
 			-- Drag the objects			
 			objects.shiftObjList(grp,offx,offy,rm)

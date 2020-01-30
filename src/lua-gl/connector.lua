@@ -1733,7 +1733,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 end
 
 -- Function to remove the segments in op.segsToRemove and then create the drag of the segments in op.segList and then regenerate the segments as guided by op.dragNodes
-function regenSegments(cnvobj,op,rtr,js,offx,offy,toffx,toffy)
+function regenSegments(cnvobj,op,rtr,js,offx,offy)
 	-- Remove the segments that need to be removed for this drag step
 	local segsToRemove = op.segsToRemove
 	local rm = cnvobj.rM
@@ -1748,7 +1748,7 @@ function regenSegments(cnvobj,op,rtr,js,offx,offy,toffx,toffy)
 	local segList = op.segList
 	for i = 1,#segList do
 		local seg = segList[i].seg
-		--rm:removeSegment(seg)	-- this was already removed because is always added to segsToRemove table
+		rm:removeSegment(seg)	-- this was already removed because is always added to segsToRemove table
 		-- Move the segment
 		seg.start_x = seg.start_x + offx
 		seg.start_y = seg.start_y + offy
@@ -1960,7 +1960,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 		local offx,offy = x+op.coor1.x-segList[1].seg.start_x,y+op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
 
-		regenSegments(cnvobj,op,finalRouter,jsFinal,offx,offy,x,y)
+		regenSegments(cnvobj,op,finalRouter,jsFinal,offx,offy)
 		-- Assimilate the modified connectors
 		assimilateConnList(cnvobj,connList)
 		-- Reset mode
@@ -1999,7 +1999,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 		local offx,offy = x+op.coor1.x-segList[1].seg.start_x,y+op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
 		
-		regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy,x,y)
+		regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy)
 		cnvobj:refresh()
 	end
 	
