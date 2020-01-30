@@ -45,24 +45,23 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.01.11"
+_VERSION = "B20.01.29"
 
 --- TASKS
 --[[
 DEBUG:
 
 TASKS:
-* Create an op stack for all operations to allow hierarchy of operations
-* Add order up for all the dragSegments
 * Add rotate functionality
+* Add flip horizontal/vertical functionality
 * Add object resize functionality
 * Add Text functionality
 * Add arc functionality
 * Canvas scroll, zoom, pan and coordinate translation
+* Add export/print
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
 * Implement action cancel by ending and then undoing it.
 * Connector labeling
-* Add export/print
 ]]
 
 local function getVisualAttr(cnvobj,item)
@@ -76,6 +75,30 @@ local function fixOrder(cnvobj)
 		cnvobj.drawn.order[i].item.order = i
 	end
 	return true
+end
+
+-- Function to separate the objects list and the segments list from items
+-- items is an array with either of the 2 things:
+-- * object structure
+-- * structure with the following data
+--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}	]]
+local function separateObjSeg(items)
+	local objList = {}
+	local segList = {}
+	for i = 1,#items do
+		if items[i].id then
+			-- This must be an object
+			objList[#objList + 1] = items[i]
+		else
+			-- This must be a segment specification
+			segList[#segList + 1] = items[i]
+		end
+	end
+	return objList,segList
 end
 
 
@@ -94,6 +117,28 @@ objFuncs = {
 			op[#op].finish()
 		end
 		return tu.t2sr(cnvobj.drawn)
+	end,
+	
+	-- Function to rotate the list of items around a reference point given by refx,refy
+	-- angle can be one of the following 90,180,270
+	-- items is an array with either of the 2 things:
+	-- * object structure
+	-- * structure with the following data
+	--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}	]]
+	-- This is a non interactive function totally 
+	-- It just transforms the coordinates of the items does not short or repair the connectors or ports etc.
+	-- It also does not try to separate the segments from its connectors or disconnect the object ports from its connectors
+	rotate = function(cnvobj,items,refx,refy,angle)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
+			return nil,"Not a valid lua-gl object"
+		end
+		local objList,segList = separateObjSeg(items)
+		
+		
 	end,
 	
 	-- Function to move the list of items by moving all the items offx and offy offsets	
@@ -119,17 +164,7 @@ objFuncs = {
 		end
 		
 		-- Separate the objects list and the segments list
-		local objList = {}
-		local segList = {}
-		for i = 1,#items do
-			if items[i].id then
-				-- This must be an object
-				objList[#objList + 1] = items[i]
-			else
-				-- This must be a segment specification
-				segList[#segList + 1] = items[i]
-			end
-		end
+		local objList,segList = separateObjSeg(items)
 		-- If these are all objects or all segments then just redirect
 		if #objList == 0 then
 			return conn.moveSegment(cnvobj,segList,offx,offy)
@@ -375,6 +410,11 @@ objFuncs = {
 				end
 			end)
 		
+		-- Sort the connList elements in ascending order ranking
+		table.sort(connList,function(one,two) 
+				return one.order < two.order
+		end)
+		
 		--print("Number of dragnodes = ",#dragNodes)
 			
 		if not interactive then
@@ -407,7 +447,7 @@ objFuncs = {
 				for j = 1,#node.conn.segments do
 					rm:removeSegment(node.conn.segments[j])
 				end
-				router.generateSegments(cnvobj,node.x+offx+node.offx,node.y+offy+node.offy,node.x,node.y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use finalrouter 
+				router.generateSegments(cnvobj,node.seg[node.which.."x"],node.seg[node.which.."y"],node.x,node.y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use finalrouter 
 				-- Add the segments back in again
 				for j = 1,#node.conn.segments do
 					local seg = node.conn.segments[j]
@@ -454,7 +494,6 @@ objFuncs = {
 		local oldBCB = cnvobj.cnv.button_cb
 		local oldMCB = cnvobj.cnv.motion_cb
 		-- Backup the orders of the elements to move and change their orders to display in the front
-		local order = cnvobj.drawn.order
 		local oldObjOrder = {}
 		for i = 1,#grp do
 			oldObjOrder[i] = grp[i].order
@@ -751,6 +790,7 @@ objFuncs = {
 			conn.connectOverlapPorts(cnvobj,nil,portS)	-- This takes care of splitting the connector segments as well if needed
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 			ports.connectOverlapPorts(cnvobj,portS)		
+			cnvobj:refresh()
 			return true
 		end
 		-- For interactive move just create the item list and send it to the Move API

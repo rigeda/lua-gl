@@ -1434,6 +1434,7 @@ end
 ]]
 -- Returns the list of connectors formed by the segments in the segList and also the list of connectors formed by the remaining segments of all the connectors
 -- All data structures are updated
+-- Notice that if either of the return list is passed to shortAndMergeConnectors function we will end up back with a single connector so this function in essence is an inverse of shortAndMergeConnectors
 splitConnectorAtSegments = function(cnvobj,segList)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -1580,6 +1581,17 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	-- Extract the list of nodes that would need re-routing as a result of the drag
 	objList = objList or {}
 	local dragNodes = {}
+	-- dragNodes has the following structure:
+	-- It is an array of tables. Each table in the array looks like this:
+	--[[
+	{
+		x = <integer>,	-- x coordinate starting point of the route to be generated on drag
+		y = <integer>,	-- y coordinate starting point of the route to be generated on drag
+		conn= <connector>,	-- connector structure of the segment for whose dragnode this is
+		seg = <segment>, 	-- segment structure for whose dragnode this is
+		which = <string>,	-- either "start_" or "end_" to mark which coordinate of the segment this is
+	}
+	]]
 	-- Function to return the list of segments whose one of the end point is x,y
 	local function segsOnNode(conn,x,y)
 		local segs = {}
@@ -1595,7 +1607,9 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	local segsToRemove = {}
 	-- Function to add x,y coordinate to dragNodes if all segments connected to it are not in the segList array
 	local segsToAdd = {}
-	local function updateDragNodes(conn,x,y,segI)
+	local function updateDragNodes(conn,segI,which)
+		local refSeg = conn.segments[segI]
+		local x,y = refSeg[which.."x"],refSeg[which.."y"]
 		local segs = segsOnNode(conn,x,y)
 		local allSegs=true		-- to indicate if all segments in segs are in segList (at least 1 segment is in segList which coordinate is x,y)
 		for j = 1,#segs do
@@ -1624,7 +1638,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 			-- Now check if this is a junction i.e. > 2 segments at this point. If yes then this is the routing starting point. Otherwise the other end of the segment connected to this would be the starting routing point
 			if #segs > 2 or (#prts>0 and not allPorts) then 
 				-- This is a junction or a ports exists here and not all of them are in objList so routing has to be done from here so this is a drag node
-				tu.mergeArrays({{x = x,y = y,conn=conn,offx=0,offy=0}},dragNodes,false,equalDragNode)
+				tu.mergeArrays({{x = x,y = y,conn=conn,seg=refSeg,which=which}},dragNodes,false,equalDragNode)
 			elseif #segs == 2 then
 				-- This connects to only 1 segment and that is not in the drag list
 				-- Get the other segment
@@ -1673,7 +1687,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 						end
 						if not (#prts > 0 and allPorts) then	
 							-- otherSeg connects to a port which is not in objList or it is dangling
-							tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
+							tu.mergeArrays({{x = addx,y = addy,conn=conn,seg=refSeg,which=which}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
 							-- Add segment to segsToRemove
 							segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
 						else
@@ -1682,7 +1696,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 						end
 					else
 						-- Not all segments connected to addx, addy are being dragged so routing from addx,addy will have to be done
-						tu.mergeArrays({{x = addx,y = addy,conn=conn,offx = x-addx,offy=y-addy}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
+						tu.mergeArrays({{x = addx,y = addy,conn=conn,seg=refSeg,which=which}},dragNodes,false,equalDragNode)	-- segment end at x,y will need to be routed from 
 						-- Add segment to segsToRemove
 						segsToRemove[#segsToRemove + 1] = {seg = otherSeg, segI = ind,conn = conn}
 					end
@@ -1704,8 +1718,8 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	for i = 1,#segList do
 		local conn = segList[i].conn
 		local seg = conn.segments[segList[i].seg]	-- The segment that is being dragged
-		updateDragNodes(conn,seg.start_x,seg.start_y,segList[i].seg)
-		updateDragNodes(conn,seg.end_x,seg.end_y,segList[i].seg)
+		updateDragNodes(conn,segList[i].seg,"start_")	-- start_x and start_y
+		updateDragNodes(conn,segList[i].seg,"end_")		-- end_x and end_y
 		-- Check if all segments of this connector are done
 		if i == #segList or segList[i+1].conn ~= conn then
 			connList[#connList + 1] = conn
@@ -1754,7 +1768,7 @@ function regenSegments(cnvobj,op,rtr,js,offx,offy,toffx,toffy)
 		for j = 1,#node.conn.segments do
 			rm:removeSegment(node.conn.segments[j])
 		end
-		router.generateSegments(cnvobj,node.x+toffx+node.offx,node.y+toffy+node.offy,node.x,node.y,newSegs,rtr,js) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
+		router.generateSegments(cnvobj,node.seg[node.which.."x"],node.seg[node.which.."y"],node.x,node.y,newSegs,rtr,js) -- generateSegments updates routing matrix. Use BFS with jumping segments allowed
 		-- Add the segments back in again
 		for j = 1,#node.conn.segments do
 			local seg = node.conn.segments[j]
@@ -1838,6 +1852,11 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			end
 		end)
 	
+	-- Sort the connList elements in ascending order ranking
+	table.sort(connList,function(one,two) 
+			return one.order < two.order
+	end)
+	
 	--print("Number of dragnodes = ",#dragNodes)
 	-- Disconnect all ports
 	disconnectAllPorts(connList)
@@ -1871,7 +1890,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			for j = 1,#node.conn.segments do
 				rm:removeSegment(node.conn.segments[j])
 			end
-			router.generateSegments(cnvobj,node.x+offx+node.offx,node.y+offy+node.offy,node.x,node.y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use finalrouter 
+			router.generateSegments(cnvobj,node.seg[node.which.."x"],node.seg[node.which.."y"],node.x,node.y,newSegs,finalRouter,jsFinal) -- generateSegments updates routing matrix. Use finalrouter 
 			-- Add the segments back in again
 			for j = 1,#node.conn.segments do
 				local seg = node.conn.segments[j]
@@ -1903,9 +1922,38 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
+	-- Backup the orders of the connectors
+	local oldConnOrder = {}
+	for i = 1,#connList do
+		oldConnOrder[i] = connList[i].order
+	end
+	
+	-- Move the last item in the list to the end. Last item because it is the one with the highest order
+	local item = cnvobj.drawn.order[connList[#connList].order]
+	table.remove(cnvobj.drawn.order,connList[#connList].order)
+	table.insert(cnvobj.drawn.order,item)
+	-- Move the rest of the items on the last position
+	for i = 1,#connList-1 do
+		item = cnvobj.drawn.order[connList[i].order]
+		table.remove(cnvobj.drawn.order,connList[i].order)
+		table.insert(cnvobj.drawn.order,#cnvobj.drawn.order,item)
+	end
+	-- Update the order number for all items 
+	fixOrder(cnvobj)
+	
 	local op = {}
 	
 	local function dragEnd()
+		-- Reset the orders back
+		-- First do the connectors
+		for i = 1,#connList do
+			local item = cnvobj.drawn.order[connList[i].order]
+			table.remove(cnvobj.drawn.order,connList[i].order)
+			table.insert(cnvobj.drawn.order,oldConnOrder[i],item)
+		end
+		-- Update the order number for all items 
+		fixOrder(cnvobj)
+		
 		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
 		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
 		local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
