@@ -414,6 +414,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 	op.mode = "MOVEOBJ"	-- Set the mode to drawing object
 	op.finish = moveEnd
 	op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+	op.ref = {x=refX,y=refY}
+	op.objList = grp
 	
 	-- button_CB to handle interactive move ending
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -873,7 +875,9 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	op.grp = grp
 	op.oldOrder = oldOrder
 	op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+	op.ref = {x=refX,y=refY}
 	op.finish = dragEnd
+	op.objList = grp
 	
 	-- button_CB to handle object dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)

@@ -439,6 +439,100 @@ function GUI.toolbar.buttons.newButton:action()
 	cnvobj:refresh()
 end
 
+-- 90 degree rotate
+function rotateFlip(para)
+	local op = cnvobj.op[#cnvobj.op]
+	local mode = op.mode
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+	local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+	if mode == "DRAG" or  mode == "DRAGSEG" or mode == "DRAGOBJ" then
+		-- Compile item list
+		local items = {}
+		for i = 1,#op.objList do
+			items[#items + 1] = op.objList[i]
+		end
+		if op.segList then
+			for i = 1,#op.segList do
+				items[#items + 1] = op.segList[i]
+			end
+		end
+		-- Do the rotation 
+		cnvobj.rotateFlipItems(items,refX,refY,para)
+		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
+		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
+		cnvobj:refresh()
+	elseif mode == "MOVE" or mode == "MOVESEG" or mode == "MOVEOBJ" then
+		-- Compile item list
+		local items = {}
+		for i = 1,#op.objList do
+			items[#items + 1] = op.objList[i]
+		end
+		if op.connList then
+			for i = 1,#op.connList do
+				local conn = op.connList[i]
+				for j = 1,#conn.segments do
+					items[#items + 1] = {
+						conn = conn,
+						seg = j
+					}
+				end
+			end
+		end
+		-- Do the rotation 
+		cnvobj.rotateFlipItems(items,refX,refY,para)
+		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
+		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
+		cnvobj:refresh()
+	else
+		-- Get list of items
+		local function rotateItems(items)
+			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+			local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+			-- get all group memebers for the objects selected
+			local objList = {}
+			local segList = {}
+			for i = 1,#items do
+				if items[i].id then
+					-- This must be an object
+					objList[#objList + 1] = items[i]
+				else
+					-- This must be a segment specification
+					segList[#segList + 1] = items[i]
+				end
+			end			
+			objList = cnvobj.populateGroupMembers(objList)
+			items = objList
+			for i = 1,#segList do
+				items[#items + 1] = segList[i]
+			end
+			cnvobj.rotateFlipItems(items,refX,refY,para)
+			cnvobj:refresh()
+		end
+		-- first we need to select items
+		getSelectionList(rotateItems,false)	-- Need a click 
+	end
+end
+
+function GUI.mainDlg:k_any(c)
+	if c < 255 then
+		print("Pressed "..string.char(c))
+		local map = {
+			r = 90,
+			e = 180,
+			w = 270,
+			h = "h",
+			v = "v"
+		}
+		if map[string.char(c)] then
+			rotateFlip(map[string.char(c)])
+			return iup.IGNORE
+		end
+	end
+	return iup.CONTINUE
+end
+
 -- Set the mainDlg user size to nil so that the show uses the Natural Size
 GUI.mainDlg.size = nil
 GUI.mainDlg:showxy(iup.CENTER, iup.CENTER)

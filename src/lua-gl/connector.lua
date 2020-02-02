@@ -1397,6 +1397,8 @@ moveConn = function(cnvobj,connM,offx,offy)
 	op.mode = "MOVECONN"
 	op.finish = moveEnd
 	op.coor1 = {x=connM[1].segments[1].start_x,y=connM[1].segments[1].start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
+	op.ref = {x=refX,y=refY}
+	op.connList = connM
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -1974,6 +1976,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	op.mode = "DRAGSEG"
 	op.segList = segList
 	op.coor1 = {x=segList[1].seg.start_x,y=segList[1].seg.start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
+	op.ref = {x=refX,y=refY}
 	op.finish = dragEnd
 	op.dragNodes = dragNodes
 	

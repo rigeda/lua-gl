@@ -50,11 +50,11 @@ _VERSION = "B20.01.29"
 --- TASKS
 --[[
 DEBUG:
-
+* When rotate done during move then the item jumps to new coordinate
 TASKS:
 * Add object resize functionality
 * Add Text functionality
-* Add arc functionality
+* Add arc functionality - similar to ltspice
 * Canvas scroll, zoom, pan and coordinate translation
 * Add export/print
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
@@ -117,20 +117,7 @@ objFuncs = {
 		return tu.t2sr(cnvobj.drawn)
 	end,
 	
-	-- Function to rotate or flip the list of items around a reference point given by refx,refy
-	-- para can be one of the following 90,180,270,h,v. If 90,180,270 then that rotation is applied. If h then horizontal flip otherwise vertical flip
-	-- items is an array with either of the 2 things:
-	-- * object structure
-	-- * structure with the following data
-	--[[
-{
-	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
-	seg = <integer>					-- segment index of the connector
-}	]]
-	-- This is a non interactive function totally 
-	-- It just transforms the coordinates of the items does not short or repair the connectors or ports etc.
-	-- It also does not try to separate the segments from its connectors or disconnect the object ports from its connectors
-	rotateFlip = function(items,refx,refy,para)
+	rotateFlip = function(x,y,refx,refy,para)
 		if para ~= 90 and para ~= 180 and para ~= 270 and para ~= "h" and para ~= "v" then
 			return nil,"Not a valid rotation angle or flip direction"
 		end
@@ -148,7 +135,45 @@ objFuncs = {
 			h = function(x,y)
 				return 2*refx-x,y
 			end,
-			v = function(v,y
+			v = function(x,y)
+				return x,2*refy-y
+			end
+		}
+		return rot[para](x,y)
+	end,
+	
+	-- Function to rotate or flip the list of items around a reference point given by refx,refy
+	-- para can be one of the following 90,180,270,h,v. If 90,180,270 then that rotation is applied. If h then horizontal flip otherwise vertical flip
+	-- items is an array with either of the 2 things:
+	-- * object structure
+	-- * structure with the following data
+	--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}	]]
+	-- This is a non interactive function totally 
+	-- It just transforms the coordinates of the items does not short or repair the connectors or ports etc.
+	-- It also does not try to separate the segments from its connectors or disconnect the object ports from its connectors
+	rotateFlipItems = function(items,refx,refy,para)
+		if para ~= 90 and para ~= 180 and para ~= 270 and para ~= "h" and para ~= "v" then
+			return nil,"Not a valid rotation angle or flip direction"
+		end
+		
+		local rot = {
+			[90] = function(x,y)
+				return refx+refy-y,x-refx+refy
+			end,
+			[180] = function(x,y)
+				return 2*refx-x,2*refy-y
+			end,
+			[270] = function(x,y)
+				return refx-refy+y,refx+refy-x
+			end,
+			h = function(x,y)
+				return 2*refx-x,y
+			end,
+			v = function(x,y)
 				return x,2*refy-y
 			end
 		}
@@ -334,6 +359,9 @@ objFuncs = {
 		op.mode = "MOVE"	-- Set the mode to drawing object
 		op.finish = moveEnd
 		op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+		op.ref = {x=refX,y=refY}
+		op.objList = grp
+		op.connList = connM
 		
 		-- button_CB to handle interactive move ending
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -623,12 +651,14 @@ objFuncs = {
 		cnvobj.op[#cnvobj.op + 1] = op
 		op.mode = "DRAG"
 		op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+		op.ref = {x=refX,y=refY}
 		op.finish = dragEnd
 		
 		-- fill segsToRemove with the segments in segList
 		op.segsToRemove = segsToRemove	-- to store the segments generated after every motion_cb
 		op.dragNodes = dragNodes
 		op.segList = segList
+		op.objList = grp
 		
 		-- button_CB to handle object dragging
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -1091,9 +1121,9 @@ objFuncs = {
 
 	---- CONNECTORS---------
 	drawConnector = conn.drawConnector,		-- draw connector
-	--dragSegment = conn.dragSegment,
-	--moveSegment = conn.moveSegment,
-	--moveConn = conn.moveConn,
+	dragSegment = conn.dragSegment,
+	moveSegment = conn.moveSegment,
+	moveConn = conn.moveConn,
 	removeConn = conn.removeConn,
 	getConnFromID = conn.getConnFromID,
 	getConnFromXY = conn.getConnFromXY,
@@ -1108,12 +1138,13 @@ objFuncs = {
 	getPortFromXY = ports.getPortFromXY,	-- get the port structure close to x,y
 	---- OBJECTS------------
 	drawObj = objects.drawObj,				-- Draw object
-	--dragObj = objects.dragObj,				-- drag object(s)/group(s)
-	--moveObj = objects.moveObj,				-- move object(s)
+	dragObj = objects.dragObj,				-- drag object(s)/group(s)
+	moveObj = objects.moveObj,				-- move object(s)
 	removeObj = objects.removeObj,
 	groupObjects = objects.groupObjects,	
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
+	populateGroupMembers = objects.populateGroupMembers,
 	-----UTILITY------------
 	snap = function(cnvobj,x,y)
 		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
