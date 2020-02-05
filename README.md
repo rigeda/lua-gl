@@ -7,6 +7,12 @@ Lua-GL is a graphical library to handle the hard parts of creating software like
 ## Get in Touch
 Gitter: https://gitter.im/Lua-GL/
 
+## Dependencies
+Lua-GL depends on these other open source projects/modules
+
+* [Lua Language](https://www.lua.org/)
+* [IUP Toolkit](https://www.tecgraf.puc-rio.br/iup/
+* [tableUtils](https://github.com/aryajur/tableUtils)
 
 ## Resources
 
