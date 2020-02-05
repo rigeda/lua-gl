@@ -11,7 +11,7 @@ Gitter: https://gitter.im/Lua-GL/
 Lua-GL depends on these other open source projects/modules
 
 * [Lua Language](https://www.lua.org/)
-* [IUP Toolkit](https://www.tecgraf.puc-rio.br/iup/
+* [IUP Toolkit](https://www.tecgraf.puc-rio.br/iup/)
 * [tableUtils](https://github.com/aryajur/tableUtils)
 
 ## Resources
