@@ -2,11 +2,13 @@
 
 ## Overview
 
-lua-gl is a graphical library using IUP extensible by Lua to allow easy creation of software like a schematic editor/flowchart creator/mind maps/block diagrams in Lua. The library is able to create basic mechanisms and graphic checks to create custom blocks and interconnections and provide an API to use these to create complex interactions like hierarchical schematic editors, etc.
+Lua-GL is a graphical library to handle the hard parts of creating software like electronic schematic editor/flowchart creator/mind maps/block diagrams in Lua with just a few lines of code.
 
-[Library link](https://github.com/Deepak123bharat/lua-gl)
+## Get in Touch
+Gitter: https://gitter.im/Lua-GL/
 
-[Commits link](https://github.com/Deepak123bharat/lua-gl/commits/master)
+
+## Resources
 
 [Documentation](https://github.com/Deepak123bharat/lua-gl/wiki)
  
