@@ -45,12 +45,12 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.01.29"
+_VERSION = "B20.02.06"
 
 --- TASKS
 --[[
 DEBUG:
-* When rotate done during move then the item jumps to new coordinate
+
 TASKS:
 * Add object resize functionality
 * Add Text functionality

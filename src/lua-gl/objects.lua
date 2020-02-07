@@ -630,6 +630,7 @@ generateRoutingStartNodes = function(cnvobj,objList,segList)
 				local found,segDragging	-- segDragging if true means that the segment of conn[k] connected to portT[j] is in segList so this connector routing to the port should not be done and it is skipped from adding to connSrc
 				local checkedSegs = {}		-- Array to store segments already traversed to prevent traversing them again
 				local checkedSegsCount = 0
+				local prex,prey
 				while not found do
 					-- Check if a junction exists on x,y
 					for l = 1,#jT do
@@ -641,7 +642,6 @@ generateRoutingStartNodes = function(cnvobj,objList,segList)
 					if found then break end
 					-- Find a segment whose one end is on x,y if none found this is the other end of the connector and would be the starting point for the connector routing
 					found = true
-					local prex,prey
 					for l = 1,#segTable do
 						if not tu.inArray(checkedSegs,segTable[l]) then
 							-- This segment is not traversed
@@ -681,6 +681,7 @@ generateRoutingStartNodes = function(cnvobj,objList,segList)
 										break
 									end
 								end
+								prex,prey = segTable[l].start_x,segTable[l].start_y
 								break
 							end		-- if segTable[l].end_x == x and segTable[l].end_y == y ends here
 						end		-- if not tu.inArray(checkedSegs,segTable[l]) ends here
@@ -704,6 +705,9 @@ generateRoutingStartNodes = function(cnvobj,objList,segList)
 					end
 				else	-- if not segDragging else
 					if checkedSegsCount > 2 then
+						-- Remove the last 2 segments in checkedSegs
+						table.remove(checkedSegs)
+						table.remove(checkedSegs)
 						connSrc[objList[i]][portT[j]][conn[k].id] = {coor={x=x,y=y},segs=checkedSegs}		-- Source point to use for routing of the connector
 					end
 				end		-- if not segDragging ends

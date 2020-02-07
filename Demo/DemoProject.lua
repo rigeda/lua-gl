@@ -17,7 +17,7 @@ LT.USESCINTILLA = true
 -- Create terminal
 local LTdlg = iup.dialog{
 	iup.vbox{
-		LT.newTerm(_ENV,true,"testlog.txt")
+		LT.newTerm(_ENV,true)--,"testlog.txt")
 	}; 
 	title="LuaTerminal", 
 	size="QUARTERxQUARTER",
