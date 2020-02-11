@@ -192,7 +192,8 @@ objFuncs = {
 		end
 		-- Rotate the segments
 		for i = 1,#segList do
-			local seg = segList[i].conn.segments[segList[i].seg]
+			--local seg = segList[i].conn.segments[segList[i].seg]
+			local seg = segList[i].seg
 			seg.start_x,seg.start_y = rot[para](seg.start_x,seg.start_y)
 			seg.end_x,seg.end_y = rot[para](seg.end_x,seg.end_y)
 		end
