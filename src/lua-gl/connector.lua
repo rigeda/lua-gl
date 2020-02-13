@@ -1040,30 +1040,29 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 							end
 							k = k + 1
 						end		-- while k <= #csegs ends here
-						-- Store the endPoints
-						if not endPoints[sgmnt.end_x] then
-							endPoints[sgmnt.end_x] = {}
-						end
-						if not endPoints[sgmnt.end_x][sgmnt.end_y] then
-							endPoints[sgmnt.end_x][sgmnt.end_y] = 1
-						else
-							endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
-						end
-						if not endPoints[sgmnt.start_x] then
-							endPoints[sgmnt.start_x] = {}
-						end
-						if not endPoints[sgmnt.start_x][sgmnt.start_y] then
-							endPoints[sgmnt.start_x][sgmnt.start_y] = 1
-						else
-							endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
-						end
-						
 						i = i + 1
 						segPath[i] = {i = 0}
 						segPath[i].x = nxt_x
 						segPath[i].y = nxt_y
 						segPath[i].segs = findSegs(segs,segPath[i].x,segPath[i].y,segsDone[j])
 					end		-- if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then ends
+					-- Store the endPoints
+					if not endPoints[sgmnt.end_x] then
+						endPoints[sgmnt.end_x] = {}
+					end
+					if not endPoints[sgmnt.end_x][sgmnt.end_y] then
+						endPoints[sgmnt.end_x][sgmnt.end_y] = 1
+					else
+						endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
+					end
+					if not endPoints[sgmnt.start_x] then
+						endPoints[sgmnt.start_x] = {}
+					end
+					if not endPoints[sgmnt.start_x][sgmnt.start_y] then
+						endPoints[sgmnt.start_x][sgmnt.start_y] = 1
+					else
+						endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
+					end
 				end		-- if not segsDone[j][sgmnt] ends here
 			end		-- if segPath[i].i > #segPath[i].segs ends here
 		end		-- while i > 0 ends here
@@ -1089,7 +1088,7 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 		for i = 1,#conn.port do
 			if endPoints[conn.port[i].x] and endPoints[conn.port[i].x][conn.port[i].y] then
 				-- this port goes in this new connector
-				connA[#connA].port[connA[#connA].port + 1] = conn.port[i]
+				connA[#connA].port[#connA[#connA].port + 1] = conn.port[i]
 				-- Remove conn from conn.port[i] and add connA[#connA]
 				local pconn = conn.port[i].conn
 				for k = 1,#pconn do
@@ -1169,20 +1168,24 @@ function connectOverlapPorts(cnvobj,conn,ports)
 				end
 				if split then
 					-- Split the connector across all the segments that lie on the port
-					local splitConn = splitConnectorAtCoor(cnvobj,conn,X,Y)	-- To get the list of connectors after splitting the connector at this point					
+					local splitConn = splitConnectorAtCoor(cnvobj,conn,X,Y)	-- To get the list of connectors after splitting the connector at this point
+					-- split also removes the reference of the connector from its ports
+					-- split also places the right ports present in conn at all the split connectors
 					-- Place the connectors at the spot in cnvobj.drawn.conn where conn was
 					local l = sgmnts[j].conn	-- index of the connector in cnvobj.drawn.conn
 					table.remove(cnvobj.drawn.conn,l)
+					--[[
 					-- Remove the connector reference from all its ports
 					for k = 1,#conn.port do
 						local m = tu.inArray(conn.port[k].conn,conn)
 						table.remove(conn.port[k].conn,m)
 					end
+					]]
 					-- Remove conn from order and place the connectors at that spot
 					local ord = conn.order
 					table.remove(cnvobj.drawn.order,ord)
 					-- Connect the port (and ports in conn) to each of the returned connectors
-					-- Note that ports[i] was already removed from conn if it was there
+					-- Note that ports[i] was already removed from conn if it was there in the beginning of the j loop above
 					-- Now conn only has ports other than ports[i]
 					for k = 1,#splitConn do
 						local sp = splitConn[k].port
@@ -1190,11 +1193,12 @@ function connectOverlapPorts(cnvobj,conn,ports)
 						sp[#sp + 1] = ports[i]
 						-- Add the connector to the port connector array
 						ports[i].conn[#ports[i].conn + 1] = splitConn[k]
-						-- Now do this for ports in conn
+						-- Now do this for ports in conn -- Already done in splitConnectorAtCoor
+						--[[
 						for m = 1,#conn.port do
 							conn.port[m].conn[#conn.port[m].conn + 1] = splitConn[k]
 							sp[#sp + 1] = conn.port[m]
-						end
+						end]]
 						-- Place the connector at the original connector spot
 						table.insert(cnvobj.drawn.conn,l,splitConn[k])
 						-- Place the connectors at the order spot of the original connector

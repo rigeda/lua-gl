@@ -15,12 +15,14 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-function drawfilled(cnvobj,cnv,shape,x1,y1,x2,y2)
+local function drawfilled(cnvobj,cnv,shape,x,y)
+	local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
 	cnv:Sector(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
 	return true
 end
 
-function drawhollow(cnvobj,cnv,shape,x1,y1,x2,y2)
+local function drawhollow(cnvobj,cnv,shape,x,y)
+	local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
 	cnv:Arc(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
 	return true
 end
@@ -31,7 +33,7 @@ function checkXY(obj, x, y, res)
 		return nil
 	end
 	
-	local x1,y1,x2,y2 = obj.start_x,obj.start_y,obj.end_x,obj.end_y
+	local x1,y1,x2,y2 = obj.x[1],obj.y[1],obj.x[2],obj.y[2]
 	-- Find the semi major axis and semi minor axis
 	local A = floor(abs(x2-x1)/2)
 	local B = floor(abs(y2-y1)/2)

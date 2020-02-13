@@ -50,11 +50,16 @@ _VERSION = "B20.02.06"
 --- TASKS
 --[[
 DEBUG:
-
+* If you load testcase1 twice then:
+	- why isnt connector created for overlapping port 
+	- On moving 2 objects on the right and placing them creates 3 connectors. Why not 4 since each port thinks it is connected to 2
+	- On drawing 3 connectors is is not able to find path for the 3rd and draws it dotted!
+	- After drag end the checkDrawn fails saying 1 port x,y shows 3 connectors but it has 4 in its structure.
 TASKS:
+* Add arc functionality - similar to ltspice
+	* Setup draw obj to work on n number of coordinates
 * Add object resize functionality
 * Add Text functionality
-* Add arc functionality - similar to ltspice
 * Canvas scroll, zoom, pan and coordinate translation
 * Add export/print
 * Have to make undo/redo lists - improve API by spawning from the UI interaction functions their immediate action counterparts
@@ -182,8 +187,9 @@ objFuncs = {
 		-- Rotate the objects
 		for i = 1,#objList do
 			-- Rotate the object
-			objList[i].start_x,objList[i].start_y = rot[para](objList[i].start_x,objList[i].start_y)
-			objList[i].end_x,objList[i].end_y = rot[para](objList[i].end_x,objList[i].end_y)
+			local objx,objy = objList[i].x,objList[i].y
+			objx[1],objy[1] = rot[para](objx[1],objy[1])
+			objx[2],objy[2] = rot[para](objx[2],objy[2])
 			-- Rotate the port coordinates as well
 			local prts = objList[i].port
 			for j = 1,#prts do
@@ -359,7 +365,7 @@ objFuncs = {
 		cnvobj.op[#cnvobj.op + 1] = op
 		op.mode = "MOVE"	-- Set the mode to drawing object
 		op.finish = moveEnd
-		op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+		op.coor1 = {x=grp[1].x[1],y=grp[1].y[1]}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 		op.ref = {x=refX,y=refY}
 		op.objList = grp
 		op.connList = connM
@@ -380,7 +386,7 @@ objFuncs = {
 			-- Move all items in the grp 
 			if op.mode == "MOVE" then
 				x,y = cnvobj:snap(x-refX,y-refY)
-				local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y
+				local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]
 				-- Now move the objects
 				objects.shiftObjList(grp,offx,offy,rm)
 				-- Now move the connectors
@@ -623,7 +629,7 @@ objFuncs = {
 			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
 			local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
-			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
+			local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]		-- The offset to be applied now to the items being dragged
 
 			conn.regenSegments(cnvobj,op,finalRouter,jsFinal,offx,offy)
 			-- Disconnect all ports
@@ -651,7 +657,7 @@ objFuncs = {
 		
 		cnvobj.op[#cnvobj.op + 1] = op
 		op.mode = "DRAG"
-		op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+		op.coor1 = {x=grp[1].x[1],y=grp[1].y[1]}
 		op.ref = {x=refX,y=refY}
 		op.finish = dragEnd
 		
@@ -680,7 +686,7 @@ objFuncs = {
 			--y = cnvobj.height - y
 			-- Drag the connectors
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
-			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y		-- The offset to be applied now to the items being dragged
+			local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]		-- The offset to be applied now to the items being dragged
 		
 			conn.regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy)
 			
@@ -718,7 +724,7 @@ objFuncs = {
 		local connS = tab.conn
 		local minX,maxX,minY,maxY 
 		if #objS > 0 then
-			minX,minY = objS[1].start_x,objS[1].start_y
+			minX,minY = objS[1].x[1],objS[1].y[1]
 			maxX,maxY = minX,minY
 		else
 			minX,minY = conn[1].segments[1].start_x,conn[1].segments[1].start_y
@@ -739,8 +745,8 @@ objFuncs = {
 			end
 		end
 		for i = 1,#objS do
-			storeMaxMin(objS[i].start_x,objS[i].start_y)
-			storeMaxMin(objS[i].end_x,objS[i].end_y)
+			storeMaxMin(objS[i].x[1],objS[i].y[1])
+			storeMaxMin(objS[i].x[2],objS[i].y[2])
 		end
 		for i = 1,#connS do
 			for j = 1,#connS[i].segments do
@@ -777,14 +783,15 @@ objFuncs = {
 			objD[#objD + 1] = objS[i]
 			objD.ids = objD.ids + 1
 			objS[i].id = "O"..tostring(objD.ids + 1)
-			objS[i].start_x = objS[i].start_x + offx
-			objS[i].start_y = objS[i].start_y + offy
-			objS[i].end_x = objS[i].end_x + offx
-			objS[i].end_y = objS[i].end_y + offy
+			local objx,objy = objS[i].x,objS[i].y
+			for j = 1,#objx do
+				objx[j] = objx[j] + offx
+				objy[j] = objy[j] + offy
+			end
 			items[#items + 1] = objS[i]
 			-- Add to routing matrix
 			if objS[i].shape == "BLOCKINGRECT" then
-				rm:addBlockingRectangle(objS[i],objS[i].start_x,objS[i].start_y,objS[i].end_x,objS[i].end_y)
+				rm:addBlockingRectangle(objS[i],objS[i].x[1],objS[i].y[1],objS[i].x[2],objS[i].y[2])
 			end
 		end
 		

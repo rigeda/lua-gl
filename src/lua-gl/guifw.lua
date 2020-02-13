@@ -306,13 +306,13 @@ function  render(cnvobj)
 				vAttr = shape.vAttr
 				shape.visualAttr(cd_bcanvas)
 			end
-			x1,y1,x2,y2 = item.start_x,item.start_y,item.end_x,item.end_y
-			--y1 = cnv:InvertYAxis(y1)
-			--y2 = cnv:InvertYAxis(y2)
-			y1 = cnvobj.height - y1
-			y2 = cnvobj.height - y2
+			x1,y1 = item.x,item.y
+			y2 = {}
+			for j = 1,#y1 do
+				y2[j] = cnvobj.height - y1[j]
+			end
 			
-			M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,x1,y1,x2,y2)
+			M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,x1,y2)
 		else
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
@@ -330,8 +330,6 @@ function  render(cnvobj)
 					shape.visualAttr(cd_bcanvas)
 				end
 				x1,y1,x2,y2 = s.start_x,s.start_y,s.end_x,s.end_y
-				--y1 = cnv:InvertYAxis(y1)
-				--y2 = cnv:InvertYAxis(y2)
 				y1 = cnvobj.height - y1
 				y2 = cnvobj.height - y2
 				M.CONN.draw(cnvobj,cd_bcanvas,"CONNECTOR",x1,y1,x2,y2)
@@ -345,10 +343,10 @@ function  render(cnvobj)
 				cd_bcanvas:InteriorStyle(M.SOLID)	-- This doesn't effect the current vAttr because connector attribute is for non filled object		
 				juncs = item.junction
 				for j = 1,#juncs do
-					x1,y1,x2,y2 = juncs[j].x-jdx,juncs[j].y-jdy,juncs[j].x+jdx,juncs[j].y+jdy
-					y1 = cnvobj.height - y1
-					y2 = cnvobj.height - y2
-					M.FILLEDELLIPSE.draw(cnvobj,cd_bcanvas,"JUNCTION",x1,y1,x2,y2)
+					x1,y1 = {juncs[j].x-jdx,juncs[j].x+jdx},{juncs[j].y-jdy,juncs[j].y+jdy}
+					y1[1] = cnvobj.height - y1[1]
+					y1[2] = cnvobj.height - y1[2]
+					M.FILLEDELLIPSE.draw(cnvobj,cd_bcanvas,"JUNCTION",x1,y1)
 				end
 			end
 		end

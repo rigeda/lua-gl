@@ -301,6 +301,11 @@ local function getSelectionList(cb,noclick,mode)
 	end
 end
 
+function GUI.toolbar.buttons.checkButton:action()
+	local u = require("lua-gl.utility")
+	print(u.checkDrawn(cnvobj))
+end
+
 -- Start Move operation
 function GUI.toolbar.buttons.moveButton:action()
 	-- function to handle the move

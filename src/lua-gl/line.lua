@@ -12,9 +12,14 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-function draw(cnvobj,cnv,shape,x1,y1,x2,y2)
-	cnv:Line(x1,y1,x2,y2)
+local function draw(cnvobj,cnv,shape,x,y)
+	cnv:Line(x[1],y[1],x[2],y[2])
 	return true
+end
+
+local function drawConn(cnvobj,cnv,shape,x1,y1,x2,y2)
+	cnv:Line(x1,y1,x2,y2)
+	return true	
 end
 
 -- Function to check whether line object is selectable by x,y within the given resolution res
@@ -24,10 +29,10 @@ function checkXY(obj, x, y,res)
 	end
 	
 	local x1,y1,x2,y2
-	x1 = obj.start_x
-	y1 = obj.start_y
-	x2 = obj.end_x
-	y2 = obj.end_y
+	x1 = obj.x[1]
+	y1 = obj.y[1]
+	x2 = obj.x[2]
+	y2 = obj.y[2]
 
 	return coorc.pointNearSegment(x1, y1, x2, y2, x, y, res)                
 end
@@ -39,7 +44,7 @@ function init(cnvobj)
 		vAttr = 1
 	}
 	GUIFW.CONN = {
-		draw = draw,
+		draw = drawConn,
 		visualAttr = cnvobj.attributes.visualAttrBank[4],	-- normal connector
 		vAttr = 4				
 	}

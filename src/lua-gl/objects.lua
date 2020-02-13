@@ -34,10 +34,8 @@ end
 {
 	id = <string>,			-- Unique identification number for the object. Format is O<num> i.e. O followed by a unique number
 	shape = <string>,		-- string indicating the type of object. Each object type has its own handler module
-	start_x = <integer>,	-- starting x coordinate of the bounding rectangle
-	start_y = <integer>,	-- starting y coordinate of the bounding rectangle
-	end_x = <integer>,		-- ending x coordinate of the bounding rectangle
-	end_y = <integer>,		-- ending y coordinate of the bounding rectange
+	x = <array>,			-- Array of integer x coordinates
+	y = <array>,			-- Array of integer y coordinates
 	group = <array or nil>,	-- Pointer to the array of object structures present in the group. nil if this object not in any group
 	port = <array>,			-- Array of port structures associated with the object
 	order = <integer>		-- Index in the order array
@@ -94,14 +92,15 @@ end
 -- Function just offsets the objects (in grp array) and associated port coordinates. It does not handle the port connections which have to be updated
 shiftObjList = function(grp,offx,offy,rm)
 	for i = 1,#grp do
-		grp[i].start_x = grp[i].start_x + offx
-		grp[i].start_y = grp[i].start_y + offy
-		grp[i].end_x = grp[i].end_x and (grp[i].end_x + offx)
-		grp[i].end_y = grp[i].end_y and (grp[i].end_y + offy)
+		local objx,objy = grp[i].x,grp[i].y
+		objx[1] = objx[1] + offx
+		objy[1] = objy[1] + offy
+		objx[2] = objx[2] and (objx[2] + offx)
+		objy[2] = objy[2] and (objy[2] + offy)
 		-- If blocking rectangle then remove from routing matrix and add the new postion
 		if grp[i].shape == "BLOCKINGRECT" then
 			rm:removeBlockingRectangle(grp[i])
-			rm:addBlockingRectangle(grp[i],grp[i].start_x,grp[i].start_y,grp[i].end_x,grp[i].end_y)
+			rm:addBlockingRectangle(grp[i],grp[i].x[1],grp[i].y[1],grp[i].x[2],grp[i].y[2])
 		end
 		-- Update port coordinates
 		local portT = grp[i].port
@@ -413,7 +412,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	cnvobj.op[#cnvobj.op + 1] = op
 	op.mode = "MOVEOBJ"	-- Set the mode to drawing object
 	op.finish = moveEnd
-	op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
+	op.coor1 = {x=grp[1].x[1],y=grp[1].y[1]}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
 	op.ref = {x=refX,y=refY}
 	op.objList = grp
 	
@@ -437,7 +436,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		--local xo,yo = x,y
 		if op.mode == "MOVEOBJ" then
 			x,y = cnvobj:snap(x-refX,y-refY)
-			local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y
+			local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]
 			shiftObjList(grp,offx,offy,rm)
 			cnvobj:refresh()
 		end
@@ -485,10 +484,8 @@ drawObj = function(cnvobj,shape,pts,coords)
 		local t = {}
 		t.id = "O"..tostring(objs.ids + 1)
 		t.shape = shape
-		t.start_x = x1
-		t.start_y = y1
-		t.end_x = x2
-		t.end_y = y2
+		t.x = {x1,x2}
+		t.y = {y1,y2}
 		t.group = nil
 		t.order = #cnvobj.drawn.order + 1
 		t.port = {}
@@ -501,7 +498,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 		}
 		-- If blocking rectangle then add to routing matrix
 		if shape == "BLOCKINGRECT" then
-			rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
+			rm:addBlockingRectangle(t,t.x[1],t.y[1],t.x[2],t.y[2])
 		end		
 		return t
 	end
@@ -517,7 +514,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 		-- End the drawing
 		-- Check if this is a zero dimension object then do not add anything
 		local t = objs[cnvobj.op[#cnvobj.op].index]
-		if t.start_x == t.end_x and t.start_y == t.end_y then
+		if t.x[1] == t.x[2] and t.y[1] == t.y[2] then
 			-- Zero dimension object not allowed
 			-- Remove object from the object and the order arrays
 			table.remove(cnvobj.drawn.order,t.order)
@@ -526,7 +523,7 @@ drawObj = function(cnvobj,shape,pts,coords)
 		else
 			-- If blocking rectangle then add to routing matrix
 			if shape == "BLOCKINGRECT" then
-				rm:addBlockingRectangle(t,t.start_x,t.start_y,t.end_x,t.end_y)
+				rm:addBlockingRectangle(t,t.x[1],t.y[1],t.x[2],t.y[2])
 			end		
 		end
 		cnvobj.op[#cnvobj.op] = nil
@@ -564,10 +561,8 @@ drawObj = function(cnvobj,shape,pts,coords)
 				local t = {}
 				t.id = "O"..tostring(objs.ids + 1)
 				t.shape = shape
-				t.start_x = x
-				t.start_y = y
-				t.end_x = x
-				t.end_y = y 
+				t.x = {x,x}
+				t.y = {y,y}
 				t.group = nil
 				t.order = #cnvobj.drawn.order + 1
 				t.port = {}
@@ -580,8 +575,8 @@ drawObj = function(cnvobj,shape,pts,coords)
 				}
 				if pts == 1 then
 					-- This is the end of the drawing
-					t.end_x = nil
-					t.end_y = nil
+					t.x[2] = nil
+					t.y[2] = nil
 					
 					drawEnd()
 				end				
@@ -595,8 +590,8 @@ drawObj = function(cnvobj,shape,pts,coords)
 		if cnvobj.op[#cnvobj.op].mode == "DRAWOBJ" then
 			--y = cnvobj.height - y
 			x,y = cnvobj:snap(x,y)
-			objs[#objs].end_x = x
-			objs[#objs].end_y = y
+			objs[#objs].x[2] = x
+			objs[#objs].y[2] = y
 			cnvobj:refresh()
 		end
 	end    
@@ -614,7 +609,8 @@ end	-- end drawObj function
 generateRoutingStartNodes = function(cnvobj,objList,segList)
 	-- For all the connectors that would be affected create a list of starting points from where each connector would be routed from
 	segList = segList or {}
-	local connSrc = {}	-- To store the x,y coordinate for each connector from which rerouting has to be applied and also store the segments that need to be removed
+	local connSrc = {}	-- To store the x,y coordinate for each connector (for a particular port of an object) from which rerouting has to be applied and also store the segments that need to be removed
+	local delSegs = {}	-- To accumulate all segments to delete stored in connSrc so that they are not duplicated
 	for i = 1,#objList do	-- For every object in the group that is moving
 		connSrc[objList[i]] = {}	-- New table for this object
 		local portT = objList[i].port	-- The port table of the object
@@ -687,6 +683,14 @@ generateRoutingStartNodes = function(cnvobj,objList,segList)
 						end		-- if not tu.inArray(checkedSegs,segTable[l]) ends here
 					end		-- for l (segTable) ends here
 				end		-- while not found ends here
+				-- Remove the segments that are already added to delSegs
+				for m = checkedSegsCount,1,-1 do
+					if tu.inArray(delSegs,checkedSegs[m]) then
+						table.remove(checkedSegs,m)
+					else
+						delSegs[#delSegs + 1] = checkedSegs[m]
+					end
+				end
 				if not segDragging then	-- if segDragging then the segment of this connector connected to portT[j] or a subsequent segment
 					-- Check if x,y is a port on another object being dragged
 					local prts = PORTS.getPortFromXY(cnvobj,x,y)
@@ -878,7 +882,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	op.mode = "DRAGOBJ"
 	op.grp = grp
 	op.oldOrder = oldOrder
-	op.coor1 = {x=grp[1].start_x,y=grp[1].start_y}
+	op.coor1 = {x=grp[1].x[1],y=grp[1].y[1]}
 	op.ref = {x=refX,y=refY}
 	op.finish = dragEnd
 	op.objList = grp
@@ -903,7 +907,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		x,y = cnvobj:snap(x-refX,y-refY)
-		local offx,offy = x+op.coor1.x-grp[1].start_x,y+op.coor1.y-grp[1].start_y
+		local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]
 		shiftObjList(grp,offx,offy,rm)
 		-- Regenerate the segments according to the coordinates calculated in connSrc
 		regenConn(cnvobj,rm,grp,connSrc,dragRouter,jsDrag)

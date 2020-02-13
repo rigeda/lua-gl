@@ -53,7 +53,8 @@ GUI.toolbar.buttons = {
 		DROPDOWN = "YES",
 		VALUE = 1
 	},
-	newButton = iup.button{image="IUP_FileNew",tip="New Drawing"}
+	newButton = iup.button{image="IUP_FileNew",tip="New Drawing"},
+	checkButton = iup.button{image="IUP_ActionOk",tip="Run Custom function"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -65,6 +66,7 @@ GUI.toolbar.top = iup.hbox{
 	GUI.toolbar.buttons.xygrid,
 	GUI.toolbar.buttons.showBlockingRect,
 	GUI.toolbar.buttons.refreshButton,
+	GUI.toolbar.buttons.checkButton,
 	GUI.toolbar.buttons.connModeList,
 	iup.fill{};
 	margin = "2x2",

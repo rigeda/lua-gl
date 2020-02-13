@@ -14,19 +14,19 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-function drawhollow(cnvobj,cnv,shape,x1,y1,x2,y2)
-    cnv:Rect(x1, x2, y1, y2)
+local function drawhollow(cnvobj,cnv,shape,x,y)
+    cnv:Rect(x[1], x[2], y[1], y[2])
 	return true
 end
 
-function drawfilled(cnvobj,cnv,shape,x1,y1,x2,y2)
-	cnv:Box(x1, x2, y1, y2)
+local function drawfilled(cnvobj,cnv,shape,x,y)
+	cnv:Box(x[1], x[2], y[1], y[2])
 	return true
 end
 
-function drawblockingrectangle(cnvobj,cnv,shape,x1,y1,x2,y2)
+local function drawblockingrectangle(cnvobj,cnv,shape,x,y)
 	if(cnvobj.viewOptions.showBlockingRect==true) then
-		cnv:Rect(x1, x2, y1, y2)
+		cnv:Rect(x[1], x[2], y[1], y[2])
 	end
 	return true
 end
@@ -38,8 +38,8 @@ function checkXY(obj, x, y, res)
 	end
 	
 	
-	local x1, y1 = obj.start_x, obj.start_y
-	local x3, y3 = obj.end_x , obj.end_y
+	local x1, y1 = obj.x[1], obj.y[1]
+	local x3, y3 = obj.x[2] , obj.y[2]
 	local x2, y2, x4, y4 = x1, y3, x3, y1
 
 	if obj.shape == "RECT" or obj.shape == "BLOCKINGRECT" then
