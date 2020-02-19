@@ -50,12 +50,15 @@ _VERSION = "B20.02.06"
 --- TASKS
 --[[
 DEBUG:
+* What happend with 3 object connected with connectors and 2 of them are dragged. Loosing the connector to the 3rd object and then dragend cases error
+* Fix the case when 2 objects and their ports overlap and only 1 object is moved
+
 * If you load testcase1 twice then:
-	- why isnt connector created for overlapping port 
-	- On moving 2 objects on the right and placing them creates 3 connectors. Why not 4 since each port thinks it is connected to 2
-	- On drawing 3 connectors is is not able to find path for the 3rd and draws it dotted!
-	- After drag end the checkDrawn fails saying 1 port x,y shows 3 connectors but it has 4 in its structure.
+	- why isnt connector created for overlapping port (ADDED connectOverlapPorts call in addPort - need to enable it after below is done
+* Load interactive not working properly
+
 TASKS:
+* drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
 * Add arc functionality - similar to ltspice
 	* Setup draw obj to work on n number of coordinates
 * Add object resize functionality

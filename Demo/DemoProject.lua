@@ -546,6 +546,21 @@ GUI.mainDlg.maxsize = GUI.mainDlg.rastersize	-- To limit the maximum size of the
 GUI.mainDlg.resize = "NO"
 GUI.mainDlg.maxbox = "NO"
 
+local timer = iup.timer{
+	time = 50,
+	run = "YES"
+}
+function timer:action_cb()
+	timer.run = "NO"
+	-- Update the screen coordinates
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
+	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
+	GUI.statBarR.title = "X="..refX..", Y="..refY
+	--print("X="..refX..", Y="..refY)
+	timer.run = "YES"
+end
+
 if iup.MainLoopLevel()==0 then
     iup.MainLoop()
     iup.Close()

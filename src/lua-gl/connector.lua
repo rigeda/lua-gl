@@ -788,6 +788,7 @@ do
 				return one.conn > two.conn		
 			end)	-- Now we need to see whether we need to split a segment and which new junctions to create
 		local connM = cnvobj.drawn.conn[allSegs[#allSegs].conn]		-- The master connector where all connectors are merged (Taken as last one in allSegs since that will have the lowest index all others with higher indexes will be removed and connM index will not be affected
+		local rm = cnvobj.rM
 		-- The destination arrays
 		local segTableD = connM.segments
 		local portD = connM.port
@@ -803,12 +804,33 @@ do
 			end
 			-- Copy the segments over
 			local segTableS = conns[allSegs[i].conn].segments
+			for i = 1,#segTableS do
+				local one = segTableS[i]
+				for j = 1,#segTableD do
+					local two = segTableD[j]
+					local found
+					if (one.start_x == two.start_x and one.start_y == two.start_y and
+					  one.end_x == two.end_x and one.end_y == two.end_y) or
+					  (one.start_x == two.end_x and one.start_y == two.end_y and
+					  one.end_x == two.start_x and one.end_y == two.start_y) then
+						-- The segments are the same line so it won't be added to segTableD and we will remove it from the routing matrix
+						rm:removeSegment(one)
+						found = true
+						break
+					end
+				end
+				if not found then
+					segTableD[#segTableD + 1] = one
+				end
+			end
+			--[[
 			tu.mergeArrays(segTableS,segTableD,nil,function(one,two)	-- Function to check if one and two are equivalent segments
 					return (one.start_x == two.start_x and one.start_y == two.start_y and
 						one.end_x == two.end_x and one.end_y == two.end_y) or
 						(one.start_x == two.end_x and one.start_y == two.end_y and
 						one.end_x == two.start_x and one.end_y == two.start_y)
 				end)
+			]]
 			-- Copy and update the ports
 			local portS = conns[allSegs[i].conn].port
 			for k = 1,#portS do
@@ -961,6 +983,57 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 	end
 	-- Get all the segments connected to X,Y
 	local csegs = findSegs(segs,X,Y,{})	-- Get the segments connected to X,Y
+	local function createConnector(j,endPoints)
+		local cn = {
+			id = nil,
+			order = nil,
+			segments = {},
+			port = {},
+			junction = {}
+		}
+		if j == 1 then
+			cn.id = conn.id
+		else
+			cn.id = "C"..tostring(cnvobj.drawn.conn.ids + 1)
+			cnvobj.drawn.conn.ids = cnvobj.drawn.conn.ids + 1
+		end
+		-- Fill in the segments
+		for k,v in pairs(segsDone[j]) do
+			cn.segments[#cn.segments + 1] = k
+		end
+		-- Fill in the ports
+		for i = 1,#conn.port do
+			if endPoints[conn.port[i].x] and endPoints[conn.port[i].x][conn.port[i].y] then
+				-- this port goes in this new connector
+				cn.port[#cn.port + 1] = conn.port[i]
+				-- Remove conn from conn.port[i] and add cn
+				local pconn = conn.port[i].conn
+				for k = 1,#pconn do
+					if pconn[k] == conn then
+						table.remove(pconn,k)
+						break
+					end
+				end
+				pconn[#pconn + 1] = cn
+			end
+		end
+		-- Now regenerate the junctions
+		local jn = {}
+		for x,yt in pairs(endPoints) do
+			for y,num in pairs(yt) do
+				if num > 2 then	-- greater than 2 segments were at this point
+					jn[#jn + 1] = {x=x,y=y}
+				end
+			end
+		end
+		cn.junction = jn
+		-- Not copy the vattr table if any
+		if conn.vattr then
+			cn.vattr = tu.copyTable(conn.vattr,{},true)
+			cnvobj.attributes.visualAttr[cn] = cnvobj.attributes.visualAttr[conn]
+		end
+		return cn
+	end
 	-- Now from each of the segments found check if there is a path through the segments to the ends of the other segments in csegs
 	local j = 1
 	while j <= #csegs do
@@ -1067,7 +1140,9 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 			end		-- if segPath[i].i > #segPath[i].segs ends here
 		end		-- while i > 0 ends here
 		-- Now segsDone has all the segments that connect to the csegs[j] starting connector. So we can form 1 connector using these
-		connA[#connA + 1] = {
+		connA[#connA + 1] = createConnector(j,endPoints)
+		--[=[
+		{
 			id = nil,
 			order = nil,
 			segments = {},
@@ -1115,8 +1190,47 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 			connA[#connA].vattr = tu.copyTable(conn.vattr,{},true)
 			cnvobj.attributes.visualAttr[connA[#connA]] = cnvobj.attributes.visualAttr[conn]
 		end
+		]=]
 		j = j + 1
 	end		-- while j <= #csegs do ends
+	-- Check if any segments left in conn then create another connector with it
+	segsDone[j] = {}
+	local makeConn
+	local endPoints = {}
+	for i = 1,#conn.segments do
+		local sgmnt = conn.segments[i]
+		local found
+		for k = 1,j-1 do
+			if segsDone[k][sgmnt] then
+				found = true
+				break
+			end
+		end
+		if not found then
+			segsDone[j][sgmnt] = true
+			makeConn = true
+			-- Store the endPoints
+			if not endPoints[sgmnt.end_x] then
+				endPoints[sgmnt.end_x] = {}
+			end
+			if not endPoints[sgmnt.end_x][sgmnt.end_y] then
+				endPoints[sgmnt.end_x][sgmnt.end_y] = 1
+			else
+				endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
+			end
+			if not endPoints[sgmnt.start_x] then
+				endPoints[sgmnt.start_x] = {}
+			end
+			if not endPoints[sgmnt.start_x][sgmnt.start_y] then
+				endPoints[sgmnt.start_x][sgmnt.start_y] = 1
+			else
+				endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
+			end
+		end
+	end
+	if makeConn then
+		connA[#connA + 1] = createConnector(j,endPoints)
+	end
 	return connA
 end
 
@@ -2144,7 +2258,8 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	local oldMCB = cnvobj.cnv.motion_cb
 	
 	local op = {}
-		
+	cnvobj.op[#cnvobj.op + 1] = op
+	
 	local function setWaypoint(x,y)
 		op.startseg = #cnvobj.drawn.conn[#cnvobj.drawn.conn].segments+1
 		op.start = {x=op.fin.x,y=op.fin.y}
