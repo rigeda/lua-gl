@@ -620,104 +620,131 @@ generateRoutingStartNodes = function(cnvobj,objList,segList)
 			connSrc[objList[i]][portT[j]] = {}	-- Each port can have multiple connectors that may need routing
 			local conn = portT[j].conn	-- Connector table of the port
 			local enx,eny = portT[j].x,portT[j].y	-- This will be the end point where the segments connect to
-			for k = 1,#conn do		-- for all connectors connected to this port of this object
-				-- Find the 1st junction or if none the starting point of the connector
-				local segTable = conn[k].segments
-				local x,y = enx,eny
-				local jT = conn[k].junction
-				local found,segDragging	-- segDragging if true means that the segment of conn[k] connected to portT[j] is in segList so this connector routing to the port should not be done and it is skipped from adding to connSrc
-				local checkedSegs = {}		-- Array to store segments already traversed to prevent traversing them again
-				local checkedSegsCount = 0
-				local prex,prey
-				while not found do
-					-- Check if a junction exists on x,y
-					for l = 1,#jT do
-						if jT[l].x == x and jT[l].y == y then
+			-- Check if there are other ports here
+			local prts = PORTS.getPortFromXY(cnvobj,enx,eny)
+			found = false		-- if true then all ports at this point are in the list of items to drag
+			for l = 1,#prts do
+				found = true
+				if not tu.inArray(objList,prts[l].obj) then	-- Not all ports are in the list of items to drag so x,y can be used
+					found = false
+					break
+				end
+			end
+			if #prts == 1 or (#prts > 1 and found) then
+				-- Only this port here or More ports at this point and all of them are moving so we need to find the connector routing points
+				for k = 1,#conn do		-- for all connectors connected to this port of this object
+					-- Find the 1st junction or if none the starting point of the connector
+					local segTable = conn[k].segments
+					local x,y = enx,eny
+					local jT = conn[k].junction
+					local found,segDragging	-- segDragging if true means that the segment of conn[k] connected to portT[j] is in segList so this connector routing to the port should not be done and it is skipped from adding to connSrc
+					local checkedSegs = {}		-- Array to store segments already traversed to prevent traversing them again
+					local checkedSegsCount = 0
+					local prex,prey
+					while not found do
+						-- Check if a junction exists on x,y
+						for l = 1,#jT do
+							if jT[l].x == x and jT[l].y == y then
+								found = true
+								break
+							end
+						end
+						if found then break end
+						-- Find a segment whose one end is on x,y if none found this is the other end of the connector and would be the starting point for the connector routing
+						found = true
+						for l = 1,#segTable do
+							if not tu.inArray(checkedSegs,segTable[l]) then
+								-- This segment is not traversed
+								if segTable[l].end_x == x and segTable[l].end_y == y then
+									found = false
+									x,y = segTable[l].start_x,segTable[l].start_y	-- Set x,y to the other end to traverse this segment
+									checkedSegsCount = checkedSegsCount + 1
+									checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
+									-- Check if this segment exists in segList
+									for m = 1,#segList do
+										if segList[m].conn == conn[k] and l == segList[m].seg then
+											segDragging = true
+											found = true
+											if checkedSegsCount > 2 then
+												-- For the segment that is being dragged if it is the 1st or second then don't include the routing since the segment drag will include these segments to drag together, if it is after second segment then the routing has to be done from prex and prey since that will be used as a dragNode in the segment drag as well
+												x,y = prex,prey
+											end
+											break
+										end
+									end
+									prex,prey = segTable[l].end_x,segTable[l].end_y
+									break
+								elseif segTable[l].start_x == x and segTable[l].start_y == y then
+									found = false
+									x,y = segTable[l].end_x,segTable[l].end_y
+									checkedSegsCount = checkedSegsCount + 1
+									checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
+									-- Check if this segment exists in segList
+									for m = 1,#segList do
+										if segList[m].conn == conn[k] and l == segList[m].seg then
+											segDragging = true
+											found = true
+											if checkedSegsCount > 2 then
+												-- For the segment that is being dragged if it is the 1st or second then don't include the routing since the segment drag will include these segments to drag together, if it is after second segment then the routing has to be done from prex and prey since that will be used as a dragNode in the segment drag as well
+												x,y = prex,prey
+											end
+											break
+										end
+									end
+									prex,prey = segTable[l].start_x,segTable[l].start_y
+									break
+								end		-- if segTable[l].end_x == x and segTable[l].end_y == y ends here
+							end		-- if not tu.inArray(checkedSegs,segTable[l]) ends here
+						end		-- for l (segTable) ends here
+					end		-- while not found ends here
+					-- Remove the segments that are already added to delSegs
+					for m = checkedSegsCount,1,-1 do
+						if tu.inArray(delSegs,checkedSegs[m]) then
+							table.remove(checkedSegs,m)
+						else
+							delSegs[#delSegs + 1] = checkedSegs[m]
+						end
+					end
+					if not segDragging then	-- if segDragging then the segment of this connector connected to portT[j] or a subsequent segment
+						-- Check if x,y is a port on another object being dragged
+						local prts = PORTS.getPortFromXY(cnvobj,x,y)
+						found = false		-- if true then all ports at this point are in the list of items to drag
+						for l = 1,#prts do
+							found = true
+							if not tu.inArray(objList,prts[l].obj) then	-- Not all ports are in the list of items to drag so x,y can be used
+								found = false
+								break
+							end
+						end
+						if found then
+							connSrc[objList[i]][portT[j]][conn[k].id] = {coor=prts[1],segs=checkedSegs}	-- To make the routing point linked to the port
+						else
+							connSrc[objList[i]][portT[j]][conn[k].id] = {coor={x=x,y=y},segs=checkedSegs}		-- Source point to use for routing of the connector
+						end
+					else	-- if not segDragging else
+						if checkedSegsCount > 2 then
+							-- Remove the last 2 segments in checkedSegs
+							table.remove(checkedSegs)
+							table.remove(checkedSegs)
+							connSrc[objList[i]][portT[j]][conn[k].id] = {coor={x=x,y=y},segs=checkedSegs}		-- Source point to use for routing of the connector
+						end
+					end		-- if not segDragging ends
+				end		-- For k (connector table) ends here
+			else	-- -- if #prts > 1 and found then else
+				-- More ports here and not all of them are moving
+				-- So routing point will be here for the connector connecting this port to one of the other ports
+				local found
+				for k = 1,#prts do
+					for m = 1,#prts[k].conn do
+						if tu.inArray(conn,prts[k].conn[m]) then
+							connSrc[objList[i]][portT[j]][prts[k].conn[m]] = {coor={x=enx,y=eny},segs={}}
 							found = true
 							break
 						end
 					end
 					if found then break end
-					-- Find a segment whose one end is on x,y if none found this is the other end of the connector and would be the starting point for the connector routing
-					found = true
-					for l = 1,#segTable do
-						if not tu.inArray(checkedSegs,segTable[l]) then
-							-- This segment is not traversed
-							if segTable[l].end_x == x and segTable[l].end_y == y then
-								found = false
-								x,y = segTable[l].start_x,segTable[l].start_y	-- Set x,y to the other end to traverse this segment
-								checkedSegsCount = checkedSegsCount + 1
-								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
-								-- Check if this segment exists in segList
-								for m = 1,#segList do
-									if segList[m].conn == conn[k] and l == segList[m].seg then
-										segDragging = true
-										found = true
-										if checkedSegsCount > 2 then
-											-- For the segment that is being dragged if it is the 1st or second then don't include the routing since the segment drag will include these segments to drag together, if it is after second segment then the routing has to be done from prex and prey since that will be used as a dragNode in the segment drag as well
-											x,y = prex,prey
-										end
-										break
-									end
-								end
-								prex,prey = segTable[l].end_x,segTable[l].end_y
-								break
-							elseif segTable[l].start_x == x and segTable[l].start_y == y then
-								found = false
-								x,y = segTable[l].end_x,segTable[l].end_y
-								checkedSegsCount = checkedSegsCount + 1
-								checkedSegs[checkedSegsCount] = segTable[l]		-- add it to the segments traversed
-								-- Check if this segment exists in segList
-								for m = 1,#segList do
-									if segList[m].conn == conn[k] and l == segList[m].seg then
-										segDragging = true
-										found = true
-										if checkedSegsCount > 2 then
-											-- For the segment that is being dragged if it is the 1st or second then don't include the routing since the segment drag will include these segments to drag together, if it is after second segment then the routing has to be done from prex and prey since that will be used as a dragNode in the segment drag as well
-											x,y = prex,prey
-										end
-										break
-									end
-								end
-								prex,prey = segTable[l].start_x,segTable[l].start_y
-								break
-							end		-- if segTable[l].end_x == x and segTable[l].end_y == y ends here
-						end		-- if not tu.inArray(checkedSegs,segTable[l]) ends here
-					end		-- for l (segTable) ends here
-				end		-- while not found ends here
-				-- Remove the segments that are already added to delSegs
-				for m = checkedSegsCount,1,-1 do
-					if tu.inArray(delSegs,checkedSegs[m]) then
-						table.remove(checkedSegs,m)
-					else
-						delSegs[#delSegs + 1] = checkedSegs[m]
-					end
 				end
-				if not segDragging then	-- if segDragging then the segment of this connector connected to portT[j] or a subsequent segment
-					-- Check if x,y is a port on another object being dragged
-					local prts = PORTS.getPortFromXY(cnvobj,x,y)
-					found = false		-- if true then all ports at this point are in the list of items to drag
-					for l = 1,#prts do
-						found = true
-						if not tu.inArray(objList,prts[l].obj) then	-- Not all ports are in the list of items to drag so x,y can be used
-							found = false
-							break
-						end
-					end
-					if found then
-						connSrc[objList[i]][portT[j]][conn[k].id] = {coor=prts[1],segs=checkedSegs}	-- To make the routing point linked to the port
-					else
-						connSrc[objList[i]][portT[j]][conn[k].id] = {coor={x=x,y=y},segs=checkedSegs}		-- Source point to use for routing of the connector
-					end
-				else	-- if not segDragging else
-					if checkedSegsCount > 2 then
-						-- Remove the last 2 segments in checkedSegs
-						table.remove(checkedSegs)
-						table.remove(checkedSegs)
-						connSrc[objList[i]][portT[j]][conn[k].id] = {coor={x=x,y=y},segs=checkedSegs}		-- Source point to use for routing of the connector
-					end
-				end		-- if not segDragging ends
-			end		-- For k (connector table) ends here
+			end		-- if #prts > 1 and found then ends
 		end		-- For j (port table) ends here
 	end		-- for i (group) ends here	
 	return connSrc

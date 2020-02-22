@@ -50,12 +50,10 @@ _VERSION = "B20.02.06"
 --- TASKS
 --[[
 DEBUG:
-* What happend with 3 object connected with connectors and 2 of them are dragged. Loosing the connector to the 3rd object and then dragend cases error
+* When any saved diagram is loaded the checkDrawn is inconsistent
 * Fix the case when 2 objects and their ports overlap and only 1 object is moved
+* Fix the case when 2 objects and their ports overlap and both objects are moved
 
-* If you load testcase1 twice then:
-	- why isnt connector created for overlapping port (ADDED connectOverlapPorts call in addPort - need to enable it after below is done
-* Load interactive not working properly
 
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
@@ -758,7 +756,7 @@ objFuncs = {
 			end
 		end
 		
-		-- Get the center coordinates where the 
+		-- Get the center coordinates of the data being loaded
 		local ctrX,ctrY = math.floor((maxX+minX)/2),math.floor((maxY+minY)/2)
 		if not interactive then
 			x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
@@ -768,7 +766,7 @@ objFuncs = {
 			-- Mouse coordinates on the canas
 			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
 			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-			x,y = gx-sx,gy-sy
+			x,y = cnvobj:snap(gx-sx,gy-sy)
 		end
 		-- Now append the data in tab into the cnvobj.drawn structure. The elements of the drawn structure are:
 		-- * obj
