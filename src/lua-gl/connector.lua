@@ -4,6 +4,7 @@ local table = table
 local type = type
 local floor = math.floor
 local min = math.min
+local abs = math.abs
 local tonumber = tonumber
 local error = error
 local pairs = pairs
@@ -34,6 +35,7 @@ end
 	id = <string>,		-- unique ID for the connector. Format is C<num> i.e. C followed by a unique number
 	order = <integer>,	-- Index in the order array
 	segments = {	-- Array of segment structures
+	-- Number of segments can be zero on a connector only if it is connecting 2 overlapping ports
 		[i] = {
 			start_x = <integer>,		-- starting coordinate x of the segment
 			start_y = <integer>,		-- starting coordinate y of the segment
@@ -83,7 +85,7 @@ end
 	conn = <integer>,	-- index of the connector in cnvobj.drawn.conn
 	seg = {				-- array of indices of segments that were found on x,y for the connector
 		<integer>,
-		<inteher>,
+		<integer>,
 		...
 	}
 }
@@ -103,14 +105,23 @@ getConnFromXY = function(cnvobj,x,y,res)
 	for i = 1,#conns do
 		local segs = conns[i].segments
 		local connAdded
-		for j = 1,#segs do
-			if pS(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, x, y, res)  then
-				if not connAdded then
-					allConns[#allConns + 1] = conns[i]
-					segInfo[#segInfo + 1] = {conn = i, seg = {j}}
-					connAdded = true
-				else
-					segInfo[#segInfo].seg[#segInfo[#segInfo].seg + 1] = j	-- Add all segments that lie on that point
+		if #segs == 0 then
+			-- No segments so the connector must be connecting 2 overlapping ports
+			local prt = conns[i].port[1]
+			if abs(prt.x-x) <= res and abs(prt.y-y) <= res then
+				allConns[#allConns + 1] = conns[i]
+				segInfo[#segInfo + 1] = {conn = i,seg = {}}
+			end
+		else
+			for j = 1,#segs do
+				if pS(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, x, y, res)  then
+					if not connAdded then
+						allConns[#allConns + 1] = conns[i]
+						segInfo[#segInfo + 1] = {conn = i, seg = {j}}
+						connAdded = true
+					else
+						segInfo[#segInfo].seg[#segInfo[#segInfo].seg + 1] = j	-- Add all segments that lie on that point
+					end
 				end
 			end
 		end
@@ -1035,10 +1046,22 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 		return cn
 	end
 	-- Now from each of the segments found check if there is a path through the segments to the ends of the other segments in csegs
+	local function addEndPoint(endPoints,x,y)
+		if not endPoints[x] then
+			endPoints[x] = {}
+		end
+		if not endPoints[x][y] then
+			endPoints[x][y] = 1
+		else
+			endPoints[x][y] = endPoints[x][y] + 1
+		end		
+	end
+	
 	local j = 1
 	while j <= #csegs do
 		local segPath = {}		-- To store the path of segments taken while searching for a path to coordinates ex and ey
 		local endPoints = {}		-- To collect all the endpoint coordinates of segments collected in segsDone
+		addEndPoint(endPoints,X,Y)
 		segsDone[j] = {}
 		segsDone[j][csegs[j]] = true	-- Add the 1st segment as traversed
 		if csegs[j].start_x == X and csegs[j].start_y == Y then
@@ -1054,8 +1077,7 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 				i = 0		-- segment index that will be traversed
 			}			
 		end
-		endPoints[segPath[1].x] = {}
-		endPoints[segPath[1].x][segPath[1].y] = 1
+		addEndPoint(endPoints,segPath[1].x,segPath[1].y)
 		if #cnvobj:getPortFromXY(segPath[1].x,segPath[1].y) == 0 then	 -- If there is a port here then path ends here for this segment
 			segPath[1].segs = findSegs(segs,segPath[1].x,segPath[1].y,segsDone[j])	-- get all segments connected at this step
 		else
@@ -1120,22 +1142,8 @@ local function splitConnectorAtCoor(cnvobj,conn,X,Y)
 						segPath[i].segs = findSegs(segs,segPath[i].x,segPath[i].y,segsDone[j])
 					end		-- if #cnvobj:getPortFromXY(nxt_x,nxt_y) == 0 then ends
 					-- Store the endPoints
-					if not endPoints[sgmnt.end_x] then
-						endPoints[sgmnt.end_x] = {}
-					end
-					if not endPoints[sgmnt.end_x][sgmnt.end_y] then
-						endPoints[sgmnt.end_x][sgmnt.end_y] = 1
-					else
-						endPoints[sgmnt.end_x][sgmnt.end_y] = endPoints[sgmnt.end_x][sgmnt.end_y] + 1
-					end
-					if not endPoints[sgmnt.start_x] then
-						endPoints[sgmnt.start_x] = {}
-					end
-					if not endPoints[sgmnt.start_x][sgmnt.start_y] then
-						endPoints[sgmnt.start_x][sgmnt.start_y] = 1
-					else
-						endPoints[sgmnt.start_x][sgmnt.start_y] = endPoints[sgmnt.start_x][sgmnt.start_y] + 1
-					end
+					addEndPoint(endPoints,sgmnt.end_x,sgmnt.end_y)
+					addEndPoint(endPoints,sgmnt.start_x,sgmnt.start_y)
 				end		-- if not segsDone[j][sgmnt] ends here
 			end		-- if segPath[i].i > #segPath[i].segs ends here
 		end		-- while i > 0 ends here
@@ -1256,7 +1264,10 @@ function connectOverlapPorts(cnvobj,conn,ports)
 			-- Check if this connector needs to be processed
 			if all or tu.inArray(splitColl,allConns[j]) then	
 				-- This connector lies on the port 
+				
 				-- From this connector disconnect ports[i] if there
+				-- This is done because we may be dealing with the connector which does not have ports[i] so to make the 2 cases common remove
+				-- ports[i] from the connector and then add it later
 				k = tu.inArray(ports[i].conn,conn)
 				if k then
 					-- ports[i] was connected to conn so disconnected it
@@ -1302,11 +1313,23 @@ function connectOverlapPorts(cnvobj,conn,ports)
 					-- Note that ports[i] was already removed from conn if it was there in the beginning of the j loop above
 					-- Now conn only has ports other than ports[i]
 					for k = 1,#splitConn do
-						local sp = splitConn[k].port
-						-- Add the port to the connector port array
-						sp[#sp + 1] = ports[i]
-						-- Add the connector to the port connector array
-						ports[i].conn[#ports[i].conn + 1] = splitConn[k]
+						-- Check if splitConn[k] connects to X,Y
+						local addPort
+						local spSegs = splitConn[k].segments
+						for m = 1,#spSegs do
+							if (spSegs[m].start_x == X and spSegs[m].start_y == Y) or
+							  (spSegs[m].end_x == X and spSegs[m].end_y == Y) then
+								addPort = true
+								break
+							end
+						end
+						if addPort then
+							local sp = splitConn[k].port
+							-- Add the port to the connector port array
+							sp[#sp + 1] = ports[i]
+							-- Add the connector to the port connector array
+							ports[i].conn[#ports[i].conn + 1] = splitConn[k]
+						end
 						-- Now do this for ports in conn -- Already done in splitConnectorAtCoor
 						--[[
 						for m = 1,#conn.port do

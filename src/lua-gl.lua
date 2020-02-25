@@ -51,10 +51,6 @@ _VERSION = "B20.02.06"
 --[[
 DEBUG:
 * When any saved diagram is loaded the checkDrawn is inconsistent
-* Fix the case when 2 objects and their ports overlap and only 1 object is moved
-* Fix the case when 2 objects and their ports overlap and both objects are moved
-
-
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
 * Add arc functionality - similar to ltspice

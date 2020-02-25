@@ -5,6 +5,7 @@ local min = math.min
 local abs = math.abs
 local tostring = tostring
 local table = table
+local require = require
 
 local coorc = require("lua-gl.CoordinateCalc")
 local tu = require("tableUtils")
@@ -91,7 +92,7 @@ connectOverlapPorts = function(cnvobj,ports)
 					if not found then
 						-- Connect the ports through a connector
 						local conn = cnvobj.drawn.conn
-						-- Create a new connector using the segments
+						-- Create a new connector with no segments
 						conn[#conn + 1] = {
 							segments = {},		-- No segments
 							id="C"..tostring(conn.ids + 1),
@@ -123,6 +124,7 @@ end
 -- Subsequent movement of the port or connector will try to maintain the port connections
 -- Note ports can only be added to object and a port can only be associated with 1 object
 addPort = function(cnvobj,x,y,objID)
+	local CONN = require("lua-gl.connector")
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -152,6 +154,9 @@ addPort = function(cnvobj,x,y,objID)
 	obj.port[#obj.port + 1] = cnvobj.drawn.port[index]	
 	-- Add the port to the routing matrix
 	cnvobj.rM:addPort(cnvobj.drawn.port[index],x,y)
+	-- Connect ports to any overlapping connector on the port
+	CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+	-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 	connectOverlapPorts(cnvobj,{cnvobj.drawn.port[index]})
 	return cnvobj.drawn.port[index]
 end

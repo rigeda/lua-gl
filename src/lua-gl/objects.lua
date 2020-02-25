@@ -737,7 +737,7 @@ generateRoutingStartNodes = function(cnvobj,objList,segList)
 				for k = 1,#prts do
 					for m = 1,#prts[k].conn do
 						if tu.inArray(conn,prts[k].conn[m]) then
-							connSrc[objList[i]][portT[j]][prts[k].conn[m]] = {coor={x=enx,y=eny},segs={}}
+							connSrc[objList[i]][portT[j]][prts[k].conn[m].id] = {coor={x=enx,y=eny},segs={}}
 							found = true
 							break
 						end
@@ -949,7 +949,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 			error()
 		end
 		-- Check whether after drag the ports are touching other connectors then those get connected to the port
-		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
+		CONN.connectOverlapPorts(cnvobj)--,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		stat,dump = utility.checkRM(cnvobj,true)
 		if not stat then
 			print("ROUTING MATRIX ERROR AT dragEnd after CONN.connectOverlapPorts: ",dump)

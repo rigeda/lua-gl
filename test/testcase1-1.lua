@@ -14,6 +14,7 @@ cnvobj:groupObjects({o1,o3})
 cnvobj:groupObjects({o2,o4})
 -- Now draw the connectors between them
 -- One connector is just 2 segment direct ther other one is 4 segments but give it as 1 and it should split it into 2 across ports
+--[[
 cnvobj:drawConnector({
 		{start_x = 300,start_y=130,end_x=300,end_y=380},
 		{start_x = 300,start_y=380,end_x=500,end_y=380},
@@ -22,4 +23,5 @@ cnvobj:drawConnector({
 		{start_x = 320,start_y=360,end_x=320,end_y=130},
 		{start_x = 320,start_y=130,end_x=300,end_y=130}
 	})
+]]
 cnvobj:refresh()
