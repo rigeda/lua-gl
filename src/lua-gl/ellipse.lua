@@ -101,13 +101,11 @@ local function checkXYArc(obj,x,y,res)
 	local a1 = atan(oy[3]-floor((oy[2] + oy[1]) / 2),ox[3]-floor((ox[2] + ox[1]) / 2))
 	local a2 = atan(oy[4]-floor((oy[2] + oy[1]) / 2),ox[4]-floor((ox[2] + ox[1]) / 2))
 	-- To flip the drawing direction according to teh canvas
-	a2 = 2*pi - a2
-	if a2 > 2*pi then a2 = a2 - 2*pi end
+	-- The canvas draws anticlockwise. WHile the coordinates received in checkXY are such that the angle in the upper half starts -pi to 0 clockwise and then the lower half goes 0 to pi clockwise.
+	if a2 > a1 then a2 = a2 - 2*pi end
 	-- Angle of given point
 	local a = atan(y-floor((oy[2] + oy[1]) / 2),x-floor((ox[2] + ox[1]) / 2))
-	a = 2*pi - a
-	if a > 2*pi then a = a - 2*pi end
-	if a >= a1 and a <= a2 then
+	if a >= a2 and a <= a1 then
 		return true
 	end
 	return false

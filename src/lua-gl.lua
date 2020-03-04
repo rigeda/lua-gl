@@ -54,7 +54,6 @@ DEBUG:
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
 * Add arc functionality - similar to ltspice
-	* Setup draw obj to work on n number of coordinates
 * Add object resize functionality
 * Add Text functionality
 * Canvas scroll, zoom, pan and coordinate translation
