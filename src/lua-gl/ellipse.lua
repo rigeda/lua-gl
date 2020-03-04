@@ -63,9 +63,11 @@ function init(cnvobj)
 	}
 	-- Register checkXY function
 	OBJ.ELLIPSE = {
-		checkXY = checkXY
+		checkXY = checkXY,
+		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.FILLEDELLIPSE = {
-		checkXY = checkXY
+		checkXY = checkXY,
+		pts = 2			-- No of coordinates to define the shape drawing
 	}
 end

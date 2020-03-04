@@ -448,14 +448,17 @@ end
 
 -- Function to draw a shape on the canvas
 -- shape is the shape that is being drawn
--- pts is the number of pts of the shape
 -- coords is the table containing the coordinates of the shape the number of coordinates have to be pts
 -- if coords is not a table then this will be an interactive drawing
-drawObj = function(cnvobj,shape,pts,coords)
+drawObj = function(cnvobj,shape,coords)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
-	
+	if not M[shape] then
+		return nil,"Shape not available"
+	end
+	-- pts is the number of pts of the shape
+	local pts = M[shape]
 	-- Check whether this is an interactive move or not
 	local interactive
 	if type(coords) ~= "table" then

@@ -1,13 +1,13 @@
 -- Test case 1 with 2 objects with 1 port each connect to each other with 2 connectors between them
-o1 = cnvobj:drawObj("RECT",2,{{x=200,y=40},{x=300,y=200}})
-o2 = cnvobj:drawObj("RECT",2,{{x=500,y=320},{x=600,y=450}})
+o1 = cnvobj:drawObj("RECT",{{x=200,y=40},{x=300,y=200}})
+o2 = cnvobj:drawObj("RECT",{{x=500,y=320},{x=600,y=450}})
 -- Now add a port to each object
 p1 = cnvobj:addPort(300,130,o1.id)
 p2 = cnvobj:addPort(500,380,o2.id)
 -- Add the port visual rectangles
 cnvobj.grid.snapGrid = false
-o3 = cnvobj:drawObj("FILLEDRECT",2,{{x=300-3,y=130-3},{x=300+3,y=130+3}})
-o4 = cnvobj:drawObj("FILLEDRECT",2,{{x=500-3,y=380-3},{x=500+3,y=380+3}})
+o3 = cnvobj:drawObj("FILLEDRECT",{{x=300-3,y=130-3},{x=300+3,y=130+3}})
+o4 = cnvobj:drawObj("FILLEDRECT",{{x=500-3,y=380-3},{x=500+3,y=380+3}})
 cnvobj.grid.snapGrid = true
 -- Group the port visuals with the objects
 cnvobj:groupObjects({o1,o3})

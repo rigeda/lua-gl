@@ -74,12 +74,15 @@ function init(cnvobj)
 	}
 	OBJ.RECT = {
 		checkXY = checkXY,
+		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.BLOCKINGRECT = {
 		checkXY = checkXY,
+		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.FILLEDRECT = {
 		checkXY = checkXY,
+		pts = 2			-- No of coordinates to define the shape drawing
 	}
 end
 

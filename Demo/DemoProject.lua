@@ -133,37 +133,37 @@ end
 -- Draw line object
 function GUI.toolbar.buttons.lineButton:action()
 	-- Non interactive line draw
-	--[[cnvobj:drawObj("LINE",2,{
+	--[[cnvobj:drawObj("LINE",{
 			{x=10,y=10},
 			{x=100,y=100}
 		})]]
 	--cnvobj:refresh()
-	cnvobj:drawObj("LINE",2)	-- interactive line drawing
+	cnvobj:drawObj("LINE")	-- interactive line drawing
 end
 
 -- Draw rectangle object
 function GUI.toolbar.buttons.rectButton:action()
-	cnvobj:drawObj("RECT",2)	-- interactive rectangle drawing
+	cnvobj:drawObj("RECT")	-- interactive rectangle drawing
 end
 
 -- Draw filled rectangle object
 function GUI.toolbar.buttons.fRectButton:action()
-	cnvobj:drawObj("FILLEDRECT",2)	-- interactive filled rectangle drawing
+	cnvobj:drawObj("FILLEDRECT")	-- interactive filled rectangle drawing
 end
 
 -- Draw blocking rectangle object
 function GUI.toolbar.buttons.bRectButton:action()
-	cnvobj:drawObj("BLOCKINGRECT",2)	-- interactive blocking rectangle drawing
+	cnvobj:drawObj("BLOCKINGRECT")	-- interactive blocking rectangle drawing
 end
 
 -- Draw ellipse object
 function GUI.toolbar.buttons.elliButton:action()
-	cnvobj:drawObj("ELLIPSE",2)	-- interactive ellipse drawing
+	cnvobj:drawObj("ELLIPSE")	-- interactive ellipse drawing
 end
 
 -- Draw filled ellipse object
 function GUI.toolbar.buttons.fElliButton:action()
-	cnvobj:drawObj("FILLEDELLIPSE",2)	-- interactive filled ellipse drawing
+	cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
 end
 
 -- If mode == 1 then add only objects
@@ -304,15 +304,15 @@ end
 function GUI.toolbar.buttons.checkButton:action()
 	local u = require("lua-gl.utility")
 	print("CHECKDRAWN BEFORE: ",u.checkDrawn(cnvobj))
-	o1 = cnvobj:drawObj("RECT",2,{{x=200,y=40},{x=300,y=200}})
-	o2 = cnvobj:drawObj("RECT",2,{{x=500,y=300},{x=600,y=450}})
+	o1 = cnvobj:drawObj("RECT",{{x=200,y=40},{x=300,y=200}})
+	o2 = cnvobj:drawObj("RECT",{{x=500,y=300},{x=600,y=450}})
 	-- Now add a port to each object
 	p1 = cnvobj:addPort(300,130,o1.id)
 	p2 = cnvobj:addPort(500,380,o2.id)
 	-- Add the port visual rectangles
 	cnvobj.grid.snapGrid = false
-	o3 = cnvobj:drawObj("FILLEDRECT",2,{{x=300-3,y=130-3},{x=300+3,y=130+3}})
-	o4 = cnvobj:drawObj("FILLEDRECT",2,{{x=500-3,y=380-3},{x=500+3,y=380+3}})
+	o3 = cnvobj:drawObj("FILLEDRECT",{{x=300-3,y=130-3},{x=300+3,y=130+3}})
+	o4 = cnvobj:drawObj("FILLEDRECT",{{x=500-3,y=380-3},{x=500+3,y=380+3}})
 	cnvobj.grid.snapGrid = true
 	-- Group the port visuals with the objects
 	cnvobj:groupObjects({o1,o3})
@@ -383,7 +383,7 @@ function GUI.toolbar.buttons.portButton:action()
 	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
 	local refX,refY = cnvobj:snap(gx-sx,gy-sy)
 	cnvobj.grid.snapGrid = false
-	local o = cnvobj:drawObj("FILLEDRECT",2,{{x=refX-3,y=refY-3},{x=refX+3,y=refY+3}})
+	local o = cnvobj:drawObj("FILLEDRECT",{{x=refX-3,y=refY-3},{x=refX+3,y=refY+3}})
 	cnvobj.grid.snapGrid = true
 	-- Set the cursor position to be right on the center of the object
 	iup.SetGlobal("CURSORPOS",tostring(sx+refX).."x"..tostring(sy+refY))

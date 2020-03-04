@@ -51,5 +51,6 @@ function init(cnvobj)
 	-- Register checkXY function
 	OBJ.LINE = {
 		checkXY = checkXY
+		pts = 2			-- No of coordinates to define the shape drawing
 	}
 end
