@@ -458,7 +458,7 @@ drawObj = function(cnvobj,shape,coords)
 		return nil,"Shape not available"
 	end
 	-- pts is the number of pts of the shape
-	local pts = M[shape]
+	local pts = M[shape].pts
 	-- Check whether this is an interactive move or not
 	local interactive
 	if type(coords) ~= "table" then
@@ -470,27 +470,24 @@ drawObj = function(cnvobj,shape,coords)
 	
 	if not interactive then
 		-- Validate the coords table
+		local x,y = {},{}
 		for i = 1,pts do
 			if not coords[i].x or type(coords[i].x) ~= "number" or not coords[i].y or type(coords[i].y) ~= "number" then
 				return nil, "Coordinates not given"
 			end
+			-- Take care of coordinate snapping
+			x[i],y[i] = cnvobj:snap(coords[i].x,coords[i].y)
 		end
-		-- Take care of coordinate snapping
-		local x1,y1 = cnvobj:snap(coords[1].x,coords[1].y)
-		local x2,y2
-		if pts == 2 then
-			x2,y2 = cnvobj:snap(coords[2].x,coords[2].y)
-			if x1 == x2 and y1 == y2 then
-				-- Zero dimension object not allowed
-				return nil,"Zero dimension object not allowed"
-			end
+		local stat,msg = M[shape].validateCoords(x,y)
+		if not stat then
+			return nil,msg
 		end
 		-- Draw the object by adding it to the data structures
 		local t = {}
 		t.id = "O"..tostring(objs.ids + 1)
 		t.shape = shape
-		t.x = {x1,x2}
-		t.y = {y1,y2}
+		t.x = x
+		t.y = y
 		t.group = nil
 		t.order = #cnvobj.drawn.order + 1
 		t.port = {}
@@ -513,14 +510,17 @@ drawObj = function(cnvobj,shape,coords)
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
+	local opptr
 	-- Function to end the interactive drawing mode
 	local function drawEnd()
 		--print("drawEnd called")
 		-- End the drawing
 		-- Check if this is a zero dimension object then do not add anything
 		local t = objs[cnvobj.op[#cnvobj.op].index]
-		if t.x[1] == t.x[2] and t.y[1] == t.y[2] then
-			-- Zero dimension object not allowed
+		-- Check if coordinates are valid
+		local stat,msg = M[shape].validateCoords(t.x,t.y)
+		if not stat then
+			-- Coordinates not valid
 			-- Remove object from the object and the order arrays
 			table.remove(cnvobj.drawn.order,t.order)
 			fixOrder(cnvobj)
@@ -531,7 +531,7 @@ drawObj = function(cnvobj,shape,coords)
 				rm:addBlockingRectangle(t,t.x[1],t.y[1],t.x[2],t.y[2])
 			end		
 		end
-		cnvobj.op[#cnvobj.op] = nil
+		cnvobj.op[opptr] = nil
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB		
 	end
@@ -552,22 +552,28 @@ drawObj = function(cnvobj,shape,coords)
 		x,y = cnvobj:snap(x,y)
 		
 		if button == iup.BUTTON1 and pressed == 1 then
-			if cnvobj.op[#cnvobj.op].mode == "DRAWOBJ" then
-				drawEnd()
+			if opptr and cnvobj.op[opptr].mode == "DRAWOBJ" then
+				local x = objs[cnvobj.op[opptr].index].x
+				if #x == pts then
+					drawEnd()
+				else
+					cnvobj.op[opptr].cindex = #x + 1
+				end
 			else
 				-- Start the drawing
 				local op = {}
 				cnvobj.op[#cnvobj.op + 1] = op
+				opptr = #cnvobj.op
 				op.mode = "DRAWOBJ"	-- Set the mode to drawing object
 				op.obj = shape
 				op.finish = drawEnd
 				op.order = #cnvobj.drawn.order + 1
 				op.index = #objs + 1
+				op.cindex = 2
 				local t = {}
 				t.id = "O"..tostring(objs.ids + 1)
 				t.shape = shape
-				t.x = {x,x}
-				t.y = {y,y}
+				t.x,t.y = M[shape].initObj(x,y)
 				t.group = nil
 				t.order = #cnvobj.drawn.order + 1
 				t.port = {}
@@ -579,10 +585,6 @@ drawObj = function(cnvobj,shape,coords)
 					item = t
 				}
 				if pts == 1 then
-					-- This is the end of the drawing
-					t.x[2] = nil
-					t.y[2] = nil
-					
 					drawEnd()
 				end				
 			end
@@ -592,11 +594,12 @@ drawObj = function(cnvobj,shape,coords)
 	end
 	
 	function cnvobj.cnv:motion_cb(x, y, status)
-		if cnvobj.op[#cnvobj.op].mode == "DRAWOBJ" then
+		if opptr and cnvobj.op[opptr].mode == "DRAWOBJ" then
 			--y = cnvobj.height - y
 			x,y = cnvobj:snap(x,y)
-			objs[#objs].x[2] = x
-			objs[#objs].y[2] = y
+			local cindex = cnvobj.op[opptr].cindex
+			objs[#objs].x[cindex] = x
+			objs[#objs].y[cindex] = y
 			cnvobj:refresh()
 		end
 	end    

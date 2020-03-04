@@ -56,6 +56,27 @@ function checkXY(obj, x, y, res)
 	end
 end				
 
+-- Function to validate the coordinate arrays for the object
+local function validateCoords(x,y)
+	if #x ~= #y then
+		return nil,"Arrays not equal in length"
+	end
+	if #x > 2 then
+		return nil,"Only 2 coordinates needed"
+	end
+	if #x == 2 then
+		if x[1] == x[2] and y[1] == y[2] then
+			return nil,"0 size object not allowed."
+		end
+	end
+	return true
+end
+
+-- Function to return x,y arrays initialized from the starting coordinate to put in the object structure
+local function initObj(x,y)
+	return {x,x},{y,y}
+end
+
 function init(cnvobj)
 	GUIFW.RECT = {
 		draw = drawhollow,
@@ -74,14 +95,20 @@ function init(cnvobj)
 	}
 	OBJ.RECT = {
 		checkXY = checkXY,
+		validateCoords = validateCoords,	-- Used in non interactive and final interative step
+		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.BLOCKINGRECT = {
 		checkXY = checkXY,
+		validateCoords = validateCoords,	-- Used in non interactive and final interative step
+		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.FILLEDRECT = {
 		checkXY = checkXY,
+		validateCoords = validateCoords,	-- Used in non interactive and final interative step
+		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 end

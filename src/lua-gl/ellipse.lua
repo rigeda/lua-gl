@@ -28,7 +28,7 @@ local function drawhollow(cnvobj,cnv,shape,x,y)
 end
 
 -- Function to check whether ellipse object is selectable by x,y within the given resolution res
-function checkXY(obj, x, y, res)
+local function checkXY(obj, x, y, res)
 	if obj.shape ~= "ELLIPSE" and obj.shape ~= "FILLEDELLIPSE" then
 		return nil
 	end
@@ -49,6 +49,27 @@ function checkXY(obj, x, y, res)
 	return false
 end
 
+-- Function to validate the coordinate arrays for the object
+local function validateCoords(x,y)
+	if #x ~= #y then
+		return nil,"Arrays not equal in length"
+	end
+	if #x > 2 then
+		return nil,"Only 2 coordinates needed"
+	end
+	if #x == 2 then
+		if x[1] == x[2] and y[1] == y[2] then
+			return nil,"0 size object not allowed."
+		end
+	end
+	return true
+end
+
+-- Function to return x,y arrays initialized from the starting coordinate to put in the object structure
+local function initObj(x,y)
+	return {x,x},{y,y}
+end
+
 function init(cnvobj)
 	-- Register drawing functions
 	GUIFW.ELLIPSE = {
@@ -64,10 +85,14 @@ function init(cnvobj)
 	-- Register checkXY function
 	OBJ.ELLIPSE = {
 		checkXY = checkXY,
+		validateCoords = validateCoords,	-- Used in non interactive and final interative step
+		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.FILLEDELLIPSE = {
 		checkXY = checkXY,
+		validateCoords = validateCoords,	-- Used in non interactive and final interative step
+		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 end
