@@ -77,6 +77,13 @@ local function initObj(x,y)
 	return {x,x},{y,y}
 end
 
+-- Given the x and y coordinate arrays this function returns true if interactive drawing can end
+local function endDraw(x,y)
+	if #x == 2 then
+		return true
+	end
+end
+
 function init(cnvobj)
 	GUIFW.RECT = {
 		draw = drawhollow,
@@ -97,18 +104,21 @@ function init(cnvobj)
 		checkXY = checkXY,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
+		endDraw = endDraw,
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.BLOCKINGRECT = {
 		checkXY = checkXY,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
+		endDraw = endDraw,
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 	OBJ.FILLEDRECT = {
 		checkXY = checkXY,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
+		endDraw = endDraw,
 		pts = 2			-- No of coordinates to define the shape drawing
 	}
 end

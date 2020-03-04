@@ -185,8 +185,9 @@ objFuncs = {
 		for i = 1,#objList do
 			-- Rotate the object
 			local objx,objy = objList[i].x,objList[i].y
-			objx[1],objy[1] = rot[para](objx[1],objy[1])
-			objx[2],objy[2] = rot[para](objx[2],objy[2])
+			for j = 1,#objx do
+				objx[j],objy[j] = rot[para](objx[j],objy[j])
+			end
 			-- Rotate the port coordinates as well
 			local prts = objList[i].port
 			for j = 1,#prts do
@@ -742,8 +743,9 @@ objFuncs = {
 			end
 		end
 		for i = 1,#objS do
-			storeMaxMin(objS[i].x[1],objS[i].y[1])
-			storeMaxMin(objS[i].x[2],objS[i].y[2])
+			for j = 1,#objS[i].x do
+				storeMaxMin(objS[i].x[j],objS[i].y[j])
+			end
 		end
 		for i = 1,#connS do
 			for j = 1,#connS[i].segments do
@@ -1026,7 +1028,7 @@ objFuncs = {
 		}
 		]]
 		cnvobj.attributes = {
-			visualAttr = setmetatable({},{__mode="k"}),	-- attr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {<integer>,<function>}. The integer points to a visualAttrBank index. This allows registering of new visual attributes in the visualAttrBank table defined below and helps optimize the render function by not executing same attributes
+			visualAttr = setmetatable({},{__mode="k"}),	-- visualAttr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {vAttr=<integer>,visualAttr=<function>}. The integer points to a visualAttrBank index. This allows registering of new visual attributes in the visualAttrBank table defined below and helps optimize the render function by not executing same attributes
 			visualAttrBank = {
 				GUIFW.getNonFilledObjAttrFunc(vProp[1]),	-- For Non Filled object
 				GUIFW.getNonFilledObjAttrFunc(vProp[2]),	-- For blocking rectangle

@@ -95,10 +95,10 @@ end
 shiftObjList = function(grp,offx,offy,rm)
 	for i = 1,#grp do
 		local objx,objy = grp[i].x,grp[i].y
-		objx[1] = objx[1] + offx
-		objy[1] = objy[1] + offy
-		objx[2] = objx[2] and (objx[2] + offx)
-		objy[2] = objy[2] and (objy[2] + offy)
+		for j = 1,#objx do
+			objx[j] = objx[j] + offx
+			objy[j] = objy[j] + offy
+		end
 		-- If blocking rectangle then remove from routing matrix and add the new postion
 		if grp[i].shape == "BLOCKINGRECT" then
 			rm:removeBlockingRectangle(grp[i])
@@ -553,8 +553,8 @@ drawObj = function(cnvobj,shape,coords)
 		
 		if button == iup.BUTTON1 and pressed == 1 then
 			if opptr and cnvobj.op[opptr].mode == "DRAWOBJ" then
-				local x = objs[cnvobj.op[opptr].index].x
-				if #x == pts then
+				local x,y = objs[cnvobj.op[opptr].index].x,objs[cnvobj.op[opptr].index].y
+				if M[shape].endDraw(x,y) then
 					drawEnd()
 				else
 					cnvobj.op[opptr].cindex = #x + 1
