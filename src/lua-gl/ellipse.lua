@@ -52,7 +52,7 @@ local function drawfilledarc(cnvobj,cnv,shape,x,y)
 	return true
 end
 
-local function checkXY(obj,x,y,res)
+local function checkXY(cnvobj,obj,x,y,res)
 	local x1,y1,x2,y2 = obj.x[1],obj.y[1],obj.x[2],obj.y[2]
 	-- Find the semi major axis and semi minor axis
 	local A = floor(abs(x2-x1)/2)
@@ -76,15 +76,15 @@ local function checkXY(obj,x,y,res)
 end
 
 -- Function to check whether ellipse object is selectable by x,y within the given resolution res
-local function checkXYEllipse(obj, x, y, res)
+local function checkXYEllipse(cnvobj,obj, x, y, res)
 	if obj.shape ~= "ELLIPSE" and obj.shape ~= "FILLEDELLIPSE" then
 		return nil
 	end
 	
-	return checkXY(obj,x,y,res)
+	return checkXY(cnvobj,obj,x,y,res)
 end
 
-local function checkXYArc(obj,x,y,res)
+local function checkXYArc(cnvobj,obj,x,y,res)
 	if obj.shape ~= "ARC" and obj.shape ~= "FILLEDARC" then
 		return nil
 	end
@@ -92,7 +92,7 @@ local function checkXYArc(obj,x,y,res)
 	if #ox < 4 then
 		return false
 	end
-	local stat,msg = checkXY(obj,x,y,res)
+	local stat,msg = checkXY(cnvobj,obj,x,y,res)
 	if not stat then
 		return false
 	end

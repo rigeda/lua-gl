@@ -38,6 +38,7 @@ end
 	shape = <string>,		-- string indicating the type of object. Each object type has its own handler module
 	x = <array>,			-- Array of integer x coordinates
 	y = <array>,			-- Array of integer y coordinates
+	data = <table>			-- (OPTIONAL) Any table that has number, string, table and keys and number, string, boolean and table as values. The tables can be recursive. The structure of this table will be specific to its respective object handler
 	group = <array or nil>,	-- Pointer to the array of object structures present in the group. nil if this object not in any group
 	port = <array>,			-- Array of port structures associated with the object
 	order = <integer>		-- Index in the order array
@@ -75,7 +76,7 @@ getObjFromXY = function(cnvobj,x,y)
 	local res = floor(min(cnvobj.grid.grid_x,cnvobj.grid.grid_y)/2)
 	local allObjs = {}
 	for i = 1,#objs do
-		if M[objs[i].shape] and M[objs[i].shape].checkXY(objs[i],x,y,res) then
+		if M[objs[i].shape] and M[objs[i].shape].checkXY(cnvobj,objs[i],x,y,res) then
 			allObjs[#allObjs + 1] = objs[i]
 		end
 	end
@@ -450,12 +451,19 @@ end
 -- shape is the shape that is being drawn
 -- coords is the table containing the coordinates of the shape the number of coordinates have to be pts
 -- if coords is not a table then this will be an interactive drawing
-drawObj = function(cnvobj,shape,coords)
+-- data is an optional parameter which is set to obj.data. This is object handler specific and should be provided as such. The object handler will validate it.
+drawObj = function(cnvobj,shape,coords,data)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
 	if not M[shape] then
 		return nil,"Shape not available"
+	end
+	if M[shape].validateData then
+		local stat,msg = M[shape].validateData(data)
+		if not stat then
+			return nil,msg
+		end
 	end
 	-- pts is the number of pts of the shape
 	local pts = M[shape].pts
@@ -488,6 +496,7 @@ drawObj = function(cnvobj,shape,coords)
 		t.shape = shape
 		t.x = x
 		t.y = y
+		t.data = data
 		t.group = nil
 		t.order = #cnvobj.drawn.order + 1
 		t.port = {}
@@ -575,6 +584,7 @@ drawObj = function(cnvobj,shape,coords)
 				t.shape = shape
 				t.x,t.y = M[shape].initObj(x,y)
 				t.group = nil
+				t.data = data
 				t.order = #cnvobj.drawn.order + 1
 				t.port = {}
 				objs[#objs + 1] = t

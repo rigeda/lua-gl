@@ -23,7 +23,7 @@ local function drawConn(cnvobj,cnv,shape,x1,y1,x2,y2)
 end
 
 -- Function to check whether line object is selectable by x,y within the given resolution res
-function checkXY(obj, x, y,res)
+local function checkXY(cnvobj,obj, x, y,res)
 	if obj.shape ~= "LINE" then
 		return nil
 	end

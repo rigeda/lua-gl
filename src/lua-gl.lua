@@ -27,6 +27,7 @@ local iup = iup
 local RECT = require("lua-gl.rectangle")
 local ELLIPSE = require("lua-gl.ellipse")
 local LINE = require("lua-gl.line")
+local TEXT = require("lua-gl.text")
 
 
 local crouter 
@@ -45,7 +46,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.02.06"
+_VERSION = "B20.03.04"
 
 --- TASKS
 --[[
@@ -54,8 +55,8 @@ DEBUG:
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
 * Add arc functionality - similar to ltspice
-* Add object resize functionality
 * Add Text functionality
+* Add object resize functionality
 * Canvas scroll, zoom, pan and coordinate translation
 * Add export/print
 * Have to make undo/redo lists 
@@ -959,7 +960,8 @@ objFuncs = {
 					- Blocking rectangle	(2)
 					- Filled object			(3)
 					- Normal Connector		(4)
-					- Jumping Connector		(5)		
+					- Jumping Connector		(5)	
+					- Text					(6)
 			--Junction drawing should be the same foreground color as connector. Junction shape and dx,dy should be set in view options. Set dx or dy to 0 to not draw anything on the junction. JUnction shape can be rectangle or ellipse. the coordinates for the shape from center will be x-dx,y-dx to x+dx,y+dx
 			junction = {
 				dx = <integer>,
@@ -1009,7 +1011,14 @@ objFuncs = {
 				width = 1,
 				join = GUIFW.MITER,
 				cap = GUIFW.CAPFLAT
-			},			
+			},	
+			{	-- For text
+				typeface = "System",
+				style = GUIFW.PLAIN,
+				size = 12,
+				align = GUIFW.BASE_LEFT,
+				orient = 0
+			}
 		}
 		cnvobj.viewOptions.visualProp = vProp
 		-- Setup the functions in the attributes below
@@ -1034,6 +1043,7 @@ objFuncs = {
 				GUIFW.getFilledObjAttrFunc(vProp[3]),		-- For filled object
 				GUIFW.getNonFilledObjAttrFunc(vProp[4]),	-- For Normal connector
 				GUIFW.getNonFilledObjAttrFunc(vProp[5]),	-- For jumping connector
+				GUIFW.getTextAttrFunc(vProp[6]),			-- For Text 
 			}
 		}
 		
@@ -1277,6 +1287,7 @@ new = function(para)
 	RECT.init(cnvobj)
 	LINE.init(cnvobj)
 	ELLIPSE.init(cnvobj)
+	TEXT.init(cnvobj)
 	
 	return cnvobj
 end

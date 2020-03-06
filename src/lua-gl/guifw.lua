@@ -54,6 +54,25 @@ M.FDIAGONAL = cd.FDIAGNOL
 M.BDIAGONAL = cd.BDIAGNOL
 M.CROSS = cd.CROSS
 M.DIAGCROSS = cd.DIAGCROSS
+-- Font styles
+M.PLAIN = cd.PLAIN
+M.BOLD = cd.BOLD
+M.ITALIC = cd.ITALIC
+M.UNDERLINE = cd.UNDERLINE
+M.STRIKEOUT = cd.STRIKEOUT
+-- Font Alignment
+M.NORTH = cd.NORTH
+M.SOUTH = cd.SOUTH
+M.EAST = cd.EAST
+M.WEST = cd.WEST
+M.NORTH_EAST = cd.NORTH_EAST
+M.NORTH_WEST = cd.NORTH_WEST
+M.SOUTH_EAST = cd.SOUTH_EAST
+M.SOUTH_WEST = cd.SOUTH_WEST
+M.CENTER = cd.CENTER
+M.BASE_LEFT = cd.BASE_LEFT
+M.BASE_CENTER = cd.BASE_CENTER
+M.BASE_RIGHT = cd.BASE_RIGHT
 
 function mapCB(cnvobj)
 	--local cd_Canvas = cd.CreateCanvas(cd.IUP, cnvobj.cnv)
@@ -84,17 +103,43 @@ end
 
 -- Set of functions to setup attributes of something that is being drawn. Each function returns a closure (function with associated up values). The rendering loop just calls the function before drawing it
 --[[
-There are 5 types of items for which attributes need to be set:
+There are 6 types of items for which attributes need to be set:
 		- Non filled object		(1)
-		- Blocking rectangle	(2)	-- attribute set using setNonFilledObjectAttr function
+		- Blocking rectangle	(2)	-- attribute set using getNonFilledObjAttrFunc function
 		- Filled object			(3)
-		- Normal Connector		(4)	-- attribute set using setNonFilledObjectAttr function
-		- Jumping Connector		(5)	-- attribute set using setNonFilledObjectAttr function
+		- Normal Connector		(4)	-- attribute set using getNonFilledObjAttrFunc function
+		- Jumping Connector		(5)	-- attribute set using getNonFilledObjAttrFunc function
+		- Text					(6)	-- attribute set using getTextAttrFunc function
 	So there are 2 functions below:
 ]]
 
+-- Function to return closure for setting the attributes for text
+--[[ Attributes to set are (given a table (attr) with all these keys and attributes)
+* Typeface (typeface) - String containing the name of the font. If cross platform consistency is desired use "Courier", "Times" or "Helvetica".
+* Style (style) - should be a combination of M.BOLD, M.ITALIC, M.PLAIN, M.UNDERLINE, M.STRIKEOUT
+* Size (size) - should be a number
+* Alignment (align) - should be one of M.NORTH, M.SOUTH, M.EAST, M.WEST, M.NORTH_EAST, M.NORTH_WEST, M.SOUTH_EAST, M.SOUTH_WEST, M.CENTER, M.BASE_LEFT, M.BASE_CENTER, or M.BASE_RIGHT
+* Orientation (orient) - angle in degrees
+]]
+function getTextAttrFunc(attr)
+	local typeface = attr.typeface
+	local style = attr.style
+	local size = attr.size
+	local align = attr.align
+	local orient = attr.orient
+	
+	return function(canvas)
+		-- Set the font typeface, style and size
+		canvas:Font(typeface,style,size)
+		-- Set the text alignment
+		canvas:TextAlignment(align)
+		-- Set the text orientation
+		canvas:TextOrientation(orient)
+	end	
+end
+
 -- Function to return closure for setting attributes for non filled objects
---[[ Attributes to set are: (given a table (attr) with all these keys and attributes
+--[[ Attributes to set are: (given a table (attr) with all these keys and attributes)
 * Draw color(color)	- Table with RGB e.g. {127,230,111}
 * Line Style(style)	- number or a table. Number should be one of M.CONTINUOUS, M.DASHED, M.DOTTED, M.DASH_DOT, M.DASH_DOT_DOT. FOr table it should be array of integers specifying line length in pixels and then space length in pixels. Pattern repeats
 * Line width(width) - number for width in pixels
@@ -312,7 +357,7 @@ function  render(cnvobj)
 				y2[j] = cnvobj.height - y1[j]
 			end
 			
-			M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,x1,y2)
+			M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,x1,y2,item)
 		else
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))

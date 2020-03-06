@@ -32,7 +32,7 @@ local function drawblockingrectangle(cnvobj,cnv,shape,x,y)
 end
 
 -- Function to check whether rectangle object is selectable by x,y within the given resolution res
-function checkXY(obj, x, y, res)
+local function checkXY(cnvobj,obj, x, y, res)
 	if obj.shape ~= "RECT" and obj.shape ~= "BLOCKINGRECT" and obj.shape ~= "FILLEDRECT" then
 		return nil
 	end

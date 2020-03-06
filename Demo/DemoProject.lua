@@ -166,6 +166,11 @@ function GUI.toolbar.buttons.fElliButton:action()
 	cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
 end
 
+-- Draw text object
+function GUI.toolbar.buttons.textButton:action()
+	cnvobj:drawObj("TEXT",nil,{text="This is Milind"})
+end
+
 -- If mode == 1 then add only objects
 -- if mode == 2 then add only connectors/segments
 -- If no mode then add both
