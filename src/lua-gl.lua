@@ -46,7 +46,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.03.04"
+_VERSION = "B20.03.06"
 
 --- TASKS
 --[[
@@ -54,7 +54,6 @@ DEBUG:
 
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
-* Add Text functionality
 * Add object resize functionality
 * Canvas scroll, zoom, pan and coordinate translation
 * Add export/print
@@ -1024,6 +1023,7 @@ objFuncs = {
 			}
 		}
 		cnvobj.viewOptions.visualProp = vProp
+		cnvobj.viewOptions.constants = nil		-- Filled by GUIFW init function to contain all constants that can be used to generate the attribute setting functions
 		-- Setup the functions in the attributes below
 		--[[
 		attributes = {
@@ -1164,6 +1164,10 @@ objFuncs = {
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
 	populateGroupMembers = objects.populateGroupMembers,
+	-----GRAPHICS-----------
+	getTextAttrFunc = GUIFW.getTextAttrFunc,
+	getNonFilledObjAttrFunc = GUIFW.getNonFilledObjAttrFunc,
+	getFilledObjAttrFunc = GUIFW.getFilledObjAttrFunc,
 	-----UTILITY------------
 	snap = function(cnvobj,x,y)
 		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
@@ -1291,6 +1295,7 @@ new = function(para)
 	LINE.init(cnvobj)
 	ELLIPSE.init(cnvobj)
 	TEXT.init(cnvobj)
+	GUIFW.init(cnvobj)
 	
 	return cnvobj
 end

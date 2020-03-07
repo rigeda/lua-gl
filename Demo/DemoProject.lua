@@ -178,7 +178,59 @@ end
 
 -- Draw text object
 function GUI.toolbar.buttons.textButton:action()
-	cnvobj:drawObj("TEXT",nil,{text="This is Milind"})
+	local c = cnvobj.viewOptions.constants
+	local align = {
+		north = c.NORTH,
+		south = c.SOUTH, 
+		east = c.EAST,
+		west = c.WEST,
+		["north east"] = c.NORTH_EAST, 
+		["north west"] = c.NORTH_WEST, 
+		["south east"] = c.SOUTH_EAST, 
+		["south west"] = c.SOUTH_WEST, 
+		["center"] = c.CENTER, 
+		["base left"] = c.BASE_LEFT, 
+		["base center"] = c.BASE_CENTER, 
+		["base right"] = c.BASE_RIGHT
+	}
+	local alignList = {}
+	local asi
+	for k,v in pairs(align) do
+		alignList[#alignList + 1] = k
+		if k == "base right" then
+			asi = #alignList - 1
+		end
+	end
+	local ret, text, font, color,as,ori = iup.GetParam("Enter Text information",nil,
+		"Text: %m\n"..
+		"Font: %n\n"..
+		"Color: %c{Color Tip}\n"..
+		"Alignment: %l|"..table.concat(alignList,"|").."|\n"..
+		"Orientation: %a[0,360]\n","","Courier, 12","0 0 0",asi,0)
+	if ret then
+		-- Create a representation of the text at the location of the mouse pointer and then start its move
+		-- Set refX,refY as the mouse coordinate on the canvas
+		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+		local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+		local o = cnvobj:drawObj("TEXT",{{x=refX,y=refY}},{text=text})
+		-- If the formatting is not the same as the default then add a formatting attribute for the text
+		if color ~= "0 0 0" or font ~= "Courier, 12" or as ~= "base right" or ori ~= 0 then
+			local typeface,style,size = font:match("(.-),([%a%s]*)%s*([+-]?%d+)$")
+			size = tonumber(size)
+			style = "" and c.PLAIN or style
+			local clr = {}
+			clr[1],clr[2],clr[3] = color:match("(%d%d*)%s%s*(%d%d*)%s%s*(%d%d*)")
+			clr[1] = tonumber(clr[1])
+			clr[2] = tonumber(clr[2])
+			clr[3] = tonumber(clr[3])
+			cnvobj.attributes.visualAttr[o] = {
+				visualAttr = cnvobj.getTextAttrFunc({color = clr,typeface = typeface, style = style,size=size,align=align[alignList[as+1]],orient = ori}),
+				vAttr = 100	-- Unique attribute not stored in the bank
+			}
+		end
+		cnvobj:moveObj({o})
+	end
 end
 
 -- If mode == 1 then add only objects
@@ -424,7 +476,7 @@ function GUI.toolbar.buttons.portButton:action()
 			print("Create the port at ",x,y)
 			cnvobj:addPort(x,y,allObjs[1].id)
 			MODE = nil
-		elseif cnvobj.op.mode ~= "MOVEOBJ" then
+		elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
 			print("Continuing Move",#allObjs)
 			-- Continue the move only if it is out of the move mode
 			cnvobj:moveObj({o})

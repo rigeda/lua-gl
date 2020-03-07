@@ -10,6 +10,7 @@ local iup = iup
 local cd = cd
 local math = math
 local type = type
+local pairs = pairs
 
 local print = print
 
@@ -405,4 +406,14 @@ end
 
 function update(cnvobj)
 	render(cnvobj)
+end
+
+function init(cnvobj)
+	local t = {}
+	for k,v in pairs(M) do
+		if type(v) ~= "function" then
+			t[k] = v
+		end
+	end
+	cnvobj.viewOptions.constants = t
 end
