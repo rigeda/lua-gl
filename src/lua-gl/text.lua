@@ -30,7 +30,7 @@ local function checkXY(cnvobj,obj, x, y,res)
 	shape.visualAttr(cd_bcanvas)
 	local rect = cd_bcanvas:GetTextBounds(obj.x[1],cd_bcanvas:UpdateYAxis(obj.y[1]),obj.data.text)
 	
-	return coorc.pointInRect(rect[1],rect[2],rect[3],rect[4],rect[5],rect[6],rect[7],rect[8],x,cd_bcanvas:UpdateYAxis(obj.y[1]))                
+	return coorc.pointInRect(rect[1],rect[2],rect[3],rect[4],rect[5],rect[6],rect[7],rect[8],x,cd_bcanvas:UpdateYAxis(y))                
 end
 
 -- Function to validate the coordinate arrays for the object
