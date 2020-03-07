@@ -55,7 +55,9 @@ GUI.toolbar.buttons = {
 	},
 	newButton = iup.button{image="IUP_FileNew",tip="New Drawing"},
 	checkButton = iup.button{image="IUP_ActionOk",tip="Run Custom function"},
-	textButton = iup.button{image = GUI.images.T,tip="Add Text"}
+	textButton = iup.button{image = GUI.images.T,tip="Add Text"},
+	arcButton = iup.button{image = GUI.images.arc,tip="Draw Arc"},
+	filledarcButton = iup.button{image=GUI.images.filledarc,tip = "Draw sector"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -81,6 +83,8 @@ GUI.toolbar.right = iup.vbox{
 	GUI.toolbar.buttons.bRectButton,
 	GUI.toolbar.buttons.elliButton,
 	GUI.toolbar.buttons.fElliButton,
+	GUI.toolbar.buttons.arcButton,
+	GUI.toolbar.buttons.filledarcButton,
 	GUI.toolbar.buttons.textButton,
 	GUI.toolbar.buttons.portButton,
 	GUI.toolbar.buttons.connButton,

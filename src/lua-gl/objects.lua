@@ -388,6 +388,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 	-- Update the order number for all items 
 	fixOrder(cnvobj)
 	
+	local opptr = #cnvobj.op + 1
+	
 	local function moveEnd()
 		-- Disconnect connectors connected to the ports and reconnect any connectors touching the current port positions
 		-- Reset the orders back
@@ -408,11 +410,11 @@ moveObj = function(cnvobj,objList,offx,offy)
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 		PORTS.connectOverlapPorts(cnvobj,allPorts)	
-		cnvobj.op[#cnvobj.op] = nil
+		cnvobj.op[opptr] = nil
 	end
 	
 	local op = {}
-	cnvobj.op[#cnvobj.op + 1] = op
+	cnvobj.op[opptr] = op
 	op.mode = "MOVEOBJ"	-- Set the mode to drawing object
 	op.finish = moveEnd
 	op.coor1 = {x=grp[1].x[1],y=grp[1].y[1]}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
@@ -525,7 +527,7 @@ drawObj = function(cnvobj,shape,coords,data)
 		--print("drawEnd called")
 		-- End the drawing
 		-- Check if this is a zero dimension object then do not add anything
-		local t = objs[cnvobj.op[#cnvobj.op].index]
+		local t = objs[cnvobj.op[opptr].index]
 		-- Check if coordinates are valid
 		local stat,msg = M[shape].validateCoords(t.x,t.y)
 		if not stat then
@@ -533,7 +535,7 @@ drawObj = function(cnvobj,shape,coords,data)
 			-- Remove object from the object and the order arrays
 			table.remove(cnvobj.drawn.order,t.order)
 			fixOrder(cnvobj)
-			table.remove(objs,cnvobj.op[#cnvobj.op].index)
+			table.remove(objs,cnvobj.op[opptr].index)
 		else
 			-- If blocking rectangle then add to routing matrix
 			if shape == "BLOCKINGRECT" then
@@ -543,6 +545,7 @@ drawObj = function(cnvobj,shape,coords,data)
 		cnvobj.op[opptr] = nil
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB		
+		cnvobj:refresh()
 	end
 	
 	-- Object drawing methodology
@@ -934,6 +937,8 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	end
 	-- Update the order number for all items 
 	fixOrder(cnvobj)
+	
+	local opptr = #cnvobj.op + 1
 		
 	local function dragEnd()
 		-- End the drag at this point
@@ -980,11 +985,11 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		end
 		-- Reset mode
 		cnvobj:refresh()
-		cnvobj.op[#cnvobj.op] = nil
+		cnvobj.op[opptr] = nil
 	end
 	
 	local op = {}
-	cnvobj.op[#cnvobj.op + 1] = op
+	cnvobj.op[opptr] = op
 	op.mode = "DRAGOBJ"
 	op.grp = grp
 	op.oldOrder = oldOrder

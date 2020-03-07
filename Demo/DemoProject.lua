@@ -166,6 +166,16 @@ function GUI.toolbar.buttons.fElliButton:action()
 	cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
 end
 
+-- Draw Arc
+function GUI.toolbar.buttons.arcButton:action()
+	cnvobj:drawObj("ARC")
+end
+
+-- Draw Sector
+function GUI.toolbar.buttons.filledarcButton:action()
+	cnvobj:drawObj("FILLEDARC")
+end
+
 -- Draw text object
 function GUI.toolbar.buttons.textButton:action()
 	cnvobj:drawObj("TEXT",nil,{text="This is Milind"})

@@ -54,7 +54,6 @@ DEBUG:
 
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
-* Add arc functionality - similar to ltspice
 * Add Text functionality
 * Add object resize functionality
 * Canvas scroll, zoom, pan and coordinate translation
@@ -326,6 +325,8 @@ objFuncs = {
 		-- Update the order number for all items 
 		fixOrder(cnvobj)
 		
+		local opptr = #cnvobj.op + 1
+		
 		local function moveEnd()
 			-- Disconnect connectors connected to the ports and reconnect any connectors touching the current port positions
 			-- Reset the orders back
@@ -356,11 +357,11 @@ objFuncs = {
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 			ports.connectOverlapPorts(cnvobj,allPorts)		
 			cnvobj:refresh()
-			cnvobj.op[#cnvobj.op] = nil
+			cnvobj.op[opptr] = nil
 		end
 		
 		local op = {}
-		cnvobj.op[#cnvobj.op + 1] = op
+		cnvobj.op[opptr] = op
 		op.mode = "MOVE"	-- Set the mode to drawing object
 		op.finish = moveEnd
 		op.coor1 = {x=grp[1].x[1],y=grp[1].y[1]}	-- Initial starting coordinate of the 1st object in the objList to serve as reference of the total movement
@@ -602,6 +603,7 @@ objFuncs = {
 		fixOrder(cnvobj)
 		
 		local op = {}
+		local opptr = #cnvobj.op + 1
 		
 		local function dragEnd()
 			-- End the drag at this point
@@ -650,10 +652,10 @@ objFuncs = {
 			ports.connectOverlapPorts(cnvobj,allPorts)
 			-- Reset mode
 			cnvobj:refresh()
-			cnvobj.op[#cnvobj.op] = nil
+			cnvobj.op[opptr] = nil
 		end
 		
-		cnvobj.op[#cnvobj.op + 1] = op
+		cnvobj.op[opptr] = op
 		op.mode = "DRAG"
 		op.coor1 = {x=grp[1].x[1],y=grp[1].y[1]}
 		op.ref = {x=refX,y=refY}
@@ -1013,10 +1015,11 @@ objFuncs = {
 				cap = GUIFW.CAPFLAT
 			},	
 			{	-- For text
-				typeface = "System",
+				color = {0, 0, 0},
+				typeface = "Courier",
 				style = GUIFW.PLAIN,
 				size = 12,
-				align = GUIFW.BASE_LEFT,
+				align = GUIFW.BASE_RIGHT,
 				orient = 0
 			}
 		}

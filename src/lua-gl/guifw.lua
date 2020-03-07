@@ -115,6 +115,7 @@ There are 6 types of items for which attributes need to be set:
 
 -- Function to return closure for setting the attributes for text
 --[[ Attributes to set are (given a table (attr) with all these keys and attributes)
+* Draw color(color)	- Table with RGB e.g. {127,230,111}
 * Typeface (typeface) - String containing the name of the font. If cross platform consistency is desired use "Courier", "Times" or "Helvetica".
 * Style (style) - should be a combination of M.BOLD, M.ITALIC, M.PLAIN, M.UNDERLINE, M.STRIKEOUT
 * Size (size) - should be a number
@@ -127,6 +128,7 @@ function getTextAttrFunc(attr)
 	local size = attr.size
 	local align = attr.align
 	local orient = attr.orient
+	local color = cd.EncodeColor(attr.color[1],attr.color[2],attr.color[3])
 	
 	return function(canvas)
 		-- Set the font typeface, style and size
@@ -135,6 +137,8 @@ function getTextAttrFunc(attr)
 		canvas:TextAlignment(align)
 		-- Set the text orientation
 		canvas:TextOrientation(orient)
+		-- Set the color of the text
+		canvas:SetForeground(color)
 	end	
 end
 

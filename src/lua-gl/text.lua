@@ -28,9 +28,9 @@ local function checkXY(cnvobj,obj, x, y,res)
 	local cd_bcanvas = cnvobj.cdbCanvas
 	local shape = attr.visualAttr[obj] or GUIFW.TEXT	-- validity is not checked for the registered shape structure
 	shape.visualAttr(cd_bcanvas)
-	local rect = cd_bcanvas:GetTextBounds(obj.x[1],obj.y[1],obj.data.text)
+	local rect = cd_bcanvas:GetTextBounds(obj.x[1],cd_bcanvas:UpdateYAxis(obj.y[1]),obj.data.text)
 	
-	return coorc.pointInRect(rect[1],rect[2],rect[3],rect[4],rect[5],rect[6],rect[7],rect[8],x,y)                
+	return coorc.pointInRect(rect[1],rect[2],rect[3],rect[4],rect[5],rect[6],rect[7],rect[8],x,cd_bcanvas:UpdateYAxis(obj.y[1]))                
 end
 
 -- Function to validate the coordinate arrays for the object
