@@ -424,6 +424,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	-- button_CB to handle interactive move ending
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		--print("BUTTON_CB execution",button,iup.BUTTON1,pressed)
@@ -437,6 +438,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		if op.mode == "MOVEOBJ" then
@@ -558,6 +560,7 @@ drawObj = function(cnvobj,shape,coords,data)
 	-- button_CB to handle object drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		local xo,yo = x,y
@@ -609,6 +612,7 @@ drawObj = function(cnvobj,shape,coords,data)
 	function cnvobj.cnv:motion_cb(x, y, status)
 		if opptr and cnvobj.op[opptr].mode == "DRAWOBJ" then
 			--y = cnvobj.height - y
+			x,y = coorc.transform(cnvobj,x,y)
 			x,y = cnvobj:snap(x,y)
 			local cindex = cnvobj.op[opptr].cindex
 			objs[#objs].x[cindex] = x
@@ -1001,6 +1005,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	-- button_CB to handle object dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		--print("DRAG button_Cb")
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
@@ -1015,6 +1020,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	-- motion_cb to handle object dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		x,y = cnvobj:snap(x-refX,y-refY)

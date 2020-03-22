@@ -638,19 +638,25 @@ GUI.mainDlg.resize = "NO"
 GUI.mainDlg.maxbox = "NO"
 
 local timer = iup.timer{
-	time = 50,
-	run = "YES"
+	time = 1000,
+	run = "NO"
 }
 function timer:action_cb()
 	timer.run = "NO"
+	--print("Timer ran")
 	-- Update the screen coordinates
 	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
 	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
 	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
-	GUI.statBarR.title = "X="..refX..", Y="..refY
+	GUI.statBarR.title = "X="..refX..", Y="..cnvobj.cdbCanvas:UpdateYAxis(refY)
 	--print("X="..refX..", Y="..refY)
+	timer.time = 50
 	timer.run = "YES"
 end
+
+--print("Timer is ",timer)
+
+timer.run = "YES"
 
 if iup.MainLoopLevel()==0 then
     iup.MainLoop()

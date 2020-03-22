@@ -372,6 +372,7 @@ objFuncs = {
 		
 		-- button_CB to handle interactive move ending
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+			x,y = coorc.transform(cnvobj,x,y)
 			-- Check if any hooks need to be processed here
 			cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 			if button == iup.BUTTON1 and pressed == 1 then
@@ -385,6 +386,7 @@ objFuncs = {
 		function cnvobj.cnv:motion_cb(x,y,status)
 			-- Move all items in the grp 
 			if op.mode == "MOVE" then
+				x,y = coorc.transform(cnvobj,x,y)
 				x,y = cnvobj:snap(x-refX,y-refY)
 				local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]
 				-- Now move the objects
@@ -671,6 +673,7 @@ objFuncs = {
 		-- button_CB to handle object dragging
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 			--y = cnvobj.height - y
+			x,y = coorc.transform(cnvobj,x,y)
 			-- Check if any hooks need to be processed here
 			--print("DRAG button_Cb")
 			cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
@@ -685,6 +688,7 @@ objFuncs = {
 		-- motion_cb to handle object dragging
 		function cnvobj.cnv:motion_cb(x,y,status)
 			--y = cnvobj.height - y
+			x,y = coorc.transform(cnvobj,x,y)
 			-- Drag the connectors
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 			local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]		-- The offset to be applied now to the items being dragged

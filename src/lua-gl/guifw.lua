@@ -6,6 +6,8 @@ require("iupluaimglib")
 require("cdlua")
 require("iupluacd")
 
+local coorc = require("lua-gl.CoordinateCalc")
+
 local iup = iup 
 local cd = cd
 local math = math
@@ -91,7 +93,12 @@ function unmapCB(cnvobj)
 	--cd_Canvas:Kill()
 end
 
+function updateYAxis(cnvobj,y)
+	return cnvobj.cdbCanvas:UpdateYAxis(y)
+end
+
 function buttonCB(cnvobj,button,pressed,x,y, status)
+	x,y = coorc.transform(cnvobj,x,y)
 	cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 	cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y,status})
 end
@@ -383,12 +390,14 @@ function  render(cnvobj)
 				shape.visualAttr(cd_bcanvas)
 			end
 			x1,y1 = item.x,item.y
+			--[[
 			y2 = {}
 			for j = 1,#y1 do
 				y2[j] = cnvobj.height - y1[j]
 			end
+			]]
 			
-			M[item.shape].draw(cnvobj,cd_bcanvas,x1,y2,item,zoom,xm,ym)
+			M[item.shape].draw(cnvobj,cd_bcanvas,x1,y1,item,zoom,xm,ym)
 		else
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
@@ -406,8 +415,8 @@ function  render(cnvobj)
 					shape.visualAttr(cd_bcanvas)
 				end
 				x1,y1,x2,y2 = s.start_x,s.start_y,s.end_x,s.end_y
-				y1 = cnvobj.height - y1
-				y2 = cnvobj.height - y2
+				--y1 = cnvobj.height - y1
+				--y2 = cnvobj.height - y2
 				M.CONN.draw(cnvobj,cd_bcanvas,x1,y1,x2,y2,zoom,xm,ym)
 			end
 			-- Draw the junctions
@@ -420,8 +429,8 @@ function  render(cnvobj)
 				juncs = item.junction
 				for j = 1,#juncs do
 					x1,y1 = {juncs[j].x-jdx,juncs[j].x+jdx},{juncs[j].y-jdy,juncs[j].y+jdy}
-					y1[1] = cnvobj.height - y1[1]
-					y1[2] = cnvobj.height - y1[2]
+					--y1[1] = cnvobj.height - y1[1]
+					--y1[2] = cnvobj.height - y1[2]
 					M.FILLEDELLIPSE.draw(cnvobj,cd_bcanvas,x1,y1,item,zoom,xm,ym)
 				end
 			end

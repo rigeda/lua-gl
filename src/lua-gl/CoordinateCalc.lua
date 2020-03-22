@@ -1,7 +1,11 @@
+local GUIFW 
+
 local abs = math.abs
+local floor = math.floor
 local max = math.max
 local min = math.min
 local sqrt = math.sqrt
+local require = require
 
 local M = {}
 package.loaded[...] = M
@@ -151,6 +155,19 @@ snapY = function(y, grid_y)
 		end
 	end
 	return y
+end
+
+-- Function to convert the button_cb/motion_cb returned coordinates to database coordinates
+function transform(cnvobj,x,y)
+	GUIFW = GUIFW or require("lua-gl.guifw")
+	y = GUIFW.updateYAxis(cnvobj,y)
+	local vp = cnvobj.viewPort
+	local xm = vp.xmin
+	local ym = vp.ymin
+	local zoom = (vp.xmax-xm+1)/(cnvobj.width)
+	y = floor((y+ym)*zoom)
+	x = floor((x+xm)*zoom)
+	return x,y
 end
 
 

@@ -1545,6 +1545,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
 		if button == iup.BUTTON1 and pressed == 1 then
@@ -1558,6 +1559,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		if op.mode == "MOVECONN" then
+			x,y = coorc.transform(cnvobj,x,y)
 			x,y = cnvobj:snap(x-refX,y-refY)
 			local offx,offy = x+op.coor1.x-connM[1].segments[1].start_x,y+op.coor1.y-connM[1].segments[1].start_y
 			shiftConnList(connM,offx,offy,rm)
@@ -2131,6 +2133,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
 		if button == iup.BUTTON1 and pressed == 1 then
@@ -2143,6 +2146,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		--print("drag segment motion_cb")
 		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 		local offx,offy = x+op.coor1.x-segList[1].seg.start_x,y+op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
@@ -2340,6 +2344,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	-- button_CB to handle connector drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y,status)
 		--y = cnvobj.height - y
+		x,y = coorc.transform(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		local xo,yo = x,y
@@ -2369,6 +2374,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 		--connectors
 		if cnvobj.op[opptr].mode == "DRAWCONN" then
 			--y = cnvobj.height - y
+			x,y = coorc.transform(cnvobj,x,y)
 			local cIndex = op.cIndex
 			local segStart = op.startseg
 			local startX = op.start.x
