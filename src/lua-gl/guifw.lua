@@ -11,6 +11,8 @@ local cd = cd
 local math = math
 local type = type
 local pairs = pairs
+local floor = math.floor
+local abs = math.abs
 
 local print = print
 
@@ -99,7 +101,7 @@ function motionCB(cnvobj,x, y, status)
 end
 
 function newCanvas()
-	return iup.canvas{}
+	return iup.canvas{BORDER="NO"}
 end
 
 -- Set of functions to setup attributes of something that is being drawn. Each function returns a closure (function with associated up values). The rendering loop just calls the function before drawing it
@@ -275,7 +277,7 @@ end
 -- to draw grid
 -- One experiment was to draw the grid using a stipple but was told there is no guaranteed way to align the stipple pattern to
 -- known canvas coordinates so always drawing the grid manually
-local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
+local function drawGrid(cnv,cnvobj,bColore,br,bg,bb,xmin,xmax,ymin,ymax,zoom)
 	--print("DRAWGRID!")
     local w,h = cnvobj.width, cnvobj.height
     local x,y
@@ -291,15 +293,32 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb)
 		cnv:LineWidth(1)
 		cnv:LineJoin(M.MITER)
 		cnv:LineCap(M.CAPFLAT)
-		for y=0, h, grid_y do
-		  cnv:Line(0,y,w,y)
+		local yi,yf = floor(ymin/grid_y)*grid_y,ymax
+		local yprev = floor(yi/zoom)-ymin
+		local yp
+		cnv:Line(0,yprev,w,yprev)
+		for y=yi+grid_y, yf, grid_y do
+			yp = floor(y/zoom)-ymin
+			if abs(yp - yprev) >= 5 then
+				cnv:Line(0,yp,w,yp)
+				yprev = yp
+			end				
 		end
 		-- Now draw the background rectangles
 		cnv:SetForeground(bColore)
 		cnv:BackOpacity(M.OPAQUE)
 		cnv:InteriorStyle(M.SOLID)	
-		for x = 0,w,grid_x do
-			cnv:Box(x+1, x+grid_x-1, 0, h)
+		local xi,xf = floor(xmin/grid_x)*grid_x,xmax
+		local xprev = floor(xi/zoom)-xmin
+		local xp
+		local fac  = (grid_x-1)/zoom - xmin
+		cnv:Box(xprev+1,floor(xi/zoom + fac),0,h)
+		for x = xi+grid_x,xf,grid_x do
+			xp = floor(x/zoom)-xmin
+			if abs(xp-xprev) >=5 then
+				cnv:Box(xp+1, floor(x/zoom+fac), 0, h)
+				xprev = xp
+			end
 		end
 	else
 		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color
@@ -333,8 +352,15 @@ function  render(cnvobj)
 	cd_bcanvas:Background(bColore)
 	cd_bcanvas:Clear()
 
+	local vp = cnvobj.viewPort
+	local xm = vp.xmin
+	local ym = vp.ymin
+	local xmax = vp.xmax
+	local zoom = (xmax-xm+1)/(cnvobj.width)
+	local ymax = floor(zoom*cnvobj.height+ym-1)
+	
 	if cnvobj.viewOptions.gridVisibility then
-		drawGrid(cd_bcanvas,cnvobj,bColore,bColor[1], bColor[2], bColor[3])
+		drawGrid(cd_bcanvas,cnvobj,bColore,bColor[1], bColor[2], bColor[3],xm,xmax,ym,ymax,zoom)
 	end
 	-- Now loop through the order array to draw every element in order
 	local vAttr = 100		-- Special case number which forces the run of the next visual attributes run
@@ -362,7 +388,7 @@ function  render(cnvobj)
 				y2[j] = cnvobj.height - y1[j]
 			end
 			
-			M[item.shape].draw(cnvobj,cd_bcanvas,item.shape,x1,y2,item)
+			M[item.shape].draw(cnvobj,cd_bcanvas,x1,y2,item,zoom,xm,ym)
 		else
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
@@ -382,7 +408,7 @@ function  render(cnvobj)
 				x1,y1,x2,y2 = s.start_x,s.start_y,s.end_x,s.end_y
 				y1 = cnvobj.height - y1
 				y2 = cnvobj.height - y2
-				M.CONN.draw(cnvobj,cd_bcanvas,"CONNECTOR",x1,y1,x2,y2)
+				M.CONN.draw(cnvobj,cd_bcanvas,x1,y1,x2,y2,zoom,xm,ym)
 			end
 			-- Draw the junctions
 			if jdx~=0 and jdy~=0 then
@@ -396,7 +422,7 @@ function  render(cnvobj)
 					x1,y1 = {juncs[j].x-jdx,juncs[j].x+jdx},{juncs[j].y-jdy,juncs[j].y+jdy}
 					y1[1] = cnvobj.height - y1[1]
 					y1[2] = cnvobj.height - y1[2]
-					M.FILLEDELLIPSE.draw(cnvobj,cd_bcanvas,"JUNCTION",x1,y1)
+					M.FILLEDELLIPSE.draw(cnvobj,cd_bcanvas,x1,y1,item,zoom,xm,ym)
 				end
 			end
 		end

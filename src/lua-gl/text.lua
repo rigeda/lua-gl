@@ -4,6 +4,7 @@ local GUIFW = require("lua-gl.guifw")
 local OBJ = require("lua-gl.objects")
 local coorc = require("lua-gl.CoordinateCalc")
 local type = type
+local floor = math.floor
 
 local M = {}
 package.loaded[...] = M
@@ -13,8 +14,12 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-local function draw(cnvobj,cnv,shape,x,y,obj)
-	cnv:Text(x[1],y[1],obj.data.text)
+local function draw(cnvobj,cnv,x,y,obj,zoom,xm,ym)
+	local tf,st,sz = cnv:GetFont()
+	cnv:Font(tf,st,floor(sz/zoom))
+	local x1,y1 = floor(x[1]/zoom-xm),floor(y[1]/zoom-ym)
+	cnv:Text(x1,y1,obj.data.text)
+	cnv:Font(tf,st,sz)
 	return true
 end
 

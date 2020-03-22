@@ -18,34 +18,38 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-local function drawfilled(cnvobj,cnv,shape,x,y)
-	local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
+local function drawfilled(cnvobj,cnv,x,y,obj,zoom,xm,ym)
+	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	--local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
 	cnv:Sector(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
 	return true
 end
 
-local function drawhollow(cnvobj,cnv,shape,x,y)
-	local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
+local function drawhollow(cnvobj,cnv,x,y,obj,zoom,xm,ym)
+	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	--local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
 	cnv:Arc(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), 0, 360)
 	return true
 end
 
-local function drawhollowarc(cnvobj,cnv,shape,x,y)
+local function drawhollowarc(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	if #x < 4 then
-		return drawhollow(cnvobj,cnv,shape,x,y)
+		return drawhollow(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	end
-	local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
+	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	--local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
 	local a1 = atan(y[3]-floor((y2 + y1) / 2),x[3]-floor((x2 + x1) / 2))
 	local a2 = atan(y[4]-floor((y2 + y1) / 2),x[4]-floor((x2 + x1) / 2))
 	cnv:Arc(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), a1*rad2deg, a2*rad2deg)
 	return true
 end
 
-local function drawfilledarc(cnvobj,cnv,shape,x,y)
+local function drawfilledarc(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	if #x < 4 then
-		return drawfilled(cnvobj,cnv,shape,x,y)
+		return drawfilled(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	end
-	local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
+	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	--local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
 	local a1 = atan(y[3]-floor((y2 + y1) / 2),x[3]-floor((x2 + x1) / 2))
 	local a2 = atan(y[4]-floor((y2 + y1) / 2),x[4]-floor((x2 + x1) / 2))
 	cnv:Sector(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), a1*rad2deg, a2*rad2deg)

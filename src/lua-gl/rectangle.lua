@@ -4,29 +4,37 @@ local coorc = require("lua-gl.CoordinateCalc")
 local GUIFW = require("lua-gl.guifw")
 local OBJ = require("lua-gl.objects")
 
+local floor = math.floor
+
 local print = print
 
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
-	setfenv(1,M)	-- Lua 5.1
+	setfenv(1,M)	-- Lua 5.1 
 else
 	_ENV = M		-- Lua 5.2+
 end
 
-local function drawhollow(cnvobj,cnv,shape,x,y)
-    cnv:Rect(x[1], x[2], y[1], y[2])
+local function drawhollow(cnvobj,cnv,x,y,obj,zoom,xm,ym)
+	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	cnv:Rect(x1, x2, y1, y2)
+    --cnv:Rect(x[1], x[2], y[1], y[2])
 	return true
 end
 
-local function drawfilled(cnvobj,cnv,shape,x,y)
-	cnv:Box(x[1], x[2], y[1], y[2])
+local function drawfilled(cnvobj,cnv,x,y,obj,zoom,xm,ym)
+	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	cnv:Box(x1, x2, y1, y2)
+	--cnv:Box(x[1], x[2], y[1], y[2])
 	return true
 end
 
-local function drawblockingrectangle(cnvobj,cnv,shape,x,y)
+local function drawblockingrectangle(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	if(cnvobj.viewOptions.showBlockingRect==true) then
-		cnv:Rect(x[1], x[2], y[1], y[2])
+		local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+		cnv:Rect(x1, x2, y1, y2)
+		--cnv:Rect(x[1], x[2], y[1], y[2])
 	end
 	return true
 end

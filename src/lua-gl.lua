@@ -54,6 +54,8 @@ DEBUG:
 
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
+* Add removeObject functionality
+* Add removeConnector functionality
 * Add object resize functionality
 * Canvas scroll, zoom, pan and coordinate translation
 * Add export/print
@@ -1056,6 +1058,13 @@ objFuncs = {
 		* Segement
 		-- Attribute when set will be in a table called 'vattr' of the object. This table is set by the API in cnvobj (below) and should not be manually set but can be read. Manually setting it will not change the display of the item.
 		]]
+		
+		-- The viewport
+		cnvobj.viewPort = {
+			xmin = 0,
+			ymin = 0,
+			xmax = tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))-1
+		}
 
 		-- Attributes setting API
 		cnvobj.setObjVisualAttr = objects.setObjVisualAttr
@@ -1072,10 +1081,12 @@ objFuncs = {
 					- Filled object			(3)
 					- Normal Connector		(4)
 					- Jumping Connector		(5)
+					- Text					(6)
 					100	is reserved and used by the rendeing function
 		]]
 		cnvobj.setDefVisualAttr = function(itemType,attr)
-			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or itemType > 5 then
+			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or 
+			  itemType > #cnvobj.viewOptions.visualProp then
 				return nil,"Invalid Item type"
 			end
 			local ret,filled = utility.validateVisualAttr(attr)
@@ -1101,7 +1112,8 @@ objFuncs = {
 			return true
 		end
 		cnvobj.getDefVisualAttr = function(itemType)
-			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or itemType > 5 then
+			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or 
+			  itemType > #cnvobj.viewOptions.visualProp then
 				return nil,"Invalid Item type"
 			end
 			return cnvobj.viewOptions.visualProp[itemType]
@@ -1116,7 +1128,9 @@ objFuncs = {
 			GUIFW.unmapCB(cnvobj)
 		end
 		
-		function cnvobj.cnv.resize_cb()
+		function cnvobj.cnv:resize_cb(width,height)
+			cnvobj.width = width
+			cnvobj.height = height
 			GUIFW.render(cnvobj)
 		end
 		

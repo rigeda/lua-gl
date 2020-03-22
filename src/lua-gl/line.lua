@@ -4,6 +4,8 @@ local coorc = require("lua-gl.CoordinateCalc")
 local GUIFW = require("lua-gl.guifw")
 local OBJ = require("lua-gl.objects")
 
+local floor = math.floor
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
@@ -12,12 +14,15 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-local function draw(cnvobj,cnv,shape,x,y)
-	cnv:Line(x[1],y[1],x[2],y[2])
+local function draw(cnvobj,cnv,x,y,obj,zoom,xm,ym)
+	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	cnv:Line(x1,y1,x2,y2)
+	--cnv:Line(x[1],y[1],x[2],y[2])
 	return true
 end
 
-local function drawConn(cnvobj,cnv,shape,x1,y1,x2,y2)
+local function drawConn(cnvobj,cnv,x1,y1,x2,y2,zoom,xm,ym)
+	x1,x2,y1,y2 = floor(x1/zoom-xm),floor(x2/zoom-xm),floor(y1/zoom-ym),floor(y2/zoom-ym)
 	cnv:Line(x1,y1,x2,y2)
 	return true	
 end
