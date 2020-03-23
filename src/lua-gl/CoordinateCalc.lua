@@ -157,17 +157,3 @@ snapY = function(y, grid_y)
 	return y
 end
 
--- Function to convert the button_cb/motion_cb returned coordinates to database coordinates
-function transform(cnvobj,x,y)
-	GUIFW = GUIFW or require("lua-gl.guifw")
-	y = GUIFW.updateYAxis(cnvobj,y)
-	local vp = cnvobj.viewPort
-	local xm = vp.xmin
-	local ym = vp.ymin
-	local zoom = (vp.xmax-xm+1)/(cnvobj.width)
-	y = floor((y+ym)*zoom)
-	x = floor((x+xm)*zoom)
-	return x,y
-end
-
-

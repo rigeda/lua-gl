@@ -21,7 +21,6 @@ local tu = require("tableUtils")
 local router = require("lua-gl.router")
 local coorc = require("lua-gl.CoordinateCalc")
 local utility = require("lua-gl.utility")
-local iup = iup
 
 -- Add the shapes. The shape modules will register themselves to the respective modules when their init functions are called
 local RECT = require("lua-gl.rectangle")
@@ -271,9 +270,7 @@ objFuncs = {
 		end
 		-- Setup the interactive move operation here
 		-- Set refX,refY as the mouse coordinate on the canvas
-		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
-		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
-		local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
+		local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))
 		local oldBCB = cnvobj.cnv.button_cb
 		local oldMCB = cnvobj.cnv.motion_cb
 		
@@ -372,10 +369,10 @@ objFuncs = {
 		
 		-- button_CB to handle interactive move ending
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-			x,y = coorc.transform(cnvobj,x,y)
+			x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 			-- Check if any hooks need to be processed here
 			cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
-			if button == iup.BUTTON1 and pressed == 1 then
+			if button == GUIFW.BUTTON1 and pressed == 1 then
 				-- End the move
 				moveEnd()
 			end
@@ -386,7 +383,7 @@ objFuncs = {
 		function cnvobj.cnv:motion_cb(x,y,status)
 			-- Move all items in the grp 
 			if op.mode == "MOVE" then
-				x,y = coorc.transform(cnvobj,x,y)
+				x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 				x,y = cnvobj:snap(x-refX,y-refY)
 				local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]
 				-- Now move the objects
@@ -558,9 +555,7 @@ objFuncs = {
 		end
 		
 		-- Set refX,refY as the mouse coordinate on the canvas
-		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-		local refX,refY = gx-sx,gy-sy
+		local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))
 		local oldBCB = cnvobj.cnv.button_cb
 		local oldMCB = cnvobj.cnv.motion_cb
 		-- Backup the orders of the elements to move and change their orders to display in the front
@@ -628,9 +623,7 @@ objFuncs = {
 			-- Update the order number for all items 
 			fixOrder(cnvobj)
 			
-			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
-			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
-			local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
+			local x,y = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 			local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]		-- The offset to be applied now to the items being dragged
 
@@ -673,11 +666,11 @@ objFuncs = {
 		-- button_CB to handle object dragging
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 			--y = cnvobj.height - y
-			x,y = coorc.transform(cnvobj,x,y)
+			x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 			-- Check if any hooks need to be processed here
 			--print("DRAG button_Cb")
 			cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
-			if button == iup.BUTTON1 and pressed == 1 then
+			if button == GUIFW.BUTTON1 and pressed == 1 then
 				--print("Drag end")
 				dragEnd()
 			end
@@ -688,7 +681,7 @@ objFuncs = {
 		-- motion_cb to handle object dragging
 		function cnvobj.cnv:motion_cb(x,y,status)
 			--y = cnvobj.height - y
-			x,y = coorc.transform(cnvobj,x,y)
+			x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 			-- Drag the connectors
 			x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 			local offx,offy = x+op.coor1.x-grp[1].x[1],y+op.coor1.y-grp[1].y[1]		-- The offset to be applied now to the items being dragged
@@ -768,10 +761,8 @@ objFuncs = {
 			y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
 			x,y = cnvobj:snap(x,y)
 		else
-			-- Mouse coordinates on the canas
-			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-			x,y = cnvobj:snap(gx-sx,gy-sy)
+			-- Mouse coordinates on the canvas snapped to the grid
+			x,y = cnvobj:snap(cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))) 
 		end
 		-- Now append the data in tab into the cnvobj.drawn structure. The elements of the drawn structure are:
 		-- * obj
@@ -1186,11 +1177,16 @@ objFuncs = {
 	getTextAttrFunc = GUIFW.getTextAttrFunc,
 	getNonFilledObjAttrFunc = GUIFW.getNonFilledObjAttrFunc,
 	getFilledObjAttrFunc = GUIFW.getFilledObjAttrFunc,
+	sCoor2dCoor = GUIFW.sCoor2dCoor,
+	dCoor2sCoor = GUIFW.dCoor2sCoor,
+	setMouseOnCanvas = GUIFW.setMouseOnCanvas,
+	getMouseOnCanvas = GUIFW.getMouseOnCanvas,
+	
 	-----UTILITY------------
 	snap = function(cnvobj,x,y)
 		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		return coorc.snapX(x, grdx),coorc.snapY(y, grdy)	
-	end
+	end,
 }
 
 -- cnvobj options meta table

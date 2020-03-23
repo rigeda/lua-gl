@@ -15,14 +15,14 @@ else
 end
 
 local function draw(cnvobj,cnv,x,y,obj,zoom,xm,ym)
-	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	local x1,x2,y1,y2 = floor((x[1]-xm)/zoom),floor((x[2]-xm)/zoom),floor((y[1]-ym)/zoom),floor((y[2]-ym)/zoom)
 	cnv:Line(x1,y1,x2,y2)
 	--cnv:Line(x[1],y[1],x[2],y[2])
 	return true
 end
 
 local function drawConn(cnvobj,cnv,x1,y1,x2,y2,zoom,xm,ym)
-	x1,x2,y1,y2 = floor(x1/zoom-xm),floor(x2/zoom-xm),floor(y1/zoom-ym),floor(y2/zoom-ym)
+	x1,x2,y1,y2 = floor((x1-xm)/zoom),floor((x2-xm)/zoom),floor((y1-ym)/zoom),floor((y2-ym)/zoom)
 	cnv:Line(x1,y1,x2,y2)
 	return true	
 end

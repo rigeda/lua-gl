@@ -9,7 +9,6 @@ local tonumber = tonumber
 local error = error
 local pairs = pairs
 local tostring = tostring
-local iup = iup
 
 local utility = require("lua-gl.utility")
 local tu = require("tableUtils")
@@ -1483,9 +1482,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	-- Setup the interactive move operation here
 	-- Set refX,refY as the mouse coordinate on the canvas
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
-	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
+	local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))	-- mouse position on canvas coordinates
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
@@ -1545,10 +1542,10 @@ moveConn = function(cnvobj,connM,offx,offy)
 	
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
-		if button == iup.BUTTON1 and pressed == 1 then
+		if button == GUIFW.BUTTON1 and pressed == 1 then
 			-- End the move
 			moveEnd()
 		end
@@ -1559,7 +1556,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		if op.mode == "MOVECONN" then
-			x,y = coorc.transform(cnvobj,x,y)
+			x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 			x,y = cnvobj:snap(x-refX,y-refY)
 			local offx,offy = x+op.coor1.x-connM[1].segments[1].start_x,y+op.coor1.y-connM[1].segments[1].start_y
 			shiftConnList(connM,offx,offy,rm)
@@ -2063,9 +2060,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	
 	-- Setup the interactive drag operation here
 	-- Set refX,refY as the mouse coordinate on the canvas
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
-	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
+	local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))	-- mouse position on canvas coordinates
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	
@@ -2103,9 +2098,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		-- Update the order number for all items 
 		fixOrder(cnvobj)
 		
-		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
-		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
-		local x,y = gx-sx,gy-sy	-- mouse position on canvas coordinates
+		local x,y = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))	-- mouse position on canvas coordinates
 		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 		local offx,offy = x+op.coor1.x-segList[1].seg.start_x,y+op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
 
@@ -2133,10 +2126,10 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	-- button_CB to handle segment dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
-		if button == iup.BUTTON1 and pressed == 1 then
+		if button == GUIFW.BUTTON1 and pressed == 1 then
 			dragEnd()
 		end
 		-- Process any hooks 
@@ -2146,7 +2139,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	-- motion_cb to handle segment dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		--print("drag segment motion_cb")
 		x,y = cnvobj:snap(x-refX,y-refY)	-- Total amount mouse has moved since drag started
 		local offx,offy = x+op.coor1.x-segList[1].seg.start_x,y+op.coor1.y-segList[1].seg.start_y		-- The offset to be applied now to the items being dragged
@@ -2344,12 +2337,12 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	-- button_CB to handle connector drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y,status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		local xo,yo = x,y
 		x,y = cnvobj:snap(x,y)
-		if button == iup.BUTTON1 and pressed == 1 then
+		if button == GUIFW.BUTTON1 and pressed == 1 then
 			if cnvobj.op[opptr].mode ~= "DRAWCONN" then
 				print("Start connector drawing at ",x,y)
 				startConnector(x,y)
@@ -2359,7 +2352,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 				setWaypoint(x,y)
 			end
 		end
-		if button == iup.BUTTON3 and pressed == 1 then
+		if button == GUIFW.BUTTON3 and pressed == 1 then
 			-- Event 3 (right click)
 			endConnector()
 		end
@@ -2374,7 +2367,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 		--connectors
 		if cnvobj.op[opptr].mode == "DRAWCONN" then
 			--y = cnvobj.height - y
-			x,y = coorc.transform(cnvobj,x,y)
+			x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 			local cIndex = op.cIndex
 			local segStart = op.startseg
 			local startX = op.start.x

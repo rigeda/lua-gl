@@ -17,7 +17,7 @@ end
 local function draw(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	local tf,st,sz = cnv:GetFont()
 	cnv:Font(tf,st,floor(sz/zoom))
-	local x1,y1 = floor(x[1]/zoom-xm),floor(y[1]/zoom-ym)
+	local x1,y1 = floor((x[1]-xm)/zoom),floor((y[1]-ym)/zoom)
 	cnv:Text(x1,y1,obj.data.text)
 	cnv:Font(tf,st,sz)
 	return true

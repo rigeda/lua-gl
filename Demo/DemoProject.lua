@@ -5,7 +5,6 @@ tu = require("tableUtils")
 
 require("GUIStructures")
 
-
 iup.ImageLibOpen()
 iup.SetGlobal("IMAGESTOCKSIZE","32")
 
@@ -210,9 +209,7 @@ function GUI.toolbar.buttons.textButton:action()
 	if ret then
 		-- Create a representation of the text at the location of the mouse pointer and then start its move
 		-- Set refX,refY as the mouse coordinate on the canvas
-		local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-		local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-		local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+		local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 		local o = cnvobj:drawObj("TEXT",{{x=refX,y=refY}},{text=text})
 		-- If the formatting is not the same as the default then add a formatting attribute for the text
 		if color ~= "0 0 0" or font ~= "Courier, 12" or as ~= "base right" or ori ~= 0 then
@@ -445,15 +442,14 @@ function GUI.toolbar.buttons.portButton:action()
 	end
 	-- Create a representation of the port at the location of the mouse pointer and then start its move
 	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
-	-- Set refX,refY as the mouse coordinate on the canvas
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-	local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+	-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
+	local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 	cnvobj.grid.snapGrid = false
-	local o = cnvobj:drawObj("FILLEDRECT",{{x=refX-3,y=refY-3},{x=refX+3,y=refY+3}})
+	local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
 	cnvobj.grid.snapGrid = true
+	-- Now we need to put the mouse exactly on the center of the filled rectangle
 	-- Set the cursor position to be right on the center of the object
-	iup.SetGlobal("CURSORPOS",tostring(sx+refX).."x"..tostring(sy+refY))
+	local rx,ry = cnvobj:setMouseOnCanvas(cnvobj:dCoor2sCoor(x,y))
 	-- Create the hook
 	local hook
 	local function getClick(button,pressed,x,y,status)
@@ -539,9 +535,7 @@ end
 function rotateFlip(para)
 	local op = cnvobj.op[#cnvobj.op]
 	local mode = op.mode
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-	local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+	local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 	if mode == "DRAG" or  mode == "DRAGSEG" or mode == "DRAGOBJ" then
 		-- Compile item list
 		local items = {}
@@ -583,9 +577,7 @@ function rotateFlip(para)
 	else
 		-- Get list of items
 		local function rotateItems(items)
-			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-			local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-			local refX,refY = cnvobj:snap(gx-sx,gy-sy)
+			local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 			-- get all group memebers for the objects selected
 			local objList = {}
 			local segList = {}
@@ -645,10 +637,8 @@ function timer:action_cb()
 	timer.run = "NO"
 	--print("Timer ran")
 	-- Update the screen coordinates
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")	-- cursor position on screen
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")	-- canvas origin position on screen
-	local refX,refY = gx-sx,gy-sy	-- mouse position on canvas coordinates
-	GUI.statBarR.title = "X="..refX..", Y="..cnvobj.cdbCanvas:UpdateYAxis(refY)
+	local refX,refY = cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas())	-- mouse position on canvas coordinates
+	GUI.statBarR.title = "X="..refX..", Y="..refY
 	--print("X="..refX..", Y="..refY)
 	timer.time = 50
 	timer.run = "YES"

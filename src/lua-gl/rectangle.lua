@@ -17,14 +17,14 @@ else
 end
 
 local function drawhollow(cnvobj,cnv,x,y,obj,zoom,xm,ym)
-	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	local x1,x2,y1,y2 = floor((x[1]-xm)/zoom),floor((x[2]-xm)/zoom),floor((y[1]-ym)/zoom),floor((y[2]-ym)/zoom)
 	cnv:Rect(x1, x2, y1, y2)
     --cnv:Rect(x[1], x[2], y[1], y[2])
 	return true
 end
 
 local function drawfilled(cnvobj,cnv,x,y,obj,zoom,xm,ym)
-	local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+	local x1,x2,y1,y2 = floor((x[1]-xm)/zoom),floor((x[2]-xm)/zoom),floor((y[1]-ym)/zoom),floor((y[2]-ym)/zoom)
 	cnv:Box(x1, x2, y1, y2)
 	--cnv:Box(x[1], x[2], y[1], y[2])
 	return true
@@ -32,7 +32,7 @@ end
 
 local function drawblockingrectangle(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	if(cnvobj.viewOptions.showBlockingRect==true) then
-		local x1,x2,y1,y2 = floor(x[1]/zoom-xm),floor(x[2]/zoom-xm),floor(y[1]/zoom-ym),floor(y[2]/zoom-ym)
+		local x1,x2,y1,y2 = floor((x[1]-xm)/zoom),floor((x[2]-xm)/zoom),floor((y[1]-ym)/zoom),floor((y[2]-ym)/zoom)
 		cnv:Rect(x1, x2, y1, y2)
 		--cnv:Rect(x[1], x[2], y[1], y[2])
 	end

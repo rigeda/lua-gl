@@ -4,7 +4,6 @@ local type = type
 local table = table
 local pairs = pairs
 local tostring = tostring
-local iup = iup
 
 -- Math Library
 local min = math.min
@@ -362,9 +361,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	end
 	-- Setup the interactive move operation here
 	-- Set refX,refY as the mouse coordinate on the canvas
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-	local refX,refY = gx-sx,gy-sy
+	local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))
 	-- Backup the old button_cb and motion_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	local oldBCB = cnvobj.cnv.button_cb
@@ -424,11 +421,11 @@ moveObj = function(cnvobj,objList,offx,offy)
 	-- button_CB to handle interactive move ending
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
-		--print("BUTTON_CB execution",button,iup.BUTTON1,pressed)
-		if button == iup.BUTTON1 and pressed == 1 then
+		--print("BUTTON_CB execution",button,GUIFW.BUTTON1,pressed)
+		if button == GUIFW.BUTTON1 and pressed == 1 then
 			-- End the move
 			moveEnd()
 		end
@@ -438,7 +435,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 	
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		if op.mode == "MOVEOBJ" then
@@ -560,13 +557,13 @@ drawObj = function(cnvobj,shape,coords,data)
 	-- button_CB to handle object drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 		local xo,yo = x,y
 		x,y = cnvobj:snap(x,y)
 		
-		if button == iup.BUTTON1 and pressed == 1 then
+		if button == GUIFW.BUTTON1 and pressed == 1 then
 			if opptr and cnvobj.op[opptr].mode == "DRAWOBJ" then
 				local x,y = objs[cnvobj.op[opptr].index].x,objs[cnvobj.op[opptr].index].y
 				if M[shape].endDraw(x,y) then
@@ -612,7 +609,7 @@ drawObj = function(cnvobj,shape,coords,data)
 	function cnvobj.cnv:motion_cb(x, y, status)
 		if opptr and cnvobj.op[opptr].mode == "DRAWOBJ" then
 			--y = cnvobj.height - y
-			x,y = coorc.transform(cnvobj,x,y)
+			x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 			x,y = cnvobj:snap(x,y)
 			local cindex = cnvobj.op[opptr].cindex
 			objs[#objs].x[cindex] = x
@@ -917,10 +914,8 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		return true
 	end
 	-- Setup the interactive move operation here
-	-- Set refX,refY as the mouse coordinate on the canvas
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
-	local refX,refY = gx-sx,gy-sy
+	-- Set refX,refY as the mouse coordinate on the canvas equivalent to database coordinates
+	local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))
 	local oldBCB = cnvobj.cnv.button_cb
 	local oldMCB = cnvobj.cnv.motion_cb
 	-- Backup the orders of the elements to move and change their orders to display in the front
@@ -1005,11 +1000,11 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	-- button_CB to handle object dragging
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Check if any hooks need to be processed here
 		--print("DRAG button_Cb")
 		cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y, status})
-		if button == iup.BUTTON1 and pressed == 1 then
+		if button == GUIFW.BUTTON1 and pressed == 1 then
 			--print("Drag end")
 			dragEnd()
 		end
@@ -1020,7 +1015,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	-- motion_cb to handle object dragging
 	function cnvobj.cnv:motion_cb(x,y,status)
 		--y = cnvobj.height - y
-		x,y = coorc.transform(cnvobj,x,y)
+		x,y = GUIFW.sCoor2dCoor(cnvobj,x,y)
 		-- Move all items in the grp 
 		--local xo,yo = x,y
 		x,y = cnvobj:snap(x-refX,y-refY)

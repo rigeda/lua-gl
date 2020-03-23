@@ -10,11 +10,12 @@ local coorc = require("lua-gl.CoordinateCalc")
 
 local iup = iup 
 local cd = cd
-local math = math
+
 local type = type
 local pairs = pairs
 local floor = math.floor
 local abs = math.abs
+local tostring = tostring
 
 local print = print
 
@@ -27,6 +28,10 @@ else
 end
 
 -- Constants
+
+-- Mouse buttons
+M.BUTTON1 = iup.BUTTON1	-- Left mouse button
+M.BUTTON3 = iup.BUTTON3	-- Right mouse button
 
 -- Line style constants
 M.CONTINUOUS = cd.CONTINUOUS
@@ -93,12 +98,8 @@ function unmapCB(cnvobj)
 	--cd_Canvas:Kill()
 end
 
-function updateYAxis(cnvobj,y)
-	return cnvobj.cdbCanvas:UpdateYAxis(y)
-end
-
 function buttonCB(cnvobj,button,pressed,x,y, status)
-	x,y = coorc.transform(cnvobj,x,y)
+	x,y = M.sCoor2dCoor(cnvobj,x,y)
 	cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 	cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y,status})
 end
@@ -109,6 +110,46 @@ end
 
 function newCanvas()
 	return iup.canvas{BORDER="NO"}
+end
+
+-- Function to return the mouse position on the canvas. The returned coordinates are the same that would have been returned on the 
+-- motion_cb or button_cb callback functions
+function getMouseOnCanvas(cnvobj)
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+	return gx-sx,gy-sy
+end
+
+-- Function to put the mouse curson on the canvas on the given coordinates.
+-- The coordinates x,y should be the coordinates on the canvas equivalent to the ones returned in the motion_cb and button_cb callbacks
+function setMouseOnCanvas(cnvobj,x,y)
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+	iup.SetGlobal("CURSORPOS",tostring(sx+x).."x"..tostring(sy+y))
+	return true
+end
+
+-- Function to convert the button_cb/motion_cb returned coordinates to database coordinates
+function sCoor2dCoor(cnvobj,x,y)
+	y = cnvobj.cdbCanvas:UpdateYAxis(y)
+	local vp = cnvobj.viewPort
+	local xm = vp.xmin
+	local ym = vp.ymin
+	local zoom = (vp.xmax-xm+1)/(cnvobj.width)
+	y = floor(y*zoom+ym)
+	x = floor(x*zoom+xm)
+	return x,y
+end
+
+-- Function to convert the database coordinate to the canvas on screen coordinate
+function dCoor2sCoor(cnvobj,x,y)
+	local vp = cnvobj.viewPort
+	local xm = vp.xmin
+	local ym = vp.ymin
+	local zoom = (vp.xmax-xm+1)/(cnvobj.width)
+	x = floor((x-xm)/zoom)
+	y = floor((y-ym)/zoom)
+	y = cnvobj.cdbCanvas:UpdateYAxis(y)
+	return x,y
 end
 
 -- Set of functions to setup attributes of something that is being drawn. Each function returns a closure (function with associated up values). The rendering loop just calls the function before drawing it
@@ -301,11 +342,11 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb,xmin,xmax,ymin,ymax,zoom)
 		cnv:LineJoin(M.MITER)
 		cnv:LineCap(M.CAPFLAT)
 		local yi,yf = floor(ymin/grid_y)*grid_y,ymax
-		local yprev = floor(yi/zoom)-ymin
+		local yprev = floor((yi-ymin)/zoom)
 		local yp
 		cnv:Line(0,yprev,w,yprev)
 		for y=yi+grid_y, yf, grid_y do
-			yp = floor(y/zoom)-ymin
+			yp = floor((y-ymin)/zoom)
 			if abs(yp - yprev) >= 5 then
 				cnv:Line(0,yp,w,yp)
 				yprev = yp
@@ -316,14 +357,14 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb,xmin,xmax,ymin,ymax,zoom)
 		cnv:BackOpacity(M.OPAQUE)
 		cnv:InteriorStyle(M.SOLID)	
 		local xi,xf = floor(xmin/grid_x)*grid_x,xmax
-		local xprev = floor(xi/zoom)-xmin
+		local xprev = floor((xi-xmin)/zoom)
 		local xp
-		local fac  = (grid_x-1)/zoom - xmin
-		cnv:Box(xprev+1,floor(xi/zoom + fac),0,h)
+		local fac = grid_x-xmin
+		cnv:Box(xprev+1,floor((xi+fac)/zoom)-1,0,h)
 		for x = xi+grid_x,xf,grid_x do
-			xp = floor(x/zoom)-xmin
+			xp = floor((x-xmin)/zoom)
 			if abs(xp-xprev) >=5 then
-				cnv:Box(xp+1, floor(x/zoom+fac), 0, h)
+				cnv:Box(xp+1, floor((x+fac)/zoom)-1, 0, h)
 				xprev = xp
 			end
 		end
