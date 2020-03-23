@@ -615,8 +615,80 @@ function GUI.mainDlg:k_any(c)
 		}
 		if map[string.char(c)] then
 			rotateFlip(map[string.char(c)])
-			return iup.IGNORE
+			return iup.IGNORE 
 		end
+	end
+	if c == iup.K_LEFT then
+		-- Change the viewport and refresh
+		-- Move the viewport 10% to the left
+		local vp = cnvobj.viewPort
+		local dx = vp.xmax - vp.xmin + 1
+		local shift = math.floor(dx/10)
+		vp.xmin = vp.xmin - shift
+		vp.xmax = vp.xmax - shift
+		cnvobj:refresh()
+		return iup.IGNORE 
+	elseif c == iup.K_RIGHT then
+		-- Change the viewport and refresh
+		-- Move the viewport 10% to the right
+		local vp = cnvobj.viewPort
+		local dx = vp.xmax - vp.xmin + 1
+		local shift = math.floor(dx/10)
+		vp.xmin = vp.xmin + shift
+		vp.xmax = vp.xmax + shift
+		cnvobj:refresh()
+		return iup.IGNORE 
+	elseif c == iup.K_DOWN then
+		-- Change the viewport and refresh
+		-- Move the viewport 10% to the down
+		local vp = cnvobj.viewPort
+		local xm,xmax,ym,ymax,zoom = cnvobj:viewportPara(vp)
+		
+		local dy = ymax - ym + 1
+		local shift = math.floor(dy/10)
+		vp.ymin = vp.ymin - shift
+		cnvobj:refresh()	
+		return iup.IGNORE 
+	elseif c == iup.K_UP then
+		-- Change the viewport and refresh
+		-- Move the viewport 10% to the up
+		local vp = cnvobj.viewPort
+		local xm,xmax,ym,ymax,zoom = cnvobj:viewportPara(vp)
+		
+		local dy = ymax - ym + 1
+		local shift = math.floor(dy/10)
+		vp.ymin = vp.ymin + shift
+		cnvobj:refresh()				
+		return iup.IGNORE 
+	elseif c == iup.K_bracketleft then
+		-- Zoom out with the center remaining in the center
+		local zoomFac = 1.5
+		local vp = cnvobj.viewPort
+		local xm,xmax,ym,ymax,zoom = cnvobj:viewportPara(vp)
+		local dx = math.floor(zoom/zoomFac*cnvobj.width)
+		dx = math.floor((dx-(xmax-xm+1))/2)
+		local dy = math.floor(zoom/zoomFac*cnvobj.height)
+		dy = math.floor((dy-(ymax-ym+1))/2)
+		vp.ymin = vp.ymin-dy
+		vp.xmax = vp.xmax+dx
+		vp.xmin = vp.xmin-dx
+		
+		cnvobj:refresh()				
+		return iup.IGNORE 
+	elseif c == iup.K_bracketright then
+		-- Zoom in with the center remaining in the center
+		local zoomFac = 1.5
+		local vp = cnvobj.viewPort
+		local xm,xmax,ym,ymax,zoom = cnvobj:viewportPara(vp)
+		local dx = math.floor(zoom*zoomFac*cnvobj.width)
+		dx = math.floor((xmax-xm+1-dx)/2)
+		local dy = math.floor(zoom*zoomFac*cnvobj.height)
+		dy = math.floor((ymax-ym+1-dy)/2)
+		vp.ymin = vp.ymin+dy
+		vp.xmax = vp.xmax-dx
+		vp.xmin = vp.xmin+dx
+		cnvobj:refresh()				
+		return iup.IGNORE 
 	end
 	return iup.CONTINUE
 end

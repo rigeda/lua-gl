@@ -37,9 +37,10 @@ local function drawhollowarc(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 		return drawhollow(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	end
 	local x1,x2,y1,y2 = floor((x[1]-xm)/zoom),floor((x[2]-xm)/zoom),floor((y[1]-ym)/zoom),floor((y[2]-ym)/zoom)
+	local x3,x4,y3,y4 = floor((x[3]-xm)/zoom),floor((x[4]-xm)/zoom),floor((y[3]-ym)/zoom),floor((y[4]-ym)/zoom)
 	--local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
-	local a1 = atan(y[3]-floor((y2 + y1) / 2),x[3]-floor((x2 + x1) / 2))
-	local a2 = atan(y[4]-floor((y2 + y1) / 2),x[4]-floor((x2 + x1) / 2))
+	local a1 = atan(y3-floor((y2 + y1) / 2),x3-floor((x2 + x1) / 2))
+	local a2 = atan(y4-floor((y2 + y1) / 2),x4-floor((x2 + x1) / 2))
 	cnv:Arc(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), a1*rad2deg, a2*rad2deg)
 	return true
 end
@@ -49,9 +50,10 @@ local function drawfilledarc(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 		return drawfilled(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	end
 	local x1,x2,y1,y2 = floor((x[1]-xm)/zoom),floor((x[2]-xm)/zoom),floor((y[1]-ym)/zoom),floor((y[2]-ym)/zoom)
+	local x3,x4,y3,y4 = floor((x[3]-xm)/zoom),floor((x[4]-xm)/zoom),floor((y[3]-ym)/zoom),floor((y[4]-ym)/zoom)
 	--local x1,x2,y1,y2 = x[1],x[2],y[1],y[2]
-	local a1 = atan(y[3]-floor((y2 + y1) / 2),x[3]-floor((x2 + x1) / 2))
-	local a2 = atan(y[4]-floor((y2 + y1) / 2),x[4]-floor((x2 + x1) / 2))
+	local a1 = atan(y3-floor((y2 + y1) / 2),x3-floor((x2 + x1) / 2))
+	local a2 = atan(y4-floor((y2 + y1) / 2),x4-floor((x2 + x1) / 2))
 	cnv:Sector(floor((x2 + x1) / 2), floor((y2 + y1) / 2), abs(x2 - x1), abs(y2 - y1), a1*rad2deg, a2*rad2deg)
 	return true
 end

@@ -152,6 +152,20 @@ function dCoor2sCoor(cnvobj,x,y)
 	return x,y
 end
 
+-- Function to decode the viewport and provide the xmin,xmax,ymin,ymax and zoom parameters
+-- viewport has 3 parameters in it:
+-- xmin - minimum x coordinate in viewport
+-- xmax - maximum x coordinate in viewport
+-- ymin - minimum y coordinate in viewport
+function viewportPara(cnvobj,vp)
+	local xm = vp.xmin
+	local ym = vp.ymin
+	local xmax = vp.xmax
+	local zoom = (xmax-xm+1)/(cnvobj.width)
+	local ymax = floor(zoom*cnvobj.height+ym-1)	
+	return xm,xmax,ym,ymax,zoom
+end
+
 -- Set of functions to setup attributes of something that is being drawn. Each function returns a closure (function with associated up values). The rendering loop just calls the function before drawing it
 --[[
 There are 6 types of items for which attributes need to be set:
@@ -342,31 +356,34 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb,xmin,xmax,ymin,ymax,zoom)
 		cnv:LineJoin(M.MITER)
 		cnv:LineCap(M.CAPFLAT)
 		local yi,yf = floor(ymin/grid_y)*grid_y,ymax
-		local yprev = floor((yi-ymin)/zoom)
-		local yp
-		cnv:Line(0,yprev,w,yprev)
-		for y=yi+grid_y, yf, grid_y do
+		local mult = 1
+		while floor(mult*grid_y/zoom) < 5 do
+			mult = mult + 1
+		end
+		local yp = floor((yi-ymin)/zoom)
+		cnv:Line(0,yp,w,yp)
+		for y=yi+mult*grid_y, yf, mult*grid_y do
 			yp = floor((y-ymin)/zoom)
-			if abs(yp - yprev) >= 5 then
+			--if abs(yp - yprev) >= 5 then
 				cnv:Line(0,yp,w,yp)
-				yprev = yp
-			end				
+				--yprev = yp
+			--end				
 		end
 		-- Now draw the background rectangles
 		cnv:SetForeground(bColore)
 		cnv:BackOpacity(M.OPAQUE)
 		cnv:InteriorStyle(M.SOLID)	
 		local xi,xf = floor(xmin/grid_x)*grid_x,xmax
-		local xprev = floor((xi-xmin)/zoom)
-		local xp
-		local fac = grid_x-xmin
-		cnv:Box(xprev+1,floor((xi+fac)/zoom)-1,0,h)
-		for x = xi+grid_x,xf,grid_x do
+		local xp = floor((xi-xmin)/zoom)
+		mult = 1
+		while floor(mult*grid_x/zoom) < 5 do
+			mult = mult + 1
+		end
+		local fac =mult* grid_x-xmin
+		cnv:Box(xp+1,floor((xi+fac)/zoom)-1,0,h)
+		for x = xi+mult*grid_x,xf,mult*grid_x do
 			xp = floor((x-xmin)/zoom)
-			if abs(xp-xprev) >=5 then
-				cnv:Box(xp+1, floor((x+fac)/zoom)-1, 0, h)
-				xprev = xp
-			end
+			cnv:Box(xp+1, floor((x+fac)/zoom)-1, 0, h)
 		end
 	else
 		cnv:SetForeground(cd.EncodeColor(255-br,255-bg,255-bb))	-- Bitwise NOT of the background color

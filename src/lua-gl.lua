@@ -45,7 +45,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.03.06"
+_VERSION = "B20.03.23"
 
 --- TASKS
 --[[
@@ -56,7 +56,6 @@ TASKS:
 * Add removeObject functionality
 * Add removeConnector functionality
 * Add object resize functionality
-* Canvas scroll, zoom, pan and coordinate translation
 * Add export/print
 * Have to make undo/redo lists 
 * Implement action cancel by ending and then undoing it.
@@ -1181,6 +1180,7 @@ objFuncs = {
 	dCoor2sCoor = GUIFW.dCoor2sCoor,
 	setMouseOnCanvas = GUIFW.setMouseOnCanvas,
 	getMouseOnCanvas = GUIFW.getMouseOnCanvas,
+	viewportPara = GUIFW.viewportPara,
 	
 	-----UTILITY------------
 	snap = function(cnvobj,x,y)
