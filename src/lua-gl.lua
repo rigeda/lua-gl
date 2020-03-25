@@ -45,7 +45,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.03.23"
+_VERSION = "B20.03.24"
 
 --- TASKS
 --[[
@@ -56,7 +56,6 @@ TASKS:
 * Add removeObject functionality
 * Add removeConnector functionality
 * Add object resize functionality
-* Add export/print
 * Have to make undo/redo lists 
 * Implement action cancel by ending and then undoing it.
 * Connector labeling
@@ -1013,7 +1012,7 @@ objFuncs = {
 				color = {0, 0, 0},
 				typeface = "Courier",
 				style = GUIFW.PLAIN,
-				size = 12,
+				size = 16,
 				align = GUIFW.BASE_RIGHT,
 				orient = 0
 			}
@@ -1181,6 +1180,8 @@ objFuncs = {
 	setMouseOnCanvas = GUIFW.setMouseOnCanvas,
 	getMouseOnCanvas = GUIFW.getMouseOnCanvas,
 	viewportPara = GUIFW.viewportPara,
+	doprint = GUIFW.doprint,
+	fontPt2Pixel = GUIFW.fontPt2Pixel,
 	
 	-----UTILITY------------
 	snap = function(cnvobj,x,y)

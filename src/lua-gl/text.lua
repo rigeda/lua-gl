@@ -6,6 +6,8 @@ local coorc = require("lua-gl.CoordinateCalc")
 local type = type
 local floor = math.floor
 
+local print = print
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then

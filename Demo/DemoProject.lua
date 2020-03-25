@@ -214,7 +214,7 @@ function GUI.toolbar.buttons.textButton:action()
 		-- If the formatting is not the same as the default then add a formatting attribute for the text
 		if color ~= "0 0 0" or font ~= "Courier, 12" or as ~= "base right" or ori ~= 0 then
 			local typeface,style,size = font:match("(.-),([%a%s]*)%s*([+-]?%d+)$")
-			size = tonumber(size)
+			size = cnvobj:fontPt2Pixel(tonumber(size))
 			style = "" and c.PLAIN or style
 			local clr = {}
 			clr[1],clr[2],clr[3] = color:match("(%d%d*)%s%s*(%d%d*)%s%s*(%d%d*)")
@@ -227,6 +227,17 @@ function GUI.toolbar.buttons.textButton:action()
 			}
 		end
 		cnvobj:moveObj({o})
+	end
+end
+
+function GUI.toolbar.buttons.printButton:action()
+	local ret, mL, mR, mU,mD = iup.GetParam("Enter Print Information",nil,
+	"Margin Left (mm): %i\n"..
+	"Margin Right (mm): %i\n"..
+	"Margin Up (mm): %i\n"..
+	"Margin Down (mm): %i\n",10,10,10,10)
+	if ret then
+		cnvobj:doprint("Lua-GL diagram",mL,mR,mU,mD)
 	end
 end
 

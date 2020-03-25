@@ -183,7 +183,7 @@ There are 6 types of items for which attributes need to be set:
 * Draw color(color)	- Table with RGB e.g. {127,230,111}
 * Typeface (typeface) - String containing the name of the font. If cross platform consistency is desired use "Courier", "Times" or "Helvetica".
 * Style (style) - should be a combination of M.BOLD, M.ITALIC, M.PLAIN, M.UNDERLINE, M.STRIKEOUT
-* Size (size) - should be a number
+* Size (size) - should be a number representing the size in pixels (not points as displayed in applications)
 * Alignment (align) - should be one of M.NORTH, M.SOUTH, M.EAST, M.WEST, M.NORTH_EAST, M.NORTH_WEST, M.SOUTH_EAST, M.SOUTH_WEST, M.CENTER, M.BASE_LEFT, M.BASE_CENTER, or M.BASE_RIGHT
 * Orientation (orient) - angle in degrees
 ]]
@@ -197,7 +197,7 @@ function getTextAttrFunc(attr)
 	
 	return function(canvas)
 		-- Set the font typeface, style and size
-		canvas:Font(typeface,style,size)
+		canvas:Font(typeface,style,-1*size)
 		-- Set the text alignment
 		canvas:TextAlignment(align)
 		-- Set the text orientation
@@ -205,6 +205,13 @@ function getTextAttrFunc(attr)
 		-- Set the color of the text
 		canvas:SetForeground(color)
 	end	
+end
+
+-- Function to convert the font size in points to pixels
+function fontPt2Pixel(cnvobj,points,canvas)
+	canvas = canvas or cnvobj.cdbCanvas
+	local width,height,widthmm,heightmm = canvas:GetSize()
+	return floor(width/widthmm*(points/cd.MM2PT)+0.5)
 end
 
 -- Function to return closure for setting attributes for non filled objects
@@ -223,26 +230,26 @@ function getNonFilledObjAttrFunc(attr)
 	local cap = attr.cap
 
 	-- Function to set the attributes when the line style is a number
-	local function nfoaNUM(canvas)
+	local function nfoaNUM(canvas,zoom)
 		-- Set the foreground color
 		canvas:SetForeground(color)
 		-- Set the line style
 		canvas:LineStyle(style)
 		-- Set line width
-		canvas:LineWidth(width)
+		canvas:LineWidth(floor(width/zoom+0.5))
 		-- Set Line Join
 		canvas:LineJoin(join)
 		-- Set Line cap
 		canvas:LineCap(cap)
 	end
 	-- Function to set the attributes when the line style is a table
-	local function nfoaTAB()
+	local function nfoaTAB(canvas,zoom)
 		-- Set the foreground color
 		canvas:SetForeground(color)
 		-- Set the line style
 		canvas:LineStyleDashes(style, #style)
 		-- Set line width
-		canvas:LineWidth(width)
+		canvas:LineWidth(floor(width/zoom+0.5))
 		-- Set Line Join
 		canvas:LineJoin(join)
 		-- Set Line cap
@@ -341,7 +348,8 @@ end
 -- known canvas coordinates so always drawing the grid manually
 local function drawGrid(cnv,cnvobj,bColore,br,bg,bb,xmin,xmax,ymin,ymax,zoom)
 	--print("DRAWGRID!")
-    local w,h = cnvobj.width, cnvobj.height
+    --local w,h = cnvobj.width, cnvobj.height
+	local w,h = cnv:GetSize()
     local x,y
     local grid_x = cnvobj.grid.grid_x
     local grid_y = cnvobj.grid.grid_y
@@ -364,10 +372,7 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb,xmin,xmax,ymin,ymax,zoom)
 		cnv:Line(0,yp,w,yp)
 		for y=yi+mult*grid_y, yf, mult*grid_y do
 			yp = floor((y-ymin)/zoom)
-			--if abs(yp - yprev) >= 5 then
-				cnv:Line(0,yp,w,yp)
-				--yprev = yp
-			--end				
+			cnv:Line(0,yp,w,yp)
 		end
 		-- Now draw the background rectangles
 		cnv:SetForeground(bColore)
@@ -392,19 +397,35 @@ local function drawGrid(cnv,cnvobj,bColore,br,bg,bb,xmin,xmax,ymin,ymax,zoom)
 		cnv:LineJoin(M.MITER)
 		cnv:LineCap(M.CAPFLAT)
 		--first for loop to draw horizontal line
-		for y=0, h, grid_y do
-		  cnv:Line(0,y,w,y)
+		local yi,yf = floor(ymin/grid_y)*grid_y,ymax
+		local mult = 1
+		while floor(mult*grid_y/zoom) < 5 do
+			mult = mult + 1
+		end
+		local yp = floor((yi-ymin)/zoom)
+		cnv:Line(0,yp,w,yp)
+		for y=yi+mult*grid_y, yf, mult*grid_y do
+			yp = floor((y-ymin)/zoom)
+			cnv:Line(0,yp,w,yp)
 		end
 		-- for loop used to draw vertical line
-		for x=0, w, grid_x do
-		  cnv:Line(x,0,x,h)
-		end		
+		local xi,xf = floor(xmin/grid_x)*grid_x,xmax
+		local xp = floor((xi-xmin)/zoom)
+		mult = 1
+		while floor(mult*grid_x/zoom) < 5 do
+			mult = mult + 1
+		end
+		local fac =mult* grid_x-xmin
+		cnv:Line(xp,0,xp,h)
+		for x = xi+mult*grid_x,xf,mult*grid_x do
+			xp = floor((x-xmin)/zoom)
+			cnv:Line(xp,0,xp,h)
+		end
 	end
 end
 
-function  render(cnvobj)
-	local canvas = cnvobj.cnv
-	local cd_bcanvas = cnvobj.cdbCanvas
+function  render(cnvobj,cd_bcanvas, vp, showGrid)
+	cd_bcanvas = cd_bcanvas or cnvobj.cdbCanvas
 	local attr = cnvobj.attributes
 	local vOptions = cnvobj.viewOptions
 	local jdx = vOptions.junction.dx
@@ -416,15 +437,17 @@ function  render(cnvobj)
 	cd_bcanvas:Activate()
 	cd_bcanvas:Background(bColore)
 	cd_bcanvas:Clear()
-
-	local vp = cnvobj.viewPort
+	
+	local width,height = cd_bcanvas:GetSize()
+	
+	vp = vp or cnvobj.viewPort
 	local xm = vp.xmin
 	local ym = vp.ymin
 	local xmax = vp.xmax
-	local zoom = (xmax-xm+1)/(cnvobj.width)
-	local ymax = floor(zoom*cnvobj.height+ym-1)
+	local zoom = (xmax-xm+1)/(width)
+	local ymax = floor(zoom*height+ym-1)
 	
-	if cnvobj.viewOptions.gridVisibility then
+	if (type(showGrid) == "boolean" and showGrid) or (type(showGrid) ~= "boolean" and cnvobj.viewOptions.gridVisibility) then
 		drawGrid(cd_bcanvas,cnvobj,bColore,bColor[1], bColor[2], bColor[3],xm,xmax,ym,ymax,zoom)
 	end
 	-- Now loop through the order array to draw every element in order
@@ -445,7 +468,7 @@ function  render(cnvobj)
 			shape = attr.visualAttr[item] or M[item.shape]	-- validity is not checked for the registered shape structure
 			if vAttr == 100 or vAttr ~= shape.vAttr then
 				vAttr = shape.vAttr
-				shape.visualAttr(cd_bcanvas)
+				shape.visualAttr(cd_bcanvas,zoom)
 			end
 			x1,y1 = item.x,item.y
 			--[[
@@ -462,7 +485,7 @@ function  render(cnvobj)
 			cshape = attr.visualAttr[item] or M.CONN
 			if vAttr == 100 or vAttr ~= cshape.vAttr then
 				vAttr = cshape.vAttr
-				cshape.visualAttr(cd_bcanvas)
+				cshape.visualAttr(cd_bcanvas,zoom)
 			end
 			segs = item.segments
 			for j = 1,#segs do
@@ -499,6 +522,110 @@ end
 
 function update(cnvobj)
 	render(cnvobj)
+end
+
+-- The margins are provided in mm
+function doprint(cnvobj,name,marginLeft,marginRight,marginUp,marginDown)
+	name = name or "Lua-GL drawing"
+	-- Figure out the maximum extremes
+	local xmin,xmax,ymin,ymax
+	local order = cnvobj.drawn.order
+	if #order == 0 then return false end
+	xmin,ymin = order[1].item.x[1],order[1].item.y[1]
+	xmax,ymax = xmin,ymin
+	for i = 1,#order do
+		if order[i].type == "object" then
+			local x,y = order[i].item.x,order[i].item.y
+			for j = 1,#x do
+				if x[j] < xmin then
+					xmin = x[j]
+				end
+				if x[j] > xmax then
+					xmax = x[j]
+				end
+				if y[j] < ymin then
+					ymin = y[j]
+				end
+				if y[j] > ymax then
+					ymax = y[j]
+				end
+			end
+		elseif order[i].type == "connector" then
+			local segs = order[i].item.segments
+			for j = 1,#segs do
+				if segs[j].start_x < xmin then
+					xmin = segs[j].start_x
+				end
+				if segs[j].start_x > xmax then
+					xmax = segs[j].start_x
+				end
+				if segs[j].end_x < xmin then
+					xmin = segs[j].end_x
+				end
+				if segs[j].end_x > xmax then
+					xmax = segs[j].end_x
+				end
+				if segs[j].start_y < ymin then
+					ymin = segs[j].start_y
+				end
+				if segs[j].start_y > ymax then
+					ymax = segs[j].start_y
+				end
+				if segs[j].end_y < ymin then
+					ymin = segs[j].end_y
+				end
+				if segs[j].end_y > ymax then
+					ymax = segs[j].end_y
+				end
+			end
+		end
+	end
+	local cdpr = cd.CreateCanvas(cd.PRINTER,name.." -d")
+	if not cdpr then
+		--print("Could not get the print canvas")
+		return false
+	end
+	local w,h,wm,hm = cdpr:GetSize()
+	local mL = floor(w/wm*marginLeft+0.5)
+	local mR = floor(w/wm*marginRight+0.5)
+	local mU = floor(h/hm*marginUp+0.5)
+	local mD = floor(h/hm*marginDown+0.5)
+	
+	local dx = xmax-xmin+1
+	local dy = ymax-ymin+1
+	
+	if dy/dx>(h-mU-mD)/(w-mL-mR) then
+		-- y dimension is more so set xmax so that whole y is visible
+		-- y direction fits
+		ymin = ymin - floor(dy/(h-mD-mU)*mD+0.5)
+		--ymax = ymax + mU
+		local mLN = floor((w-(h-mU-mD)/dy*dx)/2)
+		if mLN < mL then
+			xmin = xmin - floor(dy/(h-mD-mU)*mL+0.5)
+			xmax = xmax + floor(dy/(h-mD-mU)*(w-mL)+0.5)-dx
+		else
+			xmin = xmin - floor(dy/(h-mD-mU)*mLN+0.5)
+			xmax = xmax + floor(dy/(h-mD-mU)*(w-mLN)+0.5)-dx
+		end
+	else
+		-- x direction fits
+		xmin = xmin - floor(dx/(w-mL-mR)*mL+0.5)
+		xmax = xmax + floor(dx/(w-mL-mR)*mR+0.5)
+		local mDN = floor((h-(w-mL-mR)/dx*dy)/2+0.5)
+		if mDN < mD then
+			ymin = ymin - floor(dx/(w-mL-mR)*mD+0.5)
+		else
+			ymin = ymin - floor(dx/(w-mL-mR)*mDN+0.5)
+		end
+	end
+	local vp = {
+		xmin = xmin,
+		xmax = xmax,
+		ymin = ymin
+	}
+	--print(cdpr.rastersize)
+	render(cnvobj,cdpr,vp,false)
+	cdpr:Kill()	
 end
 
 function init(cnvobj)

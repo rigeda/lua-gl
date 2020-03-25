@@ -57,7 +57,8 @@ GUI.toolbar.buttons = {
 	checkButton = iup.button{image="IUP_ActionOk",tip="Run Custom function"},
 	textButton = iup.button{image = GUI.images.T,tip="Add Text"},
 	arcButton = iup.button{image = GUI.images.arc,tip="Draw Arc"},
-	filledarcButton = iup.button{image=GUI.images.filledarc,tip = "Draw sector"}
+	filledarcButton = iup.button{image=GUI.images.filledarc,tip = "Draw sector"},
+	printButton = iup.button{image="IUP_Print",tip="Print Drawing"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -70,6 +71,7 @@ GUI.toolbar.top = iup.hbox{
 	GUI.toolbar.buttons.showBlockingRect,
 	GUI.toolbar.buttons.refreshButton,
 	GUI.toolbar.buttons.checkButton,
+	GUI.toolbar.buttons.printButton,
 	GUI.toolbar.buttons.connModeList,
 	iup.fill{};
 	margin = "2x2",
