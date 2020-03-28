@@ -9,6 +9,7 @@ local floor = math.floor
 local require = require
 
 local tu = require("tableUtils")
+local bit = require("bit")	-- Use https://github.com/aryajur/bit to maintain same API for Lua 5.1 onwards
 
 local GUIFW = require("lua-gl.guifw")
 
@@ -38,27 +39,40 @@ For Filled objects the attributes to be set are:
 * Stipple style (stipple) (OPTIONAL) - Needed if style = M.STIPPLE. Should be a  wxh matrix of zeros (0) and ones (1). The zeros are mapped to the background color or are transparent, according to the background opacity attribute. The ones are mapped to the foreground color.
 * Pattern style (pattern) (OPTIONAL) - Needed if style = M.PATTERN. Should be a wxh color matrix of tables with RGB numbers`
 ]]
+--[[ 
+For text the attributes to set are (given a table (attr) with all these keys and attributes)
+* Draw color(color)	- Table with RGB e.g. {127,230,111}
+* Typeface (typeface) - String containing the name of the font. If cross platform consistency is desired use "Courier", "Times" or "Helvetica".
+* Style (style) - should be a combination of M.BOLD, M.ITALIC, M.PLAIN, M.UNDERLINE, M.STRIKEOUT
+* Size (size) - should be a number representing the size in pixels (not points as displayed in applications)
+* Alignment (align) - should be one of M.NORTH, M.SOUTH, M.EAST, M.WEST, M.NORTH_EAST, M.NORTH_WEST, M.SOUTH_EAST, M.SOUTH_WEST, M.CENTER, M.BASE_LEFT, M.BASE_CENTER, or M.BASE_RIGHT
+* Orientation (orient) - angle in degrees
+]]
 function validateVisualAttr(attr)
 	if not attr or type(attr) ~= "table" then
 		return nil, "Need the attribute table as the second argument"
 	end
-	-- color is in both cases
+	-- color is in all cases
 	if not attr.color or type(attr.color) ~= "table" or #attr.color ~= 3 then
 		return nil,"Color attribute not given as a {R,G,B} table"
 	end
 	for i = 1,3 do
-		if type(attr.color[i]) ~= "number" or math.floor(attr.color[i]) ~= attr.color[i] then
+		if type(attr.color[i]) ~= "number" or floor(attr.color[i]) ~= attr.color[i] then
 			return nil,"Color attribute table has non integer values"
 		end
 		if attr.color[i]<0 or attr.color[i]>255 then
 			return nil,"Color attribute table is not in the range [0,255]"
 		end
 	end
-	local filled
+	local objType
 	if attr.bopa then
-		filled = true
+		objType = "FILLED"
+	elseif attr.typeface then
+		objType = "TEXT"
+	else
+		objType = "NONFILLED"
 	end
-	if filled then
+	if objType == "FILLED" then
 		-- check attr as a filled attributes table
 		if attr.bopa ~= GUIFW.OPAQUE and attr.bopa ~= GUIFW.TRANSPARENT then
 			return nil, "Filled attributes given but value of 'bopa' invalid"
@@ -109,7 +123,7 @@ function validateVisualAttr(attr)
 				end
 			end			
 		end
-	else
+	elseif objType == "NONFILLED" then
 		if not attr.cap or (attr.cap ~= GUIFW.CAPFLAT and attr.cap ~= GUIFW.CAPROUND and attr.cap ~= GUIFW.CAPSQUARE) then
 			return nil, "Non filled attributes given but cap not given or invalid"
 		end
@@ -132,15 +146,74 @@ function validateVisualAttr(attr)
 				return nil,"Non filled attributes given but attr.style is a 0 length table"
 			end
 			for i = 1,#attr.style do
-				if type(attr.style[i]) ~= "number" or math.floor(attr.style[i]) ~= attr.style[i] then
+				if type(attr.style[i]) ~= "number" or floor(attr.style[i]) ~= attr.style[i] then
 					return nil,"Non filled attributes given but attr.style table has non integer values"
 				end
 			end
 		else
 			return nil,"Non filled attributes given but attr.style is invalid"
 		end
-	end		-- if attr.bopa then ends here
-	return true, filled
+	elseif objType == "TEXT" then
+		if type(attr.typeface) ~= "string" then
+			return nil,"Typeface string should be provided."
+		end
+		-- Style (style) - should be a combination of M.BOLD, M.ITALIC, M.PLAIN, M.UNDERLINE, M.STRIKEOUT
+		local s = attr.style
+		if type(s) ~= "number" then
+			return nil,"Style should be a number and a combination of "..GUIFW.BOLD..","..GUIFW.ITALIC..","..GUIFW.PLAIN..","..GUIFW.UNDERLINE..","..GUIFW.STRIKEOUT
+		end
+		local opt = {
+			GUIFW.BOLD,
+			GUIFW.ITALIC,
+			GUIFW.PLAIN,
+			GUIFW.UNDERLINE,
+			GUIFW.STRIKEOUT
+		}
+		for i = 1,#opt do
+			s = bit.band(s,bit.bnot(opt[i]))
+		end
+		if s ~= 0 then
+			return nil,"Style should be a number and a combination of "..GUIFW.BOLD..","..GUIFW.ITALIC..","..GUIFW.PLAIN..","..GUIFW.UNDERLINE..","..GUIFW.STRIKEOUT
+		end
+		if type(attr.size) ~= "number" or attr.size%1 ~= 0 or attr.size < 1 then
+			return nil, "Size should be an integer for the size of the font in pixels."
+		end
+		-- Alignment (align) - should be one of M.NORTH, M.SOUTH, M.EAST, M.WEST, M.NORTH_EAST, M.NORTH_WEST, M.SOUTH_EAST, M.SOUTH_WEST, M.CENTER, M.BASE_LEFT, M.BASE_CENTER, or M.BASE_RIGHT
+		opt = {
+			GUIFW.NORTH, 
+			GUIFW.SOUTH, 
+			GUIFW.EAST, 
+			GUIFW.WEST, 
+			GUIFW.NORTH_EAST, 
+			GUIFW.NORTH_WEST, 
+			GUIFW.SOUTH_EAST, 
+			GUIFW.SOUTH_WEST, 
+			GUIFW.CENTER, 
+			GUIFW.BASE_LEFT, 
+			GUIFW.BASE_CENTER, 
+			GUIFW.BASE_RIGHT
+		}
+		local found 
+		for i = 1,#opt do
+			if opt[i] == attr.align then
+				found = true
+				break
+			end
+		end
+		if not found then
+			local str = ""
+			for i = 1,#opt do
+				str = str..opt[i]..","
+			end
+			str = str:sub(1,-2)
+			return nil,"Alignment should be one of "..str
+		end
+		-- Orientation (orient) - angle in degrees
+		if type(attr.orient) ~= "number" or attr.orient < 0 or attr.orient > 360 then
+			return nil,"Orientation should be an angle in degrees from 0 to 360"
+		end
+	end		-- if objType == "FILLED" then ends here
+	return true, objType
 end
 
 -- Function to check the cnvobj.drawn structure for inconsistencies

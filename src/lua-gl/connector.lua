@@ -150,18 +150,17 @@ For Filled objects the attributes to be set are:
 -- num is a index for the visual attribute definition and adds it to the defaults and other items can use it as well by referring to the number. It optimizes the render function as well since it does not have to reexecute the visual attributes settings if the number is the same for the next item to draw.
 -- Set num to 100 to make it unique. 100 is reserved for uniqueness
 function setConnVisualAttr(cnvobj,conn,attr,num)
-	local res,filled = utility.validateVisualAttr(attr)
+	local res,attrType = utility.validateVisualAttr(attr)
 	if not res then
-		return res,filled
+		return res,attrType
+	end
+	if attrType ~= "NONFILLED" then
+		return nil,"Wrong attribute type."
 	end
 	-- attr is valid now associate it with the object
 	conn.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
 	-- Set the attributes function in the visual properties table
-	if filled then
-		cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getFilledObjAttrFunc(attr)}
-	else
-		cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
-	end
+	cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
 	return true
 end
 

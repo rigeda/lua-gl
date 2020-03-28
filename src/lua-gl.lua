@@ -61,6 +61,17 @@ TASKS:
 * Connector labeling
 ]]
 
+-- Initialize all the shapes
+local function initShapes(cnvobj)
+	-- Register the shapes
+	RECT.init(cnvobj)
+	LINE.init(cnvobj)
+	ELLIPSE.init(cnvobj)
+	TEXT.init(cnvobj)
+	GUIFW.init(cnvobj)
+end
+
+-- Returns the visual attribute structure with the visual attribute function
 local function getVisualAttr(cnvobj,item)
 	return cnvobj.attributes.visualAttr[item]
 end
@@ -783,6 +794,10 @@ objFuncs = {
 				objx[j] = objx[j] + offx
 				objy[j] = objy[j] + offy
 			end
+			-- Set the obj attribute if any
+			if objS[i].vattr then
+				objects.setObjVisualAttr(cnvobj,objS[i],objS[i].vattr,-1)	-- -1 because it is a unique attribute
+			end
 			items[#items + 1] = objS[i]
 			-- Add to routing matrix
 			if objS[i].shape == "BLOCKINGRECT" then
@@ -816,6 +831,10 @@ objFuncs = {
 			connD[#connD + 1] = connS[i]
 			connS[i].id = "C"..tostring(connD.ids + 1)
 			connD.ids = connD.ids + 1
+			-- Set the connector attribute if any
+			if connS[i].vattr then
+				conn.setConnVisualAttr(cnvobj,connS[i],connS[i].vattr,-1)	-- -1 because it is a unique attribute
+			end
 			-- update all segments
 			local segs = connS[i].segments
 			for j = 1,#segs do
@@ -827,6 +846,10 @@ objFuncs = {
 					conn = connS[i],
 					seg = j
 				}
+				-- Set the connector attribute if any
+				if segs[j].vattr then
+					conn.setSegVisualAttr(cnvobj,segs[j],segs[j].vattr,-1)	-- -1 because it is a unique attribute
+				end
 				-- Add to routing Matrix
 				rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
 			end
@@ -1030,11 +1053,11 @@ objFuncs = {
 					- Filled object			(3)
 					- Normal Connector		(4)
 					- Jumping Connector		(5)
-					100	is reserved and used by the rendeing function
+					-1	is reserved and used by the rendeing function
 		}
 		]]
 		cnvobj.attributes = {
-			visualAttr = setmetatable({},{__mode="k"}),	-- visualAttr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {vAttr=<integer>,visualAttr=<function>}. The integer points to a visualAttrBank index. This allows registering of new visual attributes in the visualAttrBank table defined below and helps optimize the render function by not executing same attributes
+			visualAttr = setmetatable({},{__mode="k"}),	-- visualAttr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {vAttr=<integer>,visualAttr=<function>}. The integer points to a visualAttrBank index (-1 is reserved and does not point to it). This allows registering of new visual attributes in the visualAttrBank table defined below and helps optimize the render function by not executing same attributes
 			visualAttrBank = {
 				GUIFW.getNonFilledObjAttrFunc(vProp[1]),	-- For Non Filled object
 				GUIFW.getNonFilledObjAttrFunc(vProp[2]),	-- For blocking rectangle
@@ -1075,33 +1098,33 @@ objFuncs = {
 					- Normal Connector		(4)
 					- Jumping Connector		(5)
 					- Text					(6)
-					100	is reserved and used by the rendeing function
+					-1	is reserved and used by the rendeing function
 		]]
-		cnvobj.setDefVisualAttr = function(itemType,attr)
+		-- Function to set the default visual attributes for the given itemtype
+		cnvobj.setDefVisualAttr = function(attr,itemType)
 			if type(itemType) ~= "number" or math.floor(itemType) ~= itemType or itemType < 1 or 
 			  itemType > #cnvobj.viewOptions.visualProp then
 				return nil,"Invalid Item type"
 			end
-			local ret,filled = utility.validateVisualAttr(attr)
+			local ret,attrType = utility.validateVisualAttr(attr)
 			if not ret then
-				return ret,filled
+				return ret,attrType
 			end
-			if filled and itemType ~= 3 then
-				return nil,"attributes table is for filled object but itemType is not 3"
+			if attrType == "FILLED" and itemType ~= 3 then
+				return nil,"Attributes table is for filled object but itemType is not 3"
+			elseif attrType == "TEXT" and itemType ~= 6 then
+				return nil,"Attributes table is for text object but itemType is not 6"
 			end
 			cnvobj.viewOptions.visualProp[itemType] = attr
-			if filled then
+			if attrType == "FILLED" then
 				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getFilledObjAttrFunc(attr)
-			else
+			elseif attrType == "NONFILLED" then
 				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getNonFilledObjAttrFunc(attr)
+			elseif attrType == "TEXT" then
+				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getTextAttrFunc(attr)
 			end
-			if itemType == 4 then
-				-- Register the new default in the GUIFW
-				GUIFW.CONN = {
-					visualAttr = cnvobj.attributes.visualAttrBank[4],	-- normal connector
-					vAttr = 4				
-				}
-			end
+			-- Reinitialize the shapes to set the right attributes in the modules
+			initShapes(cnvobj)
 			return true
 		end
 		cnvobj.getDefVisualAttr = function(itemType)
@@ -1305,12 +1328,7 @@ new = function(para)
 	
 	assert(objFuncs.erase(cnvobj),"Could not initialize the canvas object")
 	
-	-- Register the shapes
-	RECT.init(cnvobj)
-	LINE.init(cnvobj)
-	ELLIPSE.init(cnvobj)
-	TEXT.init(cnvobj)
-	GUIFW.init(cnvobj)
+	initShapes(cnvobj)
 	
 	return cnvobj
 end

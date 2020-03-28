@@ -451,7 +451,7 @@ function  render(cnvobj,cd_bcanvas, vp, showGrid)
 		drawGrid(cd_bcanvas,cnvobj,bColore,bColor[1], bColor[2], bColor[3],xm,xmax,ym,ymax,zoom)
 	end
 	-- Now loop through the order array to draw every element in order
-	local vAttr = 100		-- Special case number which forces the run of the next visual attributes run
+	local vAttr = -1		-- Special case number which forces the run of the next visual attributes run
 	local shape,cshape
 	local order = cnvobj.drawn.order
 	local x1,y1,x2,y2
@@ -466,7 +466,7 @@ function  render(cnvobj,cd_bcanvas, vp, showGrid)
 			--cd_bcanvas:SetForeground(cd.EncodeColor(0, 162, 232))
 			-- Run the visual attributes
 			shape = attr.visualAttr[item] or M[item.shape]	-- validity is not checked for the registered shape structure
-			if vAttr == 100 or vAttr ~= shape.vAttr then
+			if vAttr == -1 or vAttr ~= shape.vAttr then
 				vAttr = shape.vAttr
 				shape.visualAttr(cd_bcanvas,zoom)
 			end
@@ -483,7 +483,7 @@ function  render(cnvobj,cd_bcanvas, vp, showGrid)
 			-- This is a connector
 			--cd_bcanvas:SetForeground(cd.EncodeColor(255, 128, 0))
 			cshape = attr.visualAttr[item] or M.CONN
-			if vAttr == 100 or vAttr ~= cshape.vAttr then
+			if vAttr == -1 or vAttr ~= cshape.vAttr then
 				vAttr = cshape.vAttr
 				cshape.visualAttr(cd_bcanvas,zoom)
 			end
@@ -491,7 +491,7 @@ function  render(cnvobj,cd_bcanvas, vp, showGrid)
 			for j = 1,#segs do
 				s = segs[j]
 				shape = attr.visualAttr[s] or M.CONN
-				if vAttr == 100 or vAttr ~= shape.vAttr then
+				if vAttr == -1 or vAttr ~= shape.vAttr then
 					vAttr = shape.vAttr
 					shape.visualAttr(cd_bcanvas)
 				end
@@ -502,7 +502,7 @@ function  render(cnvobj,cd_bcanvas, vp, showGrid)
 			end
 			-- Draw the junctions
 			if jdx~=0 and jdy~=0 then
-				if vAttr == 100 or vAttr ~= cshape.vAttr then
+				if vAttr == -1 or vAttr ~= cshape.vAttr then
 					vAttr = cshape.vAttr
 					cshape.visualAttr(cd_bcanvas)
 				end

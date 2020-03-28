@@ -76,8 +76,8 @@ function GUI.toolbar.buttons.loadButton:action()
 	f = io.open(fileDlg.value,"r")
 	local s = f:read("*a")
 	f:close()
-	--cnvobj:load(s,nil,nil,true)	
-	cnvobj:load(s,450,300)
+	cnvobj:load(s,nil,nil,true)	
+	--cnvobj:load(s,450,300)
 end
 
 -- Turn ON/OFF snapping ont he grid
@@ -221,8 +221,10 @@ function GUI.toolbar.buttons.textButton:action()
 			clr[1] = tonumber(clr[1])
 			clr[2] = tonumber(clr[2])
 			clr[3] = tonumber(clr[3])
+			-- Also add the attribute to the object
+			o.vattr = {color = clr,typeface = typeface, style = style,size=size,align=align[alignList[as+1]],orient = ori}
 			cnvobj.attributes.visualAttr[o] = {
-				visualAttr = cnvobj.getTextAttrFunc({color = clr,typeface = typeface, style = style,size=size,align=align[alignList[as+1]],orient = ori}),
+				visualAttr = cnvobj.getTextAttrFunc(o.vattr),
 				vAttr = 100	-- Unique attribute not stored in the bank
 			}
 		end
