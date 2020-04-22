@@ -21,6 +21,104 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
+local conn,objects,hooks
+do
+	local drawnBAC,map,started
+	-- Function to call before an action to the drawn table
+	function undopre(cnvobj)
+		if not started then
+			-- Take a backup of the drawn table
+			drawnBAC,map = tu.copyTable(cnvobj.drawn,{},true)
+			cnvobj.drawndiff = nil
+			started = true
+			return drawnBAC
+		end
+	end
+	-- Function to call after an action to the drawn table
+	function undopost(cnvobj,key)
+		if key == drawnBAC then  -- This is to wrap all the nested actions and just generate 1 undo for all nested actions
+			hooks = hooks or require("lua-gl.hooks")
+			-- Get the diff object for the drawn table
+			cnvobj.drawndiff = tu.diffTable(cnvobj.drawn,drawnBAC,map.d2s)
+			hooks.processHooks(cnvobj,"UNDOADDED",{cnvobj.drawndiff})
+			started = false
+		end
+	end
+	-- Function to do undo from the diff
+	function doundo(cnvobj,diff)
+		local rm = cnvobj.rM
+		conn = conn or require("lua-gl.connector")
+		objects = objects or require("lua-gl.objects")
+		-- Take a backup of the drawn table for redo action
+		local key = undopre(cnvobj)
+		
+		-- Empty routing matrix
+		local objs = cnvobj.drawn.obj
+		for i = 1,#objs do
+			-- Add to routing matrix
+			if objs[i].shape == "BLOCKINGRECT" then
+				rm:removeBlockingRectangle(objs[i],objs[i].x[1],objs[i].y[1],objs[i].x[2],objs[i].y[2])
+			end
+		end
+		--port array
+		local port = cnvobj.drawn.port
+		for i = 1,#port do
+			-- Add to routing matrix
+			rm:removePort(port[i],port[i].x,port[i].y)
+		end
+		-- conn array
+		local conns = cnvobj.drawn.conn
+		for i = 1,#conns do
+			-- update all segments
+			local segs = conns[i].segments
+			for j = 1,#segs do
+				-- Add to routing Matrix
+				rm:removeSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
+			end
+		end
+		
+		tu.patch(cnvobj.drawn,diff)
+		objs = cnvobj.drawn.obj
+		for i = 1,#objs do
+			-- Set the obj attribute if any
+			if objs[i].vattr then
+				objects.setObjVisualAttr(cnvobj,objs[i],objs[i].vattr,-1)	-- -1 because it is a unique attribute
+			end			
+			-- Add to routing matrix
+			if objs[i].shape == "BLOCKINGRECT" then
+				rm:addBlockingRectangle(objs[i],objs[i].x[1],objs[i].y[1],objs[i].x[2],objs[i].y[2])
+			end
+		end
+		--port array
+		port = cnvobj.drawn.port
+		for i = 1,#port do
+			-- Add to routing matrix
+			rm:addPort(port[i],port[i].x,port[i].y)
+		end
+		-- conn array
+		conns = cnvobj.drawn.conn
+		for i = 1,#conns do
+			-- Set the connector attribute if any
+			if conns[i].vattr then
+				conn.setConnVisualAttr(cnvobj,conns[i],conns[i].vattr,-1)	-- -1 because it is a unique attribute
+			end
+			-- update all segments
+			local segs = conns[i].segments
+			for j = 1,#segs do
+				-- Set the connector attribute if any
+				if segs[j].vattr then
+					conns.setSegVisualAttr(cnvobj,segs[j],segs[j].vattr,-1)	-- -1 because it is a unique attribute
+				end
+				-- Add to routing Matrix
+				rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
+			end
+		end
+		-- Create the drawndiff for the redo action
+		undopost(cnvobj,key)
+		cnvobj:refresh()
+	end
+end
+
 -- function to validate the visual attributes table
 --[[
 For non filled objects attributes to set are: (given a table (attr) with all these keys and attributes
@@ -218,7 +316,7 @@ end
 
 -- Function to check the cnvobj.drawn structure for inconsistencies
 function checkDrawn(cnvobj)
-	local CONN = require("lua-gl.connector")
+	local CONN = conn or require("lua-gl.connector")
 	local drawn = cnvobj.drawn
 	-- drawn members are:
 	--[=[

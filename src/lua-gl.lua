@@ -905,6 +905,8 @@ objFuncs = {
 			}
 			]]
 		}
+		cnvobj.drawndiff = nil	-- key that holds the last action on the drawn table diff (See tableUtils [https://github.com/aryajur/tableUtils)] diffTable)
+					-- drawndiff is not changed or used by lua-gl library
 		cnvobj.hook = {ids=0}	-- Array of hook structure. See structure of hook in hooks.lua
 		-- .op is a member table used for holding temporary data and setting up modes of operation of the canvas
 		cnvobj.op = {}	-- STack to store operation temporary data
@@ -1211,7 +1213,8 @@ objFuncs = {
 		local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 		return coorc.snapX(x, grdx),coorc.snapY(y, grdy)	
 	end,
-}
+	undo = utility.doundo,
+}	-- objFuncs table ends here
 
 -- cnvobj options meta table
 local optMeta = {

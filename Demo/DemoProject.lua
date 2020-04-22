@@ -41,6 +41,17 @@ GUI.mainArea:append(cnvobj.cnv)
 
 local MODE
 
+local undo,redo = {},{}		-- The UNDO and REDO stacks
+local toRedo
+local function addUndoStack(diff)
+	local tab = undo
+	if toRedo then tab = redo end
+	tab[#tab + 1] = {
+		type = "LUAGL",
+		obj = diff
+	}
+end
+cnvobj:addHook("UNDOADDED",addUndoStack)
 
 --********************* Callbacks *************
 
@@ -80,7 +91,7 @@ function GUI.toolbar.buttons.loadButton:action()
 	--cnvobj:load(s,450,300)
 end
 
--- Turn ON/OFF snapping ont he grid
+-- Turn ON/OFF snapping on the grid
 function GUI.toolbar.buttons.snapGridButton:action()
 	if self.image == GUI.images.ongrid then
 		self.image = GUI.images.offgrid
@@ -92,6 +103,31 @@ function GUI.toolbar.buttons.snapGridButton:action()
 		cnvobj.grid.snapGrid = true
 	end
 end
+
+-- Undo button action
+function GUI.toolbar.buttons.undoButton:action()
+	for i = #undo,1,-1 do
+		if undo[i].type == "LUAGL" then
+			toRedo = true
+			cnvobj:undo(undo[i].obj)
+			table.remove(undo,i)
+			toRedo = false
+			break
+		end
+	end
+end
+
+-- Redo button action
+function GUI.toolbar.buttons.redoButton:action()
+	for i = #redo,1,-1 do
+		if redo[i].type == "LUAGL" then
+			cnvobj:undo(redo[i].obj)
+			table.remove(redo,i)
+			break
+		end
+	end	
+end
+
 
 -- Show/Hide the grid
 function GUI.toolbar.buttons.showGridButton:action(v)

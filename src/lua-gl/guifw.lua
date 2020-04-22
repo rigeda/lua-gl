@@ -116,6 +116,7 @@ end
 -- motion_cb or button_cb callback functions
 function getMouseOnCanvas(cnvobj)
 	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+	--print("CURSOR POSITION: ",gx,gy)
 	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
 	return gx-sx,gy-sy
 end

@@ -468,6 +468,8 @@ drawObj = function(cnvobj,shape,coords,data)
 			return nil,msg
 		end
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	-- pts is the number of pts of the shape
 	local pts = M[shape].pts
 	-- Check whether this is an interactive move or not
@@ -514,6 +516,7 @@ drawObj = function(cnvobj,shape,coords,data)
 		if shape == "BLOCKINGRECT" then
 			rm:addBlockingRectangle(t,t.x[1],t.y[1],t.x[2],t.y[2])
 		end		
+		utility.undopost(cnvobj,key)
 		return t
 	end
 	-- Setup the interactive draw
@@ -547,6 +550,7 @@ drawObj = function(cnvobj,shape,coords,data)
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB		
 		cnvobj:refresh()
+		utility.undopost(cnvobj,key)
 	end
 	
 	-- Object drawing methodology

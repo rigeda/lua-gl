@@ -58,7 +58,9 @@ GUI.toolbar.buttons = {
 	textButton = iup.button{image = GUI.images.T,tip="Add Text"},
 	arcButton = iup.button{image = GUI.images.arc,tip="Draw Arc"},
 	filledarcButton = iup.button{image=GUI.images.filledarc,tip = "Draw sector"},
-	printButton = iup.button{image="IUP_Print",tip="Print Drawing"}
+	printButton = iup.button{image="IUP_Print",tip="Print Drawing"},
+	undoButton = iup.button{image="IUP_EditUndo",tip="Undo"},
+	redoButton = iup.button{image="IUP_EditRedo",tip="Redo"} 
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -72,6 +74,8 @@ GUI.toolbar.top = iup.hbox{
 	GUI.toolbar.buttons.refreshButton,
 	GUI.toolbar.buttons.checkButton,
 	GUI.toolbar.buttons.printButton,
+	GUI.toolbar.buttons.undoButton,
+	GUI.toolbar.buttons.redoButton,
 	GUI.toolbar.buttons.connModeList,
 	iup.fill{};
 	margin = "2x2",
