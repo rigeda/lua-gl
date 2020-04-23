@@ -21,6 +21,12 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
+-- The redo/undo functionality
+-- The functionality is based on the tableUtils diff and patch functions
+-- Before every action undopre is called to create a copy of cnvobj.drawn table
+-- After action completion the diff of cnvobj.drawn with its copy is taken and stored in cnvobj.diff
+-- A callback can be associated by the host application to be called whenever a new diff is generated and it can create a stack of them
+-- When doundo id called it creates its own diff to undo the action it did. The host application can use that diff to redo the action by calling doundo with it.
 local conn,objects,hooks
 do
 	local drawnBAC,map,started

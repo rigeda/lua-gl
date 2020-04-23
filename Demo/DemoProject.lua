@@ -42,14 +42,30 @@ GUI.mainArea:append(cnvobj.cnv)
 local MODE
 
 local undo,redo = {},{}		-- The UNDO and REDO stacks
-local toRedo
+local toRedo, doingRedo, group
 local function addUndoStack(diff)
 	local tab = undo
-	if toRedo then tab = redo end
-	tab[#tab + 1] = {
-		type = "LUAGL",
-		obj = diff
-	}
+	if toRedo then 
+		tab = redo 
+	elseif not doingRedo then
+		redo = {}	-- Redo is emptied if any action is done
+	end
+	if group then
+		-- To group multiple luagl actions into 1 undo action of the host application
+		if #tab == 0 or tab[#tab].type ~= "LUAGLGROUP" then
+			tab[#tab + 1] = {
+				type = "LUAGLGROUP",
+				obj = {diff}
+			}
+		else
+			tab[#tab].obj[#tab[#tab].obj + 1] = diff
+		end
+	else
+		tab[#tab + 1] = {
+			type = "LUAGL",
+			obj = diff
+		}
+	end
 end
 cnvobj:addHook("UNDOADDED",addUndoStack)
 
@@ -113,6 +129,16 @@ function GUI.toolbar.buttons.undoButton:action()
 			table.remove(undo,i)
 			toRedo = false
 			break
+		elseif undo[i].type == "LUAGLGROUP" then
+			toRedo = true
+			group = true
+			for j = #undo[i].obj,1,-1 do
+				cnvobj:undo(undo[i].obj[j])
+			end
+			table.remove(undo,i)
+			toRedo = false
+			group = false
+			break
 		end
 	end
 end
@@ -121,8 +147,20 @@ end
 function GUI.toolbar.buttons.redoButton:action()
 	for i = #redo,1,-1 do
 		if redo[i].type == "LUAGL" then
+			doingRedo = true
 			cnvobj:undo(redo[i].obj)
 			table.remove(redo,i)
+			doingRedo = false
+			break
+		elseif redo[i].type == "LUAGLGROUP" then
+			doingRedo = true
+			group = true
+			for j = #redo[i].obj,1,-1 do
+				cnvobj:undo(redo[i].obj[j])
+			end
+			table.remove(redo,i)
+			doingRedo = false
+			group = false
 			break
 		end
 	end	
@@ -492,6 +530,7 @@ function GUI.toolbar.buttons.portButton:action()
 	-- Create a representation of the port at the location of the mouse pointer and then start its move
 	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
 	-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
+	group = true
 	local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 	cnvobj.grid.snapGrid = false
 	local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
@@ -509,7 +548,7 @@ function GUI.toolbar.buttons.portButton:action()
 		local stop
 		for i = 1,#allObjs do
 			if allObjs[i] ~= o then
-				stop = true
+				stop = true	-- There is an object there other than the object drawn for the port visualization above
 				break
 			end
 		end
@@ -521,6 +560,7 @@ function GUI.toolbar.buttons.portButton:action()
 			print("Create the port at ",x,y)
 			cnvobj:addPort(x,y,allObjs[1].id)
 			MODE = nil
+			group = false
 		elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
 			print("Continuing Move",#allObjs)
 			-- Continue the move only if it is out of the move mode

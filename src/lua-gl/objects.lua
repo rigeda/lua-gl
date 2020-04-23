@@ -122,6 +122,8 @@ groupObjects = function(cnvobj,objList)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	local objs = cnvobj.drawn.obj	-- Data structure of all drawn objects
 	if #objs == 0 then
 		return
@@ -165,6 +167,7 @@ groupObjects = function(cnvobj,objList)
 	for i = 1,#order do
 		order[i].item.order = i
 	end
+	utility.undopost(cnvobj,key)
 	return true
 end
 
@@ -218,6 +221,8 @@ removeObj = function(cnvobj,obj)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	-- First update the routing matrix
 	if obj.shape == "BLOCKINGRECT" then
 		cnvobj.rM:removeBlockingRectangle(obj)
@@ -249,6 +254,7 @@ removeObj = function(cnvobj,obj)
 	-- remove from object array
 	ind = tu.inArray(cnvobj.drawn.obj,obj)
 	table.remove(cnvobj.drawn.obj,ind)
+	utility.undopost(cnvobj,key)
 	-- All done
 	return true
 end
@@ -332,6 +338,8 @@ moveObj = function(cnvobj,objList,offx,offy)
 		return nil, "Coordinates not given"
 	end
 	local rm = cnvobj.rM
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	
 	-- Compile a list of objects by adding objects in the same group as the given objects
 	local grp = populateGroupMembers(objList)
@@ -359,6 +367,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 		PORTS.connectOverlapPorts(cnvobj,allPorts)		
+		utility.undopost(cnvobj,key)
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -410,6 +419,7 @@ moveObj = function(cnvobj,objList,offx,offy)
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 		PORTS.connectOverlapPorts(cnvobj,allPorts)	
 		cnvobj.op[opptr] = nil
+		utility.undopost(cnvobj,key)
 	end
 	
 	local op = {}
@@ -893,6 +903,9 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	if #grp == 0 then
 		return nil,"No objects to drag"
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
+	
 	-- Sort the group elements in ascending order ranking
 	table.sort(grp,function(one,two) 
 			return one.order < two.order
@@ -917,6 +930,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 		-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 		PORTS.connectOverlapPorts(cnvobj,allPorts)
+		utility.undopost(cnvobj,key)
 		return true
 	end
 	-- Setup the interactive move operation here
@@ -991,6 +1005,7 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		-- Reset mode
 		cnvobj:refresh()
 		cnvobj.op[opptr] = nil
+		utility.undopost(cnvobj,key)
 	end
 	
 	local op = {}

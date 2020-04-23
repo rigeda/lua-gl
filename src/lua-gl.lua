@@ -53,10 +53,8 @@ DEBUG:
 
 TASKS:
 * drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
-* Add removeObject functionality
 * Add removeConnector functionality
 * Add object resize functionality
-* Have to make undo/redo lists 
 * Implement action cancel by ending and then undoing it.
 * Connector labeling
 ]]
