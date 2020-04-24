@@ -8,6 +8,7 @@ local table = table
 local require = require
 
 local coorc = require("lua-gl.CoordinateCalc")
+local utility = require("lua-gl.utility")
 local tu = require("tableUtils")
 
 local M = {}
@@ -135,6 +136,8 @@ addPort = function(cnvobj,x,y,objID)
 	if not obj then
 		return nil,"Object not found"
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	x = coorc.snapX(x, grdx)
 	y = coorc.snapY(y, grdy)
@@ -158,6 +161,7 @@ addPort = function(cnvobj,x,y,objID)
 	CONN.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 	-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 	connectOverlapPorts(cnvobj,{cnvobj.drawn.port[index]})
+	utility.undopost(cnvobj,key)
 	return cnvobj.drawn.port[index]
 end
 
@@ -171,6 +175,8 @@ removePort = function(cnvobj,port)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	-- Remove references from any connectors it connects to
 	local ind
 	for j = 1,#port.conn do
@@ -185,6 +191,7 @@ removePort = function(cnvobj,port)
 	table.remove(cnvobj.drawn.port,ind)
 	-- Remove the port from the routing matrix
 	cnvobj.rM:removePort(port)
+	utility.undopost(cnvobj,key)
 	-- All Done
 	return true
 end

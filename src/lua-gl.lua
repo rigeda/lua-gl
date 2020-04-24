@@ -45,18 +45,16 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.03.24"
+_VERSION = "B20.04.24"
 
 --- TASKS
 --[[
 DEBUG:
 
 TASKS:
-* drawConnector non interactive API does not check whether all the segments provided are touching each other. If they do not form a continuous connector then probably they should form multiple connectors.
-* Add removeConnector functionality
-* Add object resize functionality
 * Implement action cancel by ending and then undoing it.
 * Connector labeling
+* Add object resize functionality
 ]]
 
 -- Initialize all the shapes
@@ -1174,8 +1172,10 @@ objFuncs = {
 	moveSegment = conn.moveSegment,
 	moveConn = conn.moveConn,
 	removeConn = conn.removeConn,
+	removeSegment = conn.removeSegment,
 	getConnFromID = conn.getConnFromID,
 	getConnFromXY = conn.getConnFromXY,
+	setConnVisualAttr = conn.setConnVisualAttr,
 	---- HOOKS--------------
 	addHook = hooks.addHook,
 	removeHook = hooks.removeHook,
@@ -1194,6 +1194,7 @@ objFuncs = {
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
 	populateGroupMembers = objects.populateGroupMembers,
+	setObjVisualAttr = objects.setObjVisualAttr,
 	-----GRAPHICS-----------
 	getTextAttrFunc = GUIFW.getTextAttrFunc,
 	getNonFilledObjAttrFunc = GUIFW.getNonFilledObjAttrFunc,

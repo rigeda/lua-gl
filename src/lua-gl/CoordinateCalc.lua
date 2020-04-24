@@ -77,7 +77,9 @@ local function orientation(x1,y1,x2,y2,x3,y3)
     -- See https://www.geeksforgeeks.org/orientation-3-ordered-points/ 
     -- for details of below formula. 
     local val = (y2 - y1) * (x3 - x2) - (x2 - x1) * (y3 - y2)
-  
+	-- ******************************************************
+	-- DOES THIS NEED A TOLERANCE? IS THERE ANY CASE?
+	-- ******************************************************
     if val == 0 then return 0 end  -- colinear 
 	return (val > 0 and 1) or 2 	-- clock or counterclock wise 
 end

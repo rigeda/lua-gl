@@ -157,10 +157,13 @@ function setConnVisualAttr(cnvobj,conn,attr,num)
 	if attrType ~= "NONFILLED" then
 		return nil,"Wrong attribute type."
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	-- attr is valid now associate it with the object
 	conn.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
 	-- Set the attributes function in the visual properties table
 	cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
+	utility.undopost(cnvobj,key)
 	return true
 end
 
@@ -1400,6 +1403,8 @@ removeConn = function(cnvobj,conn)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	-- First update the routing matrix
 	local rm = cnvobj.rM
 	for i = 1,#conn.segments do
@@ -1410,13 +1415,18 @@ removeConn = function(cnvobj,conn)
 	fixOrder(cnvobj)
 	-- Remove references of the connector from all the ports connecting to it
 	local ind
+	local allPorts = {}
 	for i = 1,#conn.port do
 		ind = tu.inArray(conn.port[i].conn,conn)
 		table.remove(conn.port[i].conn,ind)
+		allPorts[#allPorts + 1] = conn.port[i]
 	end
 	-- Remove from the connectors array
 	ind = tu.inArray(cnvobj.drawn.conn,conn)
 	table.remove(cnvobj.drawn.conn,ind)
+	-- Now connect any overlapping ports
+	PORTS.connectOverlapPorts(cnvobj,allPorts)	
+	utility.undopost(cnvobj,key)
 	-- All done!
 	return true
 end
@@ -1465,6 +1475,8 @@ moveConn = function(cnvobj,connM,offx,offy)
 		return nil, "Coordinates not given"
 	end
 	
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	local rm = cnvobj.rM	
 	
 	-- Disconnect all ports in the connector
@@ -1476,6 +1488,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 		shiftConnList(connM,offx,offy,rm)
 		-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
 		assimilateConnList(cnvobj,connM)
+		utility.undopost(cnvobj,key)
 		return true
 	end		-- if not interactive then ends
 	
@@ -1529,6 +1542,7 @@ moveConn = function(cnvobj,connM,offx,offy)
 		
 		cnvobj.op[opptr] = nil
 		cnvobj:refresh()
+		utility.undopost(cnvobj,key)
 	end
 	
 	local op = {}
@@ -1698,6 +1712,30 @@ splitConnectorAtSegments = function(cnvobj,segList)
 	end
 	
 	return connM,connNM
+end
+
+
+-- Function to delete a segment
+-- segList is a list of structures like this:
+--[[
+{
+	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+	seg = <integer>					-- segment index of the connector
+}
+]]
+removeSegment = function(cnvobj,segList)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end	
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
+	
+	local connList = splitConnectorAtSegments(cnvobj,segList)
+	-- Now delete all connectors in connList
+	for i = 1,#connList do
+		removeConn(cnvobj,connList[i])
+	end
+	utility.undopost(cnvobj,key)
 end
 
 -- Function to move a list of segments (moving implies connector connections are broken)
@@ -1964,6 +2002,8 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 	end
 	
 	--print("DRAG SEGMENT START")
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	
 	local rm = cnvobj.rM
 	
@@ -2045,6 +2085,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 			end
 		end
 		assimilateConnList(cnvobj,connList)
+		utility.undopost(cnvobj,key)
 		return true
 	end
 	
@@ -2109,6 +2150,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
 		cnvobj:refresh()
+		utility.undopost(cnvobj,key)
 	end
 		
 	cnvobj.op[opptr] = op
@@ -2173,6 +2215,8 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	
 	print("DRAW CONNECTOR START")
 	
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
 	local rm = cnvobj.rM
 	
 	if not interactive then
@@ -2189,7 +2233,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 		]]
 		-- Take care of grid snapping
 		local conn = cnvobj.drawn.conn	-- Data structure containing all connectors
-		local junc = {}			-- To store all new created junctions
+		local segBins = {}		-- Put segments into bins which are not connected
 		for i = 1,#segs do
 			if not segs[i].start_x or type(segs[i].start_x) ~= "number" then
 				return nil,"Invalid or missing coordinate."
@@ -2203,66 +2247,111 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 			if not segs[i].end_y or type(segs[i].end_y) ~= "number" then
 				return nil,"Invalid or missing coordinate."
 			end
+			local addToBins = {}
+			for j = 1,#segBins do
+				for k = 1,#segBins[j] do
+					local binseg = segBins[j][k]
+					if (segs[i].start_x == binseg.start_x and segs[i].start_y == binseg.start_y) or 
+					  (segs[i].start_x == binseg.end_x and segs[i].start_y == binseg.end_y) or 
+					  (segs[i].end_x == binseg.end_x and segs[i].end_y == binseg.end_y) or 
+					  (segs[i].end_x == binseg.start_x and segs[i].end_y == binseg.start_y) then
+						addToBins[#addToBins + 1] = j
+						break
+					end
+				end
+			end
+			if #addToBins == 0 then
+				-- Create a new bin
+				segBins[#segBins + 1] = {segs[i]}
+			else
+				-- Add to bins and combine all the bins in addToBins
+				local bin = segBins[addToBins[#addToBins]]
+				bin[#bin + 1] = segs[i]
+				for j = #addToBins-1,1,-1 do
+					for k = 1,#segBins[addToBins[j+1]] do
+						bin = segBins[addToBins[j]]
+						bin[#bin + 1] = segBins[addToBins[j+1]][k]
+					end
+					table.remove(segBins,addToBins[j+1])
+				end
+			end
 			-- Do the snapping of the coordinates first
 			segs[i].start_x,segs[i].start_y = cnvobj:snap(segs[i].start_x,segs[i].start_y)
 			segs[i].end_x,segs[i].end_y = cnvobj:snap(segs[i].end_x,segs[i].end_y)
-			local jcst,jcen=0,0	-- counters to count how many segments does the start point of the i th segment connects to (jcst) and how many segments does the end point of the i th segment connects to (jcen)
 			for j = 1,#segs do
 				if j ~= i then
 					-- the end points of the ith segment should not lie anywhere on the jth segment except its ends
-					local ep = true	-- is the jth segment connected to one of the end points of the ith segment?
-					if segs[i].start_x == segs[j].start_x and segs[i].start_y == segs[j].start_y then
-						jcst = jcst + 1
-					elseif segs[i].start_x == segs[j].end_x and segs[i].start_y == segs[j].end_y then
-						jcst = jcst + 1
-					elseif segs[i].end_x == segs[j].end_x and segs[i].end_y == segs[j].end_y then
-						jcen = jcen + 1
-					elseif segs[i].end_x == segs[j].start_x and segs[i].end_y == segs[j].start_y then
-						jcen = jcen + 1
-					else
-						ep = false
+					local ep 	-- is the jth segment connected to one of the end points of the ith segment?
+					if (segs[i].start_x == segs[j].start_x and segs[i].start_y == segs[j].start_y) or 
+					  (segs[i].start_x == segs[j].end_x and segs[i].start_y == segs[j].end_y) or 
+					  (segs[i].end_x == segs[j].end_x and segs[i].end_y == segs[j].end_y) or 
+					  (segs[i].end_x == segs[j].start_x and segs[i].end_y == segs[j].start_y) then
+						ep = true
 					end
 					if not ep and (coorc.pointOnSegment(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].start_x, segs[i].start_y)  
 					  or coorc.pointOnSegment(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y, segs[i].end_x, segs[i].end_y)) then
 						return nil, "The end point of a segment touches a mid point of another segment."	-- This is not allowed since that segment should have been split into 2 segments
 					end
-				end
-			end
-			if jcst > 1 then
-				-- More than 1 segment connects the starting point of the ith segment so the starting point is a junction and 1 is the ith segment so that makes more than 2 segments connecting at the starting point of the ith segment
-				if not tu.inArray(junc,{x=segs[i].start_x,y=segs[i].start_y},equalCoordinate) then
-					junc[#junc + 1] = {x=segs[i].start_x,y=segs[i].start_y}
-				end
-			end
-			if jcen > 1 then
-				if not tu.inArray(junc,{x=segs[i].end_x,y=segs[i].end_y},equalCoordinate) then
-					junc[#junc + 1] = {x=segs[i].end_x,y=segs[i].end_y}
-				end
-			end
+				end		-- if j ~= i then ends
+			end		-- for j = 1,#segs do ends
 		end		-- for i = 1,#segs ends here
 		-- Add the segments to the routing matrix
 		for i = 1,#segs do
 			rm:addSegment(segs[i],segs[i].start_x,segs[i].start_y,segs[i].end_x,segs[i].end_y)
 		end
-		-- Create a new connector using the segments
-		conn[#conn + 1] = {
-			segments = segs,
-			id="C"..tostring(conn.ids + 1),
-			order=#cnvobj.drawn.order+1,
-			junction=junc,
-			port={}
-		}
-		conn.ids = conn.ids + 1
-		-- Add the connector to the order array
-		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
-			type = "connector",
-			item = conn[#conn]
-		}
+		-- Create a new connector using the segments in each segment bin
+		local newConns = {}
+		for i = 1,#segBins do
+			-- Find the junctions
+			local junc = {}
+			for j = 1,#segBins[i] do
+				local jcst,jcen=0,0	-- counters to count how many segments does the start point of the i th segment connects to (jcst) and how many segments does the end point of the i th segment connects to (jcen)
+				for k = 1,#segBins[i] do
+					if j ~= k then
+						if segBins[i][j].start_x == segBins[i][k].start_x and segBins[i][j].start_y == segBins[i][k].start_y then
+							jcst = jcst + 1
+						elseif segBins[i][j].start_x == segBins[i][k].end_x and segBins[i][j].start_y == segBins[i][k].end_y then
+							jcst = jcst + 1
+						elseif segBins[i][j].end_x == segBins[i][k].end_x and segBins[i][j].end_y == segBins[i][k].end_y then
+							jcen = jcen + 1
+						elseif segBins[i][j].end_x == segBins[i][k].start_x and segBins[i][j].end_y == segBins[i][k].start_y then
+							jcen = jcen + 1
+						end
+					end
+				end		-- for k = 1,#segBins[i] ends
+				if jcst > 1 then
+					-- More than 1 segment connects the starting point of the ith segment so the starting point is a junction and 1 is the ith segment so that makes more than 2 segments connecting at the starting point of the ith segment
+					if not tu.inArray(junc,{x=segs[i].start_x,y=segs[i].start_y},equalCoordinate) then
+						junc[#junc + 1] = {x=segs[i].start_x,y=segs[i].start_y}
+					end
+				end
+				if jcen > 1 then
+					if not tu.inArray(junc,{x=segs[i].end_x,y=segs[i].end_y},equalCoordinate) then
+						junc[#junc + 1] = {x=segs[i].end_x,y=segs[i].end_y}
+					end
+				end
+			end
+			conn[#conn + 1] = {
+				segments = segBins[i],
+				id="C"..tostring(conn.ids + 1),
+				order=#cnvobj.drawn.order+1,
+				junction=junc,
+				port={}
+			}
+			newConns[#newConns + 1] = conn[#conn]
+			conn.ids = conn.ids + 1
+			-- Add the connector to the order array
+			cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
+				type = "connector",
+				item = conn[#conn]
+			}
+		end		-- for i = 1,#segBins do ends
 		-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
 		-- remove any overlaps in the final merged connector
-		local mergeMap = shortAndMergeConnectors(cnvobj,{conn[#conn]})
+		local mergeMap = shortAndMergeConnectors(cnvobj,newConns)
 		-- Connect overlapping ports
 		connectOverlapPorts(cnvobj,mergeMap[#mergeMap][1])		-- Note shortAndMergeConnectors also runs repairSegAndJunc
+		utility.undopost(cnvobj,key)
 		return true
 	end
 	-- Setup interactive drawing
@@ -2316,6 +2405,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 		cnvobj.op[opptr] = nil
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
+		utility.undopost(cnvobj,key)
 	end		-- Function endConnector ends here
 	
 	local function startConnector(X,Y)

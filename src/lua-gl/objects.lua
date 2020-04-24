@@ -197,6 +197,9 @@ function setObjVisualAttr(cnvobj,obj,attr,num)
 	if not res then
 		return res,attrType
 	end
+	-- Setup undo
+	local key = utility.undopre(cnvobj)
+	
 	-- attr is valid now associate it with the object
 	obj.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
 	-- Set the attributes function in the visual properties table
@@ -207,6 +210,7 @@ function setObjVisualAttr(cnvobj,obj,attr,num)
 	elseif attrType == "TEXT" then
 		cnvobj.attributes.visualAttr[obj] = {vAttr = num, visualAttr = GUIFW.getTextAttrFunc(attr)}
 	end
+	utility.undopost(cnvobj,key)
 	return true
 end
 
