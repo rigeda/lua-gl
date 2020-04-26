@@ -169,23 +169,27 @@ function init(cnvobj)
 	-- Register drawing functions
 	GUIFW.ELLIPSE = {
 		draw = drawhollow,
-		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
-		vAttr = 1
+		visualAttr = GUIFW.getNonFilledObjAttrFunc(cnvobj.viewOptions.visualProp[1]),	-- non filled object
+		vAttr = 1,
+		attr = cnvobj.viewOptions.visualProp[1]
 	}
 	GUIFW.FILLEDELLIPSE = {
 		draw = drawfilled,
-		visualAttr = cnvobj.attributes.visualAttrBank[3],	-- filled object
-		vAttr = 3
+		visualAttr = GUIFW.getFilledObjAttrFunc(cnvobj.viewOptions.visualProp[3]),	-- filled object
+		vAttr = 3,
+		attr = cnvobj.viewOptions.visualProp[3]
 	}
 	GUIFW.ARC = {
 		draw = drawhollowarc,
-		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
-		vAttr = 1
+		visualAttr = GUIFW.getNonFilledObjAttrFunc(cnvobj.viewOptions.visualProp[1]),	-- non filled object
+		vAttr = 1,
+		attr = cnvobj.viewOptions.visualProp[1]
 	}
 	GUIFW.FILLEDARC = {
 		draw = drawfilledarc,
-		visualAttr = cnvobj.attributes.visualAttrBank[3],	-- filled object
-		vAttr = 3
+		visualAttr = GUIFW.getFilledObjAttrFunc(cnvobj.viewOptions.visualProp[3]),	-- filled object
+		vAttr = 3,
+		attr = cnvobj.viewOptions.visualProp[3]
 	}
 	OBJ.ARC = {
 		checkXY = checkXYArc,

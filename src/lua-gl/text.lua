@@ -76,8 +76,9 @@ end
 function init(cnvobj)
 	GUIFW.TEXT = {
 		draw = draw,
-		visualAttr = cnvobj.attributes.visualAttrBank[6],	-- Text attribute
-		vAttr = 6
+		visualAttr = GUIFW.getTextAttrFunc(cnvobj.viewOptions.visualProp[6]),	-- Text attribute
+		vAttr = 6,
+		attr = cnvobj.viewOptions.visualProp[6]
 	}
 	-- Register checkXY function
 	OBJ.TEXT = {

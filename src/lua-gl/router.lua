@@ -389,7 +389,7 @@ end
 -- The new segments are added to the end of the segments array passed to it
 -- router is a auto-routing function to be used for routing the connector
 -- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
---	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualProp table
 -- 	= 2 generate jumping segment but don't set any special attribute
 --  = 0 then do not generate jumping segment
 -- Function returns the x,y coordinates up to which the segments were generated
@@ -475,7 +475,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
 		reX = destX
 		reY = destY
 		-- Set the attribute for the jumping segment
-		cnvobj.attributes.visualAttr[s] = jumpSeg == 1 and {vAttr = 5,visualAttr = cnvobj.attributes.visualAttrBank[5]}	-- The default jumping connector attribute
+		cnvobj.attributes.visualAttr[s] = jumpSeg == 1 and {vAttr = 5,visualAttr = GUIFW.getFilledObjAttrFunc(cnvobj.viewOptions.visualProp[5]),attr = cnvobj.viewOptions.visualProp[5]}	-- The default jumping connector attribute
 	end
 	print("FINISH GENSEGS")
 	return reX,reY

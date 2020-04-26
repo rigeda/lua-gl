@@ -494,7 +494,7 @@ function  render(cnvobj,cd_bcanvas, vp, showGrid)
 				shape = attr.visualAttr[s] or M.CONN
 				if vAttr == -1 or vAttr ~= shape.vAttr then
 					vAttr = shape.vAttr
-					shape.visualAttr(cd_bcanvas)
+					shape.visualAttr(cd_bcanvas,zoom)
 				end
 				x1,y1,x2,y2 = s.start_x,s.start_y,s.end_x,s.end_y
 				--y1 = cnvobj.height - y1
@@ -505,7 +505,7 @@ function  render(cnvobj,cd_bcanvas, vp, showGrid)
 			if jdx~=0 and jdy~=0 then
 				if vAttr == -1 or vAttr ~= cshape.vAttr then
 					vAttr = cshape.vAttr
-					cshape.visualAttr(cd_bcanvas)
+					cshape.visualAttr(cd_bcanvas,zoom)
 				end
 				cd_bcanvas:InteriorStyle(M.SOLID)	-- This doesn't effect the current vAttr because connector attribute is for non filled object		
 				juncs = item.junction

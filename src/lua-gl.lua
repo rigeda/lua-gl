@@ -69,7 +69,27 @@ end
 
 -- Returns the visual attribute structure with the visual attribute function
 local function getVisualAttr(cnvobj,item)
-	return cnvobj.attributes.visualAttr[item]
+	local vattr = item.vattr
+	local vattrTab = cnvobj.attributes.visualAttr[item]
+	if not vattr then
+		-- pick the default one
+		if item.shape then
+			-- This is object
+			vattr = GUIFW[item.shape].attr
+			vattrTab = GUIFW[item.shape]
+		else
+			-- This must be a segment or connector
+			vattr = GUIFW.CONN.attr
+			vattrTab = GUIFW.CONN
+		end
+	end
+	return vattr,vattrTab,cnvobj.attributes.visualAttr[item]
+end
+
+-- Function to remove the visual attribute of the item
+local function removeVisualAttr(cnvobj,item)
+	cnvobj.attributes.visualAttr[item] = nil
+	item.vattr = nil
 end
 
 -- Function to fix the order of all the items in the order table
@@ -123,31 +143,6 @@ objFuncs = {
 		return tu.t2sr(cnvobj.drawn)
 	end,
 	
-	rotateFlip = function(x,y,refx,refy,para)
-		if para ~= 90 and para ~= 180 and para ~= 270 and para ~= "h" and para ~= "v" then
-			return nil,"Not a valid rotation angle or flip direction"
-		end
-		
-		local rot = {
-			[90] = function(x,y)
-				return refx+refy-y,x-refx+refy
-			end,
-			[180] = function(x,y)
-				return 2*refx-x,2*refy-y
-			end,
-			[270] = function(x,y)
-				return refx-refy+y,refx+refy-x
-			end,
-			h = function(x,y)
-				return 2*refx-x,y
-			end,
-			v = function(x,y)
-				return x,2*refy-y
-			end
-		}
-		return rot[para](x,y)
-	end,
-	
 	-- Function to rotate or flip the list of items around a reference point given by refx,refy
 	-- para can be one of the following 90,180,270,h,v. If 90,180,270 then that rotation is applied. If h then horizontal flip otherwise vertical flip
 	-- items is an array with either of the 2 things:
@@ -184,6 +179,8 @@ objFuncs = {
 			end
 		}
 		
+		-- Setup undo
+		local key = utility.undopre(cnvobj)
 		local objList,segList = separateObjSeg(items)
 		-- Rotate the objects
 		for i = 1,#objList do
@@ -205,6 +202,7 @@ objFuncs = {
 			seg.start_x,seg.start_y = rot[para](seg.start_x,seg.start_y)
 			seg.end_x,seg.end_y = rot[para](seg.end_x,seg.end_y)
 		end
+		utility.undopost(cnvobj,key)
 		return true
 	end,
 	
@@ -238,6 +236,9 @@ objFuncs = {
 		elseif #segList == 0 then
 			return objects.moveObj(cnvobj,objList,offx,offy)
 		end
+		-- Setup undo
+		local key = utility.undopre(cnvobj)
+		
 		-- Now we split the connectors at the segments to separate them out into connectors that need to be moved just like we did in moveSegment		
 		local connM = conn.splitConnectorAtSegments(cnvobj,segList)	-- connM will get the list of connectors now that have to be moved
 		
@@ -271,6 +272,7 @@ objFuncs = {
 			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 			ports.connectOverlapPorts(cnvobj,allPorts)		
+			utility.undopost(cnvobj,key)
 			return true
 		end
 		-- Setup the interactive move operation here
@@ -361,6 +363,7 @@ objFuncs = {
 			ports.connectOverlapPorts(cnvobj,allPorts)		
 			cnvobj:refresh()
 			cnvobj.op[opptr] = nil
+			utility.undopost(cnvobj,key)
 		end
 		
 		local op = {}
@@ -450,6 +453,8 @@ objFuncs = {
 			return objects.dragObj(cnvobj,objList,offx,offy)
 		end
 		
+		-- Setup undo
+		local key = utility.undopre(cnvobj)
 		-- Collect all the objects that need to be dragged together by checking group memberships
 		local grp = objects.populateGroupMembers(objList)
 		-- Sort the group elements in ascending order ranking
@@ -546,6 +551,7 @@ objFuncs = {
 			conn.connectOverlapPorts(cnvobj,nil,allPorts)	-- This takes care of splitting the connector segments as well if needed
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 			ports.connectOverlapPorts(cnvobj,allPorts)
+			utility.undopost(cnvobj,key)
 			return true
 		end
 		-- Setup the interactive move operation here
@@ -654,6 +660,7 @@ objFuncs = {
 			-- Reset mode
 			cnvobj:refresh()
 			cnvobj.op[opptr] = nil
+			utility.undopost(cnvobj,key)
 		end
 		
 		cnvobj.op[opptr] = op
@@ -718,6 +725,8 @@ objFuncs = {
 		
 		local rm = cnvobj.rM
 		
+		-- Setup undo
+		local key = utility.undopre(cnvobj)
 		local tab = tu.s2tr(str)
 		if not tab or (#tab.obj == 0 and #tab.conn == 0) then return nil,"No data found" end
 		
@@ -866,7 +875,7 @@ objFuncs = {
 			-- Fix the order number on the item
 			orderS[i].item.order = #orderD
 		end
-		
+
 		-- Everything is loaded now
 		if not interactive then
 			-- Check all the ports in the drawn structure and see if any port lies on this connector then connect to it
@@ -876,8 +885,10 @@ objFuncs = {
 			-- Check whether this port now overlaps with another port then this connector is shorted to that port as well so 
 			ports.connectOverlapPorts(cnvobj,portS)		
 			cnvobj:refresh()
+			utility.undopost(cnvobj,key)
 			return true
 		end
+		utility.undopost(cnvobj,key)
 		-- For interactive move just create the item list and send it to the Move API
 		return cnvobj:move(items)
 	end,
@@ -1044,26 +1055,10 @@ objFuncs = {
 		--[[
 		attributes = {
 			visualAttr = <table>,			-- Hash map containing mapping from the item structure to the visual attributes function
-			visualAttrBank = <array>,		-- Array containing list of functions that will set the drawing settings for each of the following items:
-					- Items for which attributes need to be set:
-					- Non filled object		(1)
-					- Blocking rectangle	(2)
-					- Filled object			(3)
-					- Normal Connector		(4)
-					- Jumping Connector		(5)
-					-1	is reserved and used by the rendeing function
 		}
 		]]
 		cnvobj.attributes = {
-			visualAttr = setmetatable({},{__mode="k"}),	-- visualAttr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {vAttr=<integer>,visualAttr=<function>}. The integer points to a visualAttrBank index (-1 is reserved and does not point to it). This allows registering of new visual attributes in the visualAttrBank table defined below and helps optimize the render function by not executing same attributes
-			visualAttrBank = {
-				GUIFW.getNonFilledObjAttrFunc(vProp[1]),	-- For Non Filled object
-				GUIFW.getNonFilledObjAttrFunc(vProp[2]),	-- For blocking rectangle
-				GUIFW.getFilledObjAttrFunc(vProp[3]),		-- For filled object
-				GUIFW.getNonFilledObjAttrFunc(vProp[4]),	-- For Normal connector
-				GUIFW.getNonFilledObjAttrFunc(vProp[5]),	-- For jumping connector
-				GUIFW.getTextAttrFunc(vProp[6]),			-- For Text 
-			}
+			visualAttr = setmetatable({},{__mode="k"}),	-- visualAttr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {vAttr=<integer>,visualAttr=<function>,attr=<table>}. The integer points to a viewOptions.visualProp index (-1 is reserved and does not point to it). This allows registering of new visual attributes 
 		}
 		
 		--[[ Attributes can be set for the following structures:
@@ -1082,11 +1077,10 @@ objFuncs = {
 
 		-- Attributes setting API
 		cnvobj.setObjVisualAttr = objects.setObjVisualAttr
-		cnvobj.getObjVisualAttr = getVisualAttr
+		cnvobj.getVisualAttr = getVisualAttr
 		cnvobj.setConnVisualAttr = conn.setConnVisualAttr
-		cnvobj.getConnVisualAttr = getVisualAttr
 		cnvobj.setSegVisualAttr = conn.setSegVisualAttr
-		cnvobj.getSegVisualAttr = getVisualAttr
+		cnvobj.removeVisualAttr = removeVisualAttr
 		
 		--[[
 			- Item Type is one of the following numbers:
@@ -1114,13 +1108,6 @@ objFuncs = {
 				return nil,"Attributes table is for text object but itemType is not 6"
 			end
 			cnvobj.viewOptions.visualProp[itemType] = attr
-			if attrType == "FILLED" then
-				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getFilledObjAttrFunc(attr)
-			elseif attrType == "NONFILLED" then
-				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getNonFilledObjAttrFunc(attr)
-			elseif attrType == "TEXT" then
-				cnvobj.attributes.visualAttrBank[itemType] = GUIFW.getTextAttrFunc(attr)
-			end
 			-- Reinitialize the shapes to set the right attributes in the modules
 			initShapes(cnvobj)
 			return true
@@ -1161,7 +1148,7 @@ objFuncs = {
 		end
 		
 		return true
-	end,
+	end,	-- erase ends
 	
 	refresh = GUIFW.update,
 
@@ -1175,7 +1162,7 @@ objFuncs = {
 	removeSegment = conn.removeSegment,
 	getConnFromID = conn.getConnFromID,
 	getConnFromXY = conn.getConnFromXY,
-	setConnVisualAttr = conn.setConnVisualAttr,
+	--setConnVisualAttr = conn.setConnVisualAttr,
 	---- HOOKS--------------
 	addHook = hooks.addHook,
 	removeHook = hooks.removeHook,
@@ -1194,7 +1181,7 @@ objFuncs = {
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
 	populateGroupMembers = objects.populateGroupMembers,
-	setObjVisualAttr = objects.setObjVisualAttr,
+	--setObjVisualAttr = objects.setObjVisualAttr,
 	-----GRAPHICS-----------
 	getTextAttrFunc = GUIFW.getTextAttrFunc,
 	getNonFilledObjAttrFunc = GUIFW.getNonFilledObjAttrFunc,
@@ -1206,6 +1193,63 @@ objFuncs = {
 	viewportPara = GUIFW.viewportPara,
 	doprint = GUIFW.doprint,
 	fontPt2Pixel = GUIFW.fontPt2Pixel,
+	-- Initialize the graphical constants here
+	MOUSE = {
+		BUTTON1 = GUIFW.BUTTON1,
+		BUTTON2 = GUIFW.BUTTON2,
+	},
+	GRAPHICS = {
+		-- Line style constants,
+		CONTINUOUS = GUIFW.CONTINUOUS,
+		DASHED = GUIFW.DASHED,
+		DOTTED = GUIFW.DOTTED,
+		DASH_DOT = GUIFW.DASH_DOT,
+		DASH_DOT_DOT = GUIFW.DASH_DOT_DOT,
+		CUSTOM = GUIFW.CUSTOM,
+		-- Line Join Constants,
+		MITER = GUIFW.MITER,
+		BEVEL = GUIFW.BEVEL,
+		ROUND = GUIFW.ROUND,
+		-- Line Cap constants,
+		CAPFLAT = GUIFW.CAPFLAT,
+		CAPSQUARE = GUIFW.CAPSQUARE,
+		CAPROUND = GUIFW.CAPROUND,
+		-- Back Opacity,
+		OPAQUE = GUIFW.OPAQUE,
+		TRANSPARENT = GUIFW.TRANSPARENT,
+		-- Fill style,
+		SOLID = GUIFW.SOLID,
+		HOLLOW = GUIFW.HOLLOW,
+		STIPPLE = GUIFW.STIPPLE,
+		HATCH = GUIFW.HATCH,
+		PATTERN = GUIFW.PATTERN,
+		-- Hatch styles,
+		HORIZONTAL = GUIFW.HORIZONTAL,
+		VERTICAL = GUIFW.VERTICAL,
+		FDIAGONAL = GUIFW.FDIAGNOL,
+		BDIAGONAL = GUIFW.BDIAGNOL,
+		CROSS = GUIFW.CROSS,
+		DIAGCROSS = GUIFW.DIAGCROSS,
+		-- Font styles,
+		PLAIN = GUIFW.PLAIN,
+		BOLD = GUIFW.BOLD,
+		ITALIC = GUIFW.ITALIC,
+		UNDERLINE = GUIFW.UNDERLINE,
+		STRIKEOUT = GUIFW.STRIKEOUT,
+		-- Font Alignment,
+		NORTH = GUIFW.NORTH,
+		SOUTH = GUIFW.SOUTH,
+		EAST = GUIFW.EAST,
+		WEST = GUIFW.WEST,
+		NORTH_EAST = GUIFW.NORTH_EAST,
+		NORTH_WEST = GUIFW.NORTH_WEST,
+		SOUTH_EAST = GUIFW.SOUTH_EAST,
+		SOUTH_WEST = GUIFW.SOUTH_WEST,
+		CENTER = GUIFW.CENTER,
+		BASE_LEFT = GUIFW.BASE_LEFT,
+		BASE_CENTER = GUIFW.BASE_CENTER,
+		BASE_RIGHT = GUIFW.BASE_RIGHT,		
+	},
 	
 	-----UTILITY------------
 	snap = function(cnvobj,x,y)

@@ -317,6 +317,83 @@ function GUI.toolbar.buttons.printButton:action()
 	end
 end
 
+local selList = {}
+local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the item to be garbage collected
+local objSelColor = {255, 162, 232}
+local connSelColor = {255, 128, 255}
+
+-- Button_CB callback to select stuff
+local function selection_cb(button,pressed,x,y, status)
+	if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
+		-- Left click somewhere
+		-- Add any objects at x,y to items
+		local selI = #selList
+		local i = cnvobj:getObjFromXY(x,y)
+		-- Merge into items
+		if #i > 0 then
+			tu.mergeArrays(i,selList,false,function(one,two) 
+				return two.id and one.id == two.id
+			  end)
+		end
+		-- Add any connectors at x,y to items
+		local c,s = cnvobj:getConnFromXY(x,y)
+		if #i == 0 and #s == 0 then
+			-- Remove all special attributes
+			for i = 1,#selList do
+				if selList[i].id then
+					cnvobj:removeVisualAttr(selList[i])
+					if oldAttr[selList[i]] then
+						cnvobj:setObjVisualAttr(selList[i],oldAttr[selList[i]].attr,oldAttr[selList[i]].vAttr)
+					end
+				else
+					cnvobj:removeVisualAttr(selList[i].conn.segments[selList[i].seg])
+					if oldAttr[selList[i].conn.segments[selList[i].seg]] then
+						cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],oldAttr[selList[i].conn.segments[selList[i].seg]].attr,oldAttr[selList[i].conn.segments[selList[i].seg]].vAttr)
+					end
+				end
+			end
+			selList = {}
+		end
+		local connList = {}
+		for i = 1,#s do
+			for j = 1,#s[i].seg do
+				connList[#connList + 1] = {
+					conn = cnvobj.drawn.conn[s[i].conn],
+					seg = s[i].seg[j]
+				}
+			end
+		end
+		-- Merge into items
+		if #connList > 0 then
+			tu.mergeArrays(connList,selList,false,function(one,two) 
+				return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+			  end)
+		end
+		-- Set the selection attribute
+		for i = selI + 1,#selList do
+			local attr
+			if selList[i].id then
+				print("Added object "..selList[i].id.." to list.")
+				attr,_,oldAttr[selList[i]] = cnvobj:getVisualAttr(selList[i])
+				cnvobj:removeVisualAttr(selList[i])
+				attr = tu.copyTable(attr,{},true)
+				attr.color = objSelColor
+				cnvobj:setObjVisualAttr(selList[i],attr,-1)
+			else
+				print("Added segment "..selList[i].seg.." from connector "..selList[i].conn.id.." to the list")
+				attr,_,oldAttr[selList[i].conn.segments[selList[i].seg]] = cnvobj:getVisualAttr(selList[i].conn.segments[selList[i].seg])			
+				cnvobj:removeVisualAttr(selList[i].conn.segments[selList[i].seg])
+				attr = tu.copyTable(attr,{},true)
+				attr.color = connSelColor
+				cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],attr,-1)
+			end			
+		end
+		cnvobj:refresh()
+	end
+end
+
+local selID = cnvobj:addHook("MOUSECLICKPOST",selection_cb)
+
 -- If mode == 1 then add only objects
 -- if mode == 2 then add only connectors/segments
 -- If no mode then add both

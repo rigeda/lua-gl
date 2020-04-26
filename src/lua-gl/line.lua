@@ -73,13 +73,15 @@ end
 function init(cnvobj)
 	GUIFW.LINE = {
 		draw = draw,
-		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
-		vAttr = 1
+		visualAttr = GUIFW.getNonFilledObjAttrFunc(cnvobj.viewOptions.visualProp[1]),	-- non filled object
+		vAttr = 1,
+		attr = cnvobj.viewOptions.visualProp[1]
 	}
 	GUIFW.CONN = {
 		draw = drawConn,
-		visualAttr = cnvobj.attributes.visualAttrBank[4],	-- normal connector
-		vAttr = 4				
+		visualAttr = GUIFW.getNonFilledObjAttrFunc(cnvobj.viewOptions.visualProp[4]),	-- normal connector
+		vAttr = 4,			
+		attr = cnvobj.viewOptions.visualProp[4]
 	}
 	-- Register checkXY function
 	OBJ.LINE = {

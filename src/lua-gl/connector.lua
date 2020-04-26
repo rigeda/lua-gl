@@ -148,7 +148,7 @@ For Filled objects the attributes to be set are:
 ]]
 -- The function does not know whether the object is filled or not. It just checks the validity of the attr table and sets it for that object.
 -- num is a index for the visual attribute definition and adds it to the defaults and other items can use it as well by referring to the number. It optimizes the render function as well since it does not have to reexecute the visual attributes settings if the number is the same for the next item to draw.
--- Set num to 100 to make it unique. 100 is reserved for uniqueness
+-- Set num to -1 to make it unique. -1 is reserved for uniqueness
 function setConnVisualAttr(cnvobj,conn,attr,num)
 	local res,attrType = utility.validateVisualAttr(attr)
 	if not res then
@@ -157,12 +157,17 @@ function setConnVisualAttr(cnvobj,conn,attr,num)
 	if attrType ~= "NONFILLED" then
 		return nil,"Wrong attribute type."
 	end
+	num = num or -1
 	-- Setup undo
 	local key = utility.undopre(cnvobj)
 	-- attr is valid now associate it with the object
 	conn.vattr = tu.copyTable(attr,{},true)	-- Perform full recursive copy of the attributes table
 	-- Set the attributes function in the visual properties table
-	cnvobj.attributes.visualAttr[conn] = {vAttr = num, visualAttr = GUIFW.getNonFilledObjAttrFunc(attr)}
+	cnvobj.attributes.visualAttr[conn] = {
+				vAttr = num, 
+				visualAttr = GUIFW.getNonFilledObjAttrFunc(attr),
+				attr = attr
+			}
 	utility.undopost(cnvobj,key)
 	return true
 end
@@ -1641,7 +1646,7 @@ splitConnectorAtSegments = function(cnvobj,segList)
 				id = nil,
 				order = nil,
 				segments = {
-					tu.copyTable(segS,{},true)
+					(tu.copyTable(segS,{},true))
 				},
 				port = {},
 				junction = {}
@@ -1986,7 +1991,7 @@ end
 -- jsDrag = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (dragRouter) durin drag operation, default = 1
 -- jumpSeg parameter documentation says:
 -- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
---	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualProp table
 -- 	= 2 generate jumping segment but don't set any special attribute
 --  = false or nil then do not generate jumping segment
 dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
@@ -2200,7 +2205,7 @@ end
 -- jsDrag = jumpSeg parameter to be given to generateSegments functions to be used with the routing function (dragRouter) durin drag operation, default = 1
 -- jumpSeg parameter documentation says:
 -- jumpSeg indicates whether to generate a jumping segment or not and if to set its attributes
---	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualAttrBank table
+--	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualProp table
 -- 	= 2 generate jumping segment but don't set any special attribute
 --  = 0 then do not generate jumping segment
 drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)

@@ -95,18 +95,21 @@ end
 function init(cnvobj)
 	GUIFW.RECT = {
 		draw = drawhollow,
-		visualAttr = cnvobj.attributes.visualAttrBank[1],	-- non filled object
-		vAttr = 1
+		visualAttr = GUIFW.getNonFilledObjAttrFunc(cnvobj.viewOptions.visualProp[1]),	-- non filled object
+		vAttr = 1,
+		attr = cnvobj.viewOptions.visualProp[1]
 	}
 	GUIFW.BLOCKINGRECT = {
 		draw = drawblockingrectangle,
-		visualAttr = cnvobj.attributes.visualAttrBank[2],	-- blocking rectangle
-		vAttr = 2
+		visualAttr = GUIFW.getNonFilledObjAttrFunc(cnvobj.viewOptions.visualProp[2]),	-- blocking rectangle
+		vAttr = 2,
+		attr = cnvobj.viewOptions.visualProp[2]
 	}
 	GUIFW.FILLEDRECT = {
 		draw = drawfilled,
-		visualAttr = cnvobj.attributes.visualAttrBank[3],	-- filled object
-		vAttr = 3
+		visualAttr = GUIFW.getFilledObjAttrFunc(cnvobj.viewOptions.visualProp[3]),	-- filled object
+		vAttr = 3,
+		attr = cnvobj.viewOptions.visualProp[3]
 	}
 	OBJ.RECT = {
 		checkXY = checkXY,
