@@ -115,16 +115,16 @@ end
 -- Function to return the mouse position on the canvas. The returned coordinates are the same that would have been returned on the 
 -- motion_cb or button_cb callback functions
 function getMouseOnCanvas(cnvobj)
-	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(%d%d*)x(%d%d*)$")
+	local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(-?%d%d*)x(-?%d%d*)$")
 	--print("CURSOR POSITION: ",gx,gy)
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(-?%d%d*),(-?%d%d*)$")
 	return gx-sx,gy-sy
 end
 
 -- Function to put the mouse curson on the canvas on the given coordinates.
 -- The coordinates x,y should be the coordinates on the canvas equivalent to the ones returned in the motion_cb and button_cb callbacks
 function setMouseOnCanvas(cnvobj,x,y)
-	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(%d%d*),(%d%d*)$")
+	local sx,sy = cnvobj.cnv.SCREENPOSITION:match("^(-?%d%d*),(-?%d%d*)$")
 	iup.SetGlobal("CURSORPOS",tostring(sx+x).."x"..tostring(sy+y))
 	return true
 end

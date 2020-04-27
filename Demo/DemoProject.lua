@@ -337,7 +337,7 @@ local function selection_cb(button,pressed,x,y, status)
 		end
 		-- Add any connectors at x,y to items
 		local c,s = cnvobj:getConnFromXY(x,y)
-		if #i == 0 and #s == 0 then
+		if #i == 0 and #s == 0 then		-- No object or segment here so deselect everything
 			-- Remove all special attributes
 			for i = 1,#selList do
 				if selList[i].id then
