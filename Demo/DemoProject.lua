@@ -392,9 +392,9 @@ local function selection_cb(button,pressed,x,y, status)
 			-- show the selection list to get the items
 			local lines = 5
 			if #i + #s < lines then lines = #i + #s end
-			local list = iup.flatlist{bgcolor=iup.GetGlobal("DLGBGCOLOR"),visiblelines = lines,visiblecolumns=10}
+			local list = iup.flatlist{bgcolor=iup.GetGlobal("DLGBGCOLOR"),visiblelines = lines,visiblecolumns=15}
 			local doneButton = iup.flatbutton{title = "DONE",expand="HORIZONTAL"}
-			local selValue
+			local selValue --= 0
 			if multiple then 
 				list.multiple = "YES" 
 				selValue = ""
@@ -454,7 +454,7 @@ local function selection_cb(button,pressed,x,y, status)
 								local c = j-#i
 								local ci = 0
 								for k = 1,#s do
-									if #s[k].seg+ci > c then
+									if #s[k].seg+ci >= c then
 										connList[#connList + 1] = {
 											conn = cnvobj.drawn.conn[s[k].conn],
 											seg = s[k].seg[c-ci]
@@ -482,7 +482,7 @@ local function selection_cb(button,pressed,x,y, status)
 					-- Only 1 item selected so add it to the selList
 					--print("Selected:",val)
 					val = tonumber(val)
-					if val then
+					if val and val ~= 0 then
 						if val <= #i then
 							-- This is the object
 							tu.mergeArrays({i[val]},selList,false,function(one,two) 
