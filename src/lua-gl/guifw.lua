@@ -108,6 +108,26 @@ function motionCB(cnvobj,x, y, status)
 	
 end
 
+function isctrl(status)
+	return iup.iscontrol(status)
+end
+
+function isshift(status)
+	return iup.isshift(status)
+end
+
+function isdouble(status)
+	return iup.isdouble(status)
+end
+
+function isalt(status)
+	return iup.isalt(status)
+end
+
+function issys(status)
+	return iup.issys(status)
+end
+
 function newCanvas()
 	return iup.canvas{BORDER="NO"}
 end

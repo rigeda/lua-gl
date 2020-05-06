@@ -52,6 +52,7 @@ _VERSION = "B20.04.24"
 DEBUG:
 
 TASKS:
+* In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action
 * Implement action cancel by ending and then undoing it.
 * In move and drag add functionality to pick only 1 object and not the group
 * In selection clicks in demo add functionality to select single object or entire group
@@ -59,7 +60,7 @@ TASKS:
 * In selection clicks in demo add functionality to deselect items
 * Remove selection hook during operations
 * Add file linked data methodology to Demo and lua-gl library
-* Connector labeling
+* Connector labeling - object to segment grouping
 * Add object resize functionality
 ]]
 
@@ -1199,6 +1200,11 @@ objFuncs = {
 	viewportPara = GUIFW.viewportPara,
 	doprint = GUIFW.doprint,
 	fontPt2Pixel = GUIFW.fontPt2Pixel,
+	isctrl = GUIFW.isctrl,
+	isshift = GUIFW.isshift,
+	isdouble = GUIFW.isdouble,
+	isalt = GUIFW.isalt,
+	issys = GUIFW.issys,
 	-- Initialize the graphical constants here
 	MOUSE = {
 		BUTTON1 = GUIFW.BUTTON1,

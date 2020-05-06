@@ -5,6 +5,8 @@ tu = require("tableUtils")
 
 require("GUIStructures")
 
+fd = require("iupcFocusDialog")
+
 iup.ImageLibOpen()
 iup.SetGlobal("IMAGESTOCKSIZE","32")
 
@@ -317,58 +319,35 @@ function GUI.toolbar.buttons.printButton:action()
 	end
 end
 
-local selList = {}
+selList = {}
 local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the item to be garbage collected
 local objSelColor = {255, 162, 232}
 local connSelColor = {255, 128, 255}
 
 -- Button_CB callback to select stuff
+-- If ctrl or shift is pressed then things are added to the selection list
+-- Click anywhere where this is nothing to clear the list
 local function selection_cb(button,pressed,x,y, status)
-	if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-		-- Left click somewhere
-		-- Add any objects at x,y to items
-		local selI = #selList
-		local i = cnvobj:getObjFromXY(x,y)
-		-- Merge into items
-		if #i > 0 then
-			tu.mergeArrays(i,selList,false,function(one,two) 
-				return two.id and one.id == two.id
-			  end)
-		end
-		-- Add any connectors at x,y to items
-		local c,s = cnvobj:getConnFromXY(x,y)
-		if #i == 0 and #s == 0 then		-- No object or segment here so deselect everything
-			-- Remove all special attributes
-			for i = 1,#selList do
-				if selList[i].id then
-					cnvobj:removeVisualAttr(selList[i])
-					if oldAttr[selList[i]] then
-						cnvobj:setObjVisualAttr(selList[i],oldAttr[selList[i]].attr,oldAttr[selList[i]].vAttr)
-					end
-				else
-					cnvobj:removeVisualAttr(selList[i].conn.segments[selList[i].seg])
-					if oldAttr[selList[i].conn.segments[selList[i].seg]] then
-						cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],oldAttr[selList[i].conn.segments[selList[i].seg]].attr,oldAttr[selList[i].conn.segments[selList[i].seg]].vAttr)
-					end
+	
+	local function deselectAll()
+		-- Remove all special attributes
+		for i = 1,#selList do
+			if selList[i].id then
+				cnvobj:removeVisualAttr(selList[i])
+				if oldAttr[selList[i]] then
+					cnvobj:setObjVisualAttr(selList[i],oldAttr[selList[i]].attr,oldAttr[selList[i]].vAttr)
+				end
+			else
+				cnvobj:removeVisualAttr(selList[i].conn.segments[selList[i].seg])
+				if oldAttr[selList[i].conn.segments[selList[i].seg]] then
+					cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],oldAttr[selList[i].conn.segments[selList[i].seg]].attr,oldAttr[selList[i].conn.segments[selList[i].seg]].vAttr)
 				end
 			end
-			selList = {}
 		end
-		local connList = {}
-		for i = 1,#s do
-			for j = 1,#s[i].seg do
-				connList[#connList + 1] = {
-					conn = cnvobj.drawn.conn[s[i].conn],
-					seg = s[i].seg[j]
-				}
-			end
-		end
-		-- Merge into items
-		if #connList > 0 then
-			tu.mergeArrays(connList,selList,false,function(one,two) 
-				return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
-			  end)
-		end
+		selList = {}		
+	end
+	
+	local function setSelectedDisplay(selI)
 		-- Set the selection attribute
 		for i = selI + 1,#selList do
 			local attr
@@ -388,8 +367,178 @@ local function selection_cb(button,pressed,x,y, status)
 				cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],attr,-1)
 			end			
 		end
-		cnvobj:refresh()
+		cnvobj:refresh()		
 	end
+	
+	if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
+		print("Left click done")
+		-- Left click somewhere
+		local multiple = cnvobj.isctrl(status) or cnvobj.isshift(status)
+		-- Add any objects at x,y to items
+		local i = cnvobj:getObjFromXY(x,y)
+		-- Get any connector segments at x,y
+		local c,s = cnvobj:getConnFromXY(x,y)
+		if (#i == 0 and #s == 0) then		-- No object or segment here so deselect everything
+			deselectAll()
+			cnvobj:refresh()
+			return true
+		end
+		if not multiple then
+			deselectAll()
+		end
+		local selI = #selList
+		-- Merge into items
+		if #i + #s > 1 then
+			-- show the selection list to get the items
+			local lines = 5
+			if #i + #s < lines then lines = #i + #s end
+			local list = iup.flatlist{bgcolor=iup.GetGlobal("DLGBGCOLOR"),visiblelines = lines,visiblecolumns=10}
+			local doneButton = iup.flatbutton{title = "DONE",expand="HORIZONTAL"}
+			local selValue
+			if multiple then 
+				list.multiple = "YES" 
+				selValue = ""
+			end
+			local listCount = 0
+			-- Add the objects to the list
+			for j = 1,#i do
+				listCount = listCount + 1
+				list[tostring(listCount)] = "Object: "..tu.inArray(cnvobj.drawn.obj,i[j])
+				if tu.inArray(selList,i[j]) then
+					if multiple then
+						selValue = selValue.."+"
+					else
+						selValue = listCount
+					end
+				elseif multiple then
+					selValue = selValue.."-"
+				end					
+			end
+			for j = 1,#s do
+				for k = 1,#s[j].seg do
+					listCount = listCount + 1
+					list[tostring(listCount)] = "Connector: "..s[j].conn.." Segment: "..s[j].seg[k]
+					if tu.inArray(selList,s[j],function(one,two)
+						return not(one.id) and one.conn == cnvobj.drawn.conn[two.conn] and one.seg == two.seg[k] 
+					  end) then
+						if multiple then
+							selValue = selValue.."+"
+						else
+							selValue = listCount
+						end
+					elseif multiple then
+						selValue = selValue.."-"
+					end								
+				end
+			end
+			list.value = selValue
+			local seldlg = iup.dialog{iup.vbox{list,doneButton};border="NO",resize="NO",minbox="NO",menubox="NO"}
+			local done
+			local function getSelected()
+				if not done then
+					done = true
+				else
+					return
+				end
+				local val = list.value
+				if multiple then
+					-- Get all selected items
+					local objs, connList = {},{}
+					for j = 1,#val do
+						if val:sub(j,j) == "+" then
+							if j <= #i then
+								-- This is the object
+								objs[#objs + 1] = i[j]
+							else
+								-- This is a connector segment
+								local c = j-#i
+								local ci = 0
+								for k = 1,#s do
+									if #s[k].seg+ci > c then
+										connList[#connList + 1] = {
+											conn = cnvobj.drawn.conn[s[k].conn],
+											seg = s[k].seg[c-ci]
+										}
+										break
+									else
+										ci = ci + #s[k].seg
+									end
+								end
+							end
+						end
+					end		-- for j = 1,#val doends
+					-- Add objs and connList items to selList
+					if #objs > 0 then
+						tu.mergeArrays(objs,selList,false,function(one,two) 
+							return two.id and one.id == two.id
+						  end)
+					end
+					if #connList > 0 then
+						tu.mergeArrays(connList,selList,false,function(one,two) 
+							return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+						  end)
+					end
+				else	-- if multiple then else
+					-- Only 1 item selected so add it to the selList
+					--print("Selected:",val)
+					val = tonumber(val)
+					if val then
+						if val <= #i then
+							-- This is the object
+							tu.mergeArrays({i[val]},selList,false,function(one,two) 
+								return two.id and one.id == two.id
+							  end)
+						else
+							-- This is a connector segment
+							local c = val-#i
+							local ci = 0
+							for k = 1,#s do
+								if #s[k].seg+ci > c then
+									tu.mergeArrays({
+											conn = cnvobj.drawn.conn[s[k].conn],
+											seg = s[k].seg[c-ci]
+										},selList,false,function(one,two) 
+											return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+									  end)
+									break
+								else
+									ci = ci + #s[k].seg
+								end
+							end		-- for k = 1,#s do ends
+						end		-- if val <= #i then ends
+					end		-- if val ~= 0 then ends
+				end		-- if multiple then ends
+				setSelectedDisplay(selI)
+			end		-- local function getSelected() ends
+			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(-?%d%d*)x(-?%d%d*)$")
+			gx,gy = tonumber(gx),tonumber(gy)
+			--print("Showing selection dialog at "..gx..","..gy)
+			function doneButton:flat_action()
+				seldlg:hide()
+				getSelected()
+			end
+			fd.popup(seldlg,gx,gy,getSelected)
+		else	--if #i + #s > 1 then else
+			if #i > 0 then
+				tu.mergeArrays(i,selList,false,function(one,two) 
+					return two.id and one.id == two.id
+				  end)
+			else
+				local connList = {}
+				for j = 1,#s[1].seg do
+					connList[#connList + 1] = {
+						conn = cnvobj.drawn.conn[s[1].conn],
+						seg = s[1].seg[j]
+					}
+				end
+				-- Merge into items
+				tu.mergeArrays(connList,selList,false,function(one,two) 
+					return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+				  end)
+			end		
+			setSelectedDisplay(selI)
+		end		-- if #i + #s > 1 then ends
+	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then ends
 end
 
 local selID = cnvobj:addHook("MOUSECLICKPOST",selection_cb)
