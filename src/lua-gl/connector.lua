@@ -794,6 +794,31 @@ do
 					return one.conn == two.conn
 				end)	-- Just collect the unique connectors
 		end		-- for i = 1,#coor ends here
+		-- We also need to add those segments whose ends touch this connector segments
+		local segInfo = {}
+		for i = 1,#cnvobj.drawn.conn do
+			local c = cnvobj.drawn.conn[i]
+			if c ~= conn then
+				local connAdded
+				for j = 1,#c.segments do
+					for k = 1,#conn.segments do
+						-- Check if the endpoints of c.segments[j] lie on segment conn.segments[k]
+						if coorc.pointOnSegment(conn.segments[k].start_x, conn.segments[k].start_y, conn.segments[k].end_x, conn.segments[k].end_y, c.segments[j].start_x, c.segments[j].start_y)  or coorc.pointOnSegment(conn.segments[k].start_x, conn.segments[k].start_y, conn.segments[k].end_x, conn.segments[k].end_y, c.segments[j].end_x, c.segments[j].end_y)then
+							if not connAdded then
+								segInfo[#segInfo + 1] = {conn = i, seg = {j}}
+								connAdded = true
+							else
+								segInfo[#segInfo].seg[#segInfo[#segInfo].seg + 1] = j	-- Add all segments that lie on that point
+							end
+						end
+					end
+				end
+			end
+		end
+		tu.mergeArrays(segInfo,allSegs,nil,function(one,two)
+				return one.conn == two.conn
+			end)	-- Just collect the unique connectors
+		
 		-- Now allSegs has data about all the connectors that are present at coordinates in coor. It also has some segment numbers (not all) but they are not needed or used.
 		-- Check if more than one connector in allSegs
 		if #allSegs == 1 then

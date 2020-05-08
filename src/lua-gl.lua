@@ -52,14 +52,14 @@ _VERSION = "B20.05.08"
 DEBUG:
 
 TASKS:
-* In selection list store segment structure in weak table
 * In selection clicks in demo add functionality to select single object or entire group
 * In selection clicks add functionality to select items within a rectangular region
 * In selection clicks in demo add functionality to deselect items
 * In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action
 * Implement action cancel by ending and then undoing it.
 * In move and drag add functionality to pick only 1 object and not the group
-* Remove selection hook during operations
+* In adding port attach port to port visual rectangle rather than the object.
+* add copy functionality
 * Add file linked data methodology to Demo and lua-gl library
 * Connector labeling - object to segment grouping
 * Add object resize functionality
@@ -77,9 +77,19 @@ end
 
 -- Returns the visual attribute structure with the visual attribute function
 local function getVisualAttr(cnvobj,item)
-	local vattr = item.vattr
+	local vattr = item.vattr	-- attribute structure stored in the item. If the item has a specific attribute it will be here
 	local vattrTab = cnvobj.attributes.visualAttr[item]
-	if not vattr then
+	-- vattrTab is a table with the following minimum information:
+	--[[
+	{
+		vAttr=<integer>,
+		visualAttr=<function>,
+		attr=<table>
+	}
+	vAttr integer may point to a viewOptions.visualProp index (-1 is reserved and does not point to it). The integer is used in the rendering function so decide when to change drawing attributes. If the previous item drawn had the same integer then the visualAttr function is not called.
+	]]
+	---if vattr is nil then the vattrTab will also be nil because there is no special attribute in that case pick the vattrTab as registered in GUIFW as the default one.
+	if not vattr then	-- item did not have a specific attribute so get default from the GUIFW module
 		-- pick the default one
 		if item.shape then
 			-- This is object
@@ -1066,7 +1076,7 @@ objFuncs = {
 		}
 		]]
 		cnvobj.attributes = {
-			visualAttr = setmetatable({},{__mode="k"}),	-- visualAttr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {vAttr=<integer>,visualAttr=<function>,attr=<table>}. The integer points to a viewOptions.visualProp index (-1 is reserved and does not point to it). This allows registering of new visual attributes 
+			visualAttr = setmetatable({},{__mode="k"}),	-- visualAttr is a table with weak keys to associate the visual attributes to the item. Each visual attribute is a table {vAttr=<integer>,visualAttr=<function>,attr=<table>}. The integer may point to a viewOptions.visualProp index (-1 is reserved and does not point to it). This allows registering of new visual attributes. The integer is used in the rendering function so decide when to change drawing attributes. If the previous item drawn had the same integer then the visualAttr function is not called.
 		}
 		
 		--[[ Attributes can be set for the following structures:

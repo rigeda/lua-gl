@@ -334,11 +334,43 @@ function GUI.toolbar.buttons.printButton:action()
 	end
 end
 
-selList = {}
-local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the item to be garbage collected
+local selList = {}
+local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the key to be garbage collected
 local objSelColor = {255, 162, 232}
 local connSelColor = {255, 128, 255}
 local callback
+
+local function updateSelList()
+	-- Remove all deleted connector segments
+	for i = #selList,1,-1 do
+		if not selList[i].id then
+			if not selList[i].conn or not selList[i].seg then
+				table.remove(selList,i)
+			end
+		end
+	end	
+end
+
+cnvobj:addHook("UNDOADDED",updateSelList)
+
+-- Function to create a copy of the selList array. It also converts the seg structure pointer to the seg structure integer number of the connector segment. This is how the move/drag/etc. API of Lua-GL takes it
+local function selListCopy()
+	local c = {}
+	for i = 1,#selList do
+		if selList[i].id then
+			c[i] = selList[i]
+		else
+			local segI = tu.inArray(selList[i].conn.segments,selList[i].seg)
+			if segI then
+				c[i] = {
+					conn = selList[i].conn,
+					seg = segI
+				}
+			end
+		end
+	end
+	return c
+end
 
 -- Button_CB callback to select stuff
 -- If ctrl or shift is pressed then things are added to the selection list
@@ -353,10 +385,10 @@ local function selection_cb(button,pressed,x,y, status)
 				if oldAttr[selList[i]] then
 					cnvobj:setObjVisualAttr(selList[i],oldAttr[selList[i]].attr,oldAttr[selList[i]].vAttr)
 				end
-			else
-				cnvobj:removeVisualAttr(selList[i].conn.segments[selList[i].seg])
-				if oldAttr[selList[i].conn.segments[selList[i].seg]] then
-					cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],oldAttr[selList[i].conn.segments[selList[i].seg]].attr,oldAttr[selList[i].conn.segments[selList[i].seg]].vAttr)
+			elseif selList[i].seg then
+				cnvobj:removeVisualAttr(selList[i].seg)
+				if oldAttr[selList[i].seg] then
+					cnvobj:setSegVisualAttr(selList[i].seg,oldAttr[selList[i].seg].attr,oldAttr[selList[i].seg].vAttr)
 				end
 			end
 		end
@@ -366,7 +398,7 @@ local function selection_cb(button,pressed,x,y, status)
 	
 	local function setSelectedDisplay(selI)
 		-- Set the selection attribute
-		for i = selI + 1,#selList do
+		for i = #selList,selI + 1,-1 do
 			local attr
 			if selList[i].id then
 				print("Added object "..selList[i].id.." to list.")
@@ -376,12 +408,16 @@ local function selection_cb(button,pressed,x,y, status)
 				attr.color = objSelColor
 				cnvobj:setObjVisualAttr(selList[i],attr,-1)
 			else
-				print("Added segment "..selList[i].seg.." from connector "..selList[i].conn.id.." to the list")
-				attr,_,oldAttr[selList[i].conn.segments[selList[i].seg]] = cnvobj:getVisualAttr(selList[i].conn.segments[selList[i].seg])			
-				cnvobj:removeVisualAttr(selList[i].conn.segments[selList[i].seg])
-				attr = tu.copyTable(attr,{},true)
-				attr.color = connSelColor
-				cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],attr,-1)
+				if selList[i].seg then
+					print("Added segment "..tu.inArray(selList[i].conn.segments,selList[i].seg).." from connector "..selList[i].conn.id.." to the list")
+					attr,_,oldAttr[selList[i].seg] = cnvobj:getVisualAttr(selList[i].seg)			
+					cnvobj:removeVisualAttr(selList[i].seg)
+					attr = tu.copyTable(attr,{},true)
+					attr.color = connSelColor
+					cnvobj:setSegVisualAttr(selList[i].seg,attr,-1)
+				else
+					table.remove(selList,i)
+				end
 			end			
 		end
 		GUI.statBarM.title = tostring(#selList).." selected"
@@ -407,6 +443,7 @@ local function selection_cb(button,pressed,x,y, status)
 		if not multiple then
 			deselectAll()
 		end
+		updateSelList()
 		local selI = #selList
 		-- Merge into items
 		if #i + #s > 1 then
@@ -440,7 +477,7 @@ local function selection_cb(button,pressed,x,y, status)
 					listCount = listCount + 1
 					list[tostring(listCount)] = "Connector: "..s[j].conn.." Segment: "..s[j].seg[k]
 					if tu.inArray(selList,s[j],function(one,two)
-						return not(one.id) and one.conn == cnvobj.drawn.conn[two.conn] and one.seg == two.seg[k] 
+						return not(one.id) and one.conn == cnvobj.drawn.conn[two.conn] and one.seg == cnvobj.drawn.conn[two.conn].segments[two.seg[k]]
 					  end) then
 						if multiple then
 							selValue = selValue.."+"
@@ -476,10 +513,10 @@ local function selection_cb(button,pressed,x,y, status)
 								local ci = 0
 								for k = 1,#s do
 									if #s[k].seg+ci >= c then
-										connList[#connList + 1] = {
+										connList[#connList + 1] = setmetatable({
 											conn = cnvobj.drawn.conn[s[k].conn],
-											seg = s[k].seg[c-ci]
-										}
+											seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[c-ci]]
+										},{__mode="v"})
 										break
 									else
 										ci = ci + #s[k].seg
@@ -496,7 +533,7 @@ local function selection_cb(button,pressed,x,y, status)
 					end
 					if #connList > 0 then
 						tu.mergeArrays(connList,selList,false,function(one,two) 
-							return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+							return two.conn and one.conn == two.conn and one.seg == two.seg
 						  end)
 					end
 				else	-- if multiple then else
@@ -515,11 +552,11 @@ local function selection_cb(button,pressed,x,y, status)
 							local ci = 0
 							for k = 1,#s do
 								if #s[k].seg+ci >= c then
-									tu.mergeArrays({{
+									tu.mergeArrays({setmetatable({
 											conn = cnvobj.drawn.conn[s[k].conn],
-											seg = s[k].seg[c-ci]
-										}},selList,false,function(one,two) 
-											return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+											seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[c-ci]]
+										},{__mode="v"})},selList,false,function(one,two) 
+											return two.conn and one.conn == two.conn and one.seg == two.seg 
 									  end)
 									break
 								else
@@ -547,14 +584,14 @@ local function selection_cb(button,pressed,x,y, status)
 			else
 				local connList = {}
 				for j = 1,#s[1].seg do
-					connList[#connList + 1] = {
+					connList[#connList + 1] = setmetatable({
 						conn = cnvobj.drawn.conn[s[1].conn],
-						seg = s[1].seg[j]
-					}
+						seg = cnvobj.drawn.conn[s[1].conn].segments[s[1].seg[j]]
+					},{__mode="v"})
 				end
 				-- Merge into items
 				tu.mergeArrays(connList,selList,false,function(one,two) 
-					return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
+					return two.conn and one.conn == two.conn and one.seg == two.seg 
 				  end)
 			end		
 			setSelectedDisplay(selI)
@@ -723,20 +760,6 @@ function GUI.toolbar.buttons.checkButton:action()
 	cnvobj:refresh()
 end
 
-local function selListCopy()
-	local c = {}
-	for i = 1,#selList do
-		if selList[i].id then
-			c[i] = selList[i]
-		else
-			c[i] = {
-				conn = selList[i].conn,
-				seg = selList[i].seg
-			}
-		end
-	end
-	return c
-end
 
 -- Start Move operation
 function GUI.toolbar.buttons.moveButton:action()
