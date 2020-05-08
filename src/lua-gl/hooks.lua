@@ -60,7 +60,7 @@ addHook = function(cnvobj,key,func)
 end
 
 removeHook = function(cnvobj,id)
-	if not cnvobj or type(cnvobj) ~= "table" then
+	if not cnvobj or type(cnvobj) ~= "table" or not id then
 		return
 	end
 	for i = 1,#cnvobj.hook do

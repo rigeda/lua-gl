@@ -45,19 +45,20 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.04.24"
+_VERSION = "B20.05.08"
 
 --- TASKS
 --[[
 DEBUG:
 
 TASKS:
+* In selection list store segment structure in weak table
+* In selection clicks in demo add functionality to select single object or entire group
+* In selection clicks add functionality to select items within a rectangular region
+* In selection clicks in demo add functionality to deselect items
 * In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action
 * Implement action cancel by ending and then undoing it.
 * In move and drag add functionality to pick only 1 object and not the group
-* In selection clicks in demo add functionality to select single object or entire group
-* In selection clicks in demo add functionality to select items when multiple
-* In selection clicks in demo add functionality to deselect items
 * Remove selection hook during operations
 * Add file linked data methodology to Demo and lua-gl library
 * Connector labeling - object to segment grouping

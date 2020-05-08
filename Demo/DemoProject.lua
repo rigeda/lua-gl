@@ -30,8 +30,8 @@ LTdlg:showxy(iup.RIGHT, iup.LEFT)
 --*************** Main (Part 1/2) ******************************
 
 cnvobj = LGL.new{ 
-	grid_x = 10, 
-	grid_y = 10, 
+	grid_x = 5, 
+	grid_y = 5, 
 	width = 900, 
 	height = 600, 
 	gridVisibility = true,
@@ -70,6 +70,21 @@ local function addUndoStack(diff)
 	end
 end
 cnvobj:addHook("UNDOADDED",addUndoStack)
+
+local helpTextStack = {}
+local function pushHelpText(text)
+	helpTextStack[#helpTextStack + 1] = text
+	GUI.statBarL.title = text
+end
+
+local function pophelpText()
+	helpTextStack[#helpTextStack] = nil
+	if #helpTextStack == 0 then
+		GUI.statBarL.title = "Ready"
+	else
+		GUI.statBarL.title = helpTextStack[#helpTextStack]
+	end
+end
 
 --********************* Callbacks *************
 
@@ -323,6 +338,7 @@ selList = {}
 local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the item to be garbage collected
 local objSelColor = {255, 162, 232}
 local connSelColor = {255, 128, 255}
+local callback
 
 -- Button_CB callback to select stuff
 -- If ctrl or shift is pressed then things are added to the selection list
@@ -344,6 +360,7 @@ local function selection_cb(button,pressed,x,y, status)
 				end
 			end
 		end
+		GUI.statBarM.title = ""
 		selList = {}		
 	end
 	
@@ -367,7 +384,11 @@ local function selection_cb(button,pressed,x,y, status)
 				cnvobj:setSegVisualAttr(selList[i].conn.segments[selList[i].seg],attr,-1)
 			end			
 		end
-		cnvobj:refresh()		
+		GUI.statBarM.title = tostring(#selList).." selected"
+		cnvobj:refresh()	
+		if callback and type(callback) == "function" and #selList > 0 then
+			callback()
+		end
 	end
 	
 	if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
@@ -493,11 +514,11 @@ local function selection_cb(button,pressed,x,y, status)
 							local c = val-#i
 							local ci = 0
 							for k = 1,#s do
-								if #s[k].seg+ci > c then
-									tu.mergeArrays({
+								if #s[k].seg+ci >= c then
+									tu.mergeArrays({{
 											conn = cnvobj.drawn.conn[s[k].conn],
 											seg = s[k].seg[c-ci]
-										},selList,false,function(one,two) 
+										}},selList,false,function(one,two) 
 											return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
 									  end)
 									break
@@ -541,7 +562,21 @@ local function selection_cb(button,pressed,x,y, status)
 	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then ends
 end
 
-local selID = cnvobj:addHook("MOUSECLICKPOST",selection_cb)
+local selID
+local function resumeSelection(cb)
+	callback = cb
+	if selID then
+		cnvobj:removeHook(selID)
+	end
+	selID = cnvobj:addHook("MOUSECLICKPOST",selection_cb)	
+end
+
+local function pauseSelection()
+	cnvobj:removeHook(selID)
+	selID = nil
+end
+
+resumeSelection()
 
 -- If mode == 1 then add only objects
 -- if mode == 2 then add only connectors/segments
@@ -688,27 +723,83 @@ function GUI.toolbar.buttons.checkButton:action()
 	cnvobj:refresh()
 end
 
--- Start Move operation
-function GUI.toolbar.buttons.moveButton:action()
-	-- function to handle the move
-	local function moveitems(items)
-		cnvobj:move(items)
-		--cnvobj:moveSegment(items)
+local function selListCopy()
+	local c = {}
+	for i = 1,#selList do
+		if selList[i].id then
+			c[i] = selList[i]
+		else
+			c[i] = {
+				conn = selList[i].conn,
+				seg = selList[i].seg
+			}
+		end
 	end
-	-- first we need to select items
-	getSelectionList(moveitems,false)	-- Need a click 
+	return c
 end
 
--- Start drag operation
-function GUI.toolbar.buttons.dragButton:action()
-	-- function to handle drag
-	local function dragitems(items)
-		--print("callback dragitems")
-		--cnvobj:dragObj(items)
-		cnvobj:drag(items)
+-- Start Move operation
+function GUI.toolbar.buttons.moveButton:action()
+	local hook
+	local function resumeSel()
+		pophelpText()
+		cnvobj:removeHook(hook)
+		resumeSelection()
 	end
-	-- Get the list of items
-	getSelectionList(dragitems,false)
+	local function getClick(button,pressed,x,y,status)
+		cnvobj:removeHook(hook)
+		pophelpText()
+		pushHelpText("Click to place")
+		hook = cnvobj:addHook("UNDOADDED",resumeSel)
+		cnvobj:move(selListCopy())
+	end
+	local function movecb()
+		pophelpText()
+		pauseSelection()
+		pushHelpText("Click to start move")
+		-- Add the hook
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+	end
+	-- First get items to move
+	if #selList == 0 then
+		pauseSelection()
+		pushHelpText("Select items to move")
+		resumeSelection(movecb)
+	else
+		movecb()
+	end
+end
+
+-- Start Drag operation
+function GUI.toolbar.buttons.dragButton:action()
+	local hook
+	local function resumeSel()
+		pophelpText()
+		cnvobj:removeHook(hook)
+		resumeSelection()
+	end
+	local function getClick(button,pressed,x,y,status)
+		cnvobj:removeHook(hook)
+		pophelpText()
+		pushHelpText("Click to place")
+		hook = cnvobj:addHook("UNDOADDED",resumeSel)
+		cnvobj:drag(selListCopy())
+	end
+	local function dragcb()
+		pophelpText()
+		pauseSelection()
+		pushHelpText("Click to start drag")
+		-- Add the hook
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+	end
+	-- First get items to move
+	if #selList == 0 then
+		pauseSelection()
+		pushHelpText("Select items to drag")
+		resumeSelection(dragcb)
+	else
+		dragcb()
+	end
 end
 
 function GUI.toolbar.buttons.groupButton:action()
@@ -824,6 +915,9 @@ end
 
 function GUI.toolbar.buttons.newButton:action()
 	cnvobj:erase()
+	selList = {}
+	oldAttr = setmetatable({},{__mode="k"})
+	resumeSelection()
 	cnvobj:refresh()
 end
 
