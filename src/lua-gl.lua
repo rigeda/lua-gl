@@ -52,7 +52,6 @@ _VERSION = "B20.05.08"
 DEBUG:
 
 TASKS:
-* In selection clicks in demo add functionality to select single object or entire group
 * In selection clicks add functionality to select items within a rectangular region
 * In selection clicks in demo add functionality to deselect items
 * In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action

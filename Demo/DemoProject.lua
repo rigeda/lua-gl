@@ -506,7 +506,15 @@ local function selection_cb(button,pressed,x,y, status)
 						if val:sub(j,j) == "+" then
 							if j <= #i then
 								-- This is the object
-								objs[#objs + 1] = i[j]
+								local obj 
+								if cnvobj.isshift(status) then
+									obj = cnvobj.populateGroupMembers({i[j]})
+								else
+									obj = {i[j]}
+								end
+								for m = 1,#obj do
+									objs[#objs + 1] = obj[m]
+								end
 							else
 								-- This is a connector segment
 								local c = j-#i
@@ -543,7 +551,13 @@ local function selection_cb(button,pressed,x,y, status)
 					if val and val ~= 0 then
 						if val <= #i then
 							-- This is the object
-							tu.mergeArrays({i[val]},selList,false,function(one,two) 
+							local obj 
+							if cnvobj.isshift(status) then
+								obj = cnvobj.populateGroupMembers({i[val]})
+							else
+								obj = {i[val]}
+							end
+							tu.mergeArrays(obj,selList,false,function(one,two) 
 								return two.id and one.id == two.id
 							  end)
 						else
@@ -578,7 +592,13 @@ local function selection_cb(button,pressed,x,y, status)
 			fd.popup(seldlg,gx,gy,getSelected)
 		else	--if #i + #s > 1 then else
 			if #i > 0 then
-				tu.mergeArrays(i,selList,false,function(one,two) 
+				local obj 
+				if cnvobj.isshift(status) then
+					obj = cnvobj.populateGroupMembers(i)
+				else
+					obj = i
+				end
+				tu.mergeArrays(obj,selList,false,function(one,two) 
 					return two.id and one.id == two.id
 				  end)
 			else
