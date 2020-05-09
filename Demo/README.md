@@ -9,4 +9,8 @@ The Demo application depends on [Lua Terminal](https://github.com/aryajur/LuaTer
 
 It also depends on [subModSearcher](https://github.com/aryajur/subModSearcher) module to update the module searchers to easily find the lua-gl files.
 
+It also depends on [iupcFocusDialog](https://github.com/aryajur/iupcFocusDialog.git) module to show some dialogs
+
 lua-gl depends on [tableUtils](https://github.com/aryajur/tableUtils) module to use table and array manipulation operations provided by it.
+
+The base dependency is the [IUP Toolkit](https://www.tecgraf.puc-rio.br/iup/) for graphics rendering

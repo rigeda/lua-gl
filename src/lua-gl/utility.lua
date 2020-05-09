@@ -499,7 +499,11 @@ function checkDrawn(cnvobj)
 			-- All ports should exist in portFromObj
 			if not tu.inArray(portFromObj,drawn.port[j]) then
 				return nil,"Port: "..port[j].id.." in connector: "..drawn.conn[i].id.." but not in the drawn ports list.",IDMAP
-			end	
+			end
+			-- The port object should have the entry for the connector
+			if not tu.inArray(port[j].conn,drawn.conn[i]) then
+				return nil,"Port: "..port[j].id.." in connector: "..drawn.conn[i].id.." but does not have the connector in its conn structure.",IDMAP
+			end
 		end
 		
 		-- Check the segments
@@ -524,6 +528,29 @@ function checkDrawn(cnvobj)
 			
 			endPoints[segs[j].end_x] = endPoints[segs[j].end_x] or {}
 			endPoints[segs[j].end_x][segs[j].end_y] = endPoints[segs[j].end_x][segs[j].end_y] and (endPoints[segs[j].end_x][segs[j].end_y] + 1) or 1
+			-- Make sure no end point lies the middle of a segment
+			local conns,s = CONN.getConnFromXY(cnvobj,segs[j].start_x,segs[j].start_y,0)
+			for k = 1,#s do
+				for m = 1,#s[k].seg do
+					local segm = drawn.conn[s[k].conn].segments[s[k].seg[m]]
+					if not((segm.start_x == segs[j].start_x and segm.start_y == segs[j].start_y) or (segm.end_x == segs[j].start_x and segm.end_y == segs[j].start_y)) then
+						-- endpoint in the middle
+						return nil,"Connector "..drawn.conn[i].id.." segment "..j.." has start_x, start_y end point which lie on the middle of connector "..drawn.conn[s[k].conn].id.." segment "..s[k].seg[m],IDMAP
+					end
+				end
+			end
+			
+			conns,s = CONN.getConnFromXY(cnvobj,segs[j].end_x,segs[j].end_y,0)
+			for k = 1,#s do
+				for m = 1,#s[k].seg do
+					local segm = drawn.conn[s[k].conn].segments[s[k].seg[m]]
+					if not((segm.start_x == segs[j].end_x and segm.start_y == segs[j].end_y) or (segm.end_x == segs[j].end_x and segm.end_y == segs[j].end_y)) then
+						-- endpoint in the middle
+						return nil,"Connector "..drawn.conn[i].id.." segment "..j.." has end_x, end_y end point which lie on the middle of connector "..drawn.conn[s[k].conn].id.." segment "..s[k].seg[m],IDMAP
+					end
+				end
+			end
+		
 			-- vattr
 			if segs[j].vattr then
 				stat,msg = validateVisualAttr(segs[j].vattr)
