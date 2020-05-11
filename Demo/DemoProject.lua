@@ -2,10 +2,9 @@
 require("submodsearcher")
 local LGL = require("lua-gl")
 tu = require("tableUtils")
+sel = require("selection")
 
 require("GUIStructures")
-
-fd = require("iupcFocusDialog")
 
 iup.ImageLibOpen()
 iup.SetGlobal("IMAGESTOCKSIZE","32")
@@ -86,56 +85,11 @@ local function pophelpText()
 	end
 end
 
+sel.init(cnvobj,GUI)
+sel.resumeSelection()
+
+
 --********************* Callbacks *************
-
--- TO save data to file
-function GUI.toolbar.buttons.saveButton:action()
-	local fileDlg = iup.filedlg{
-		dialogtype = "SAVE",
-		extfilter = "Demo Files|*.dia",
-		title = "Select file to save drawing...",
-		extdefault = "dia"
-	} 
-	fileDlg:popup(iup.CENTER, iup.CENTER)
-	if fileDlg.status == "-1" then
-		return
-	end
-	local f = io.open(fileDlg.value,"w+")
-	f:write(cnvobj:save())
-	f:close()
-end
-
--- To load data from a file
-function GUI.toolbar.buttons.loadButton:action()
-	local fileDlg = iup.filedlg{
-		dialogtype = "OPEN",
-		extfilter = "Demo Files|*.dia",
-		title = "Select file to save drawing...",
-		extdefault = "dia"
-	} 
-	fileDlg:popup(iup.CENTER, iup.CENTER)
-	if fileDlg.status == "-1" then
-		return
-	end
-	f = io.open(fileDlg.value,"r")
-	local s = f:read("*a")
-	f:close()
-	cnvobj:load(s,nil,nil,true)	
-	--cnvobj:load(s,450,300)
-end
-
--- Turn ON/OFF snapping on the grid
-function GUI.toolbar.buttons.snapGridButton:action()
-	if self.image == GUI.images.ongrid then
-		self.image = GUI.images.offgrid
-		self.tip = "Set Snapping On"
-		cnvobj.grid.snapGrid = false
-	else
-		self.image = GUI.images.ongrid
-		self.tip = "Set Snapping Off"
-		cnvobj.grid.snapGrid = true
-	end
-end
 
 -- Undo button action
 function GUI.toolbar.buttons.undoButton:action()
@@ -183,6 +137,64 @@ function GUI.toolbar.buttons.redoButton:action()
 	end	
 end
 
+-- TO save data to file
+function GUI.toolbar.buttons.saveButton:action()
+	local fileDlg = iup.filedlg{
+		dialogtype = "SAVE",
+		extfilter = "Demo Files|*.dia",
+		title = "Select file to save drawing...",
+		extdefault = "dia"
+	} 
+	fileDlg:popup(iup.CENTER, iup.CENTER)
+	if fileDlg.status == "-1" then
+		return
+	end
+	local f = io.open(fileDlg.value,"w+")
+	f:write(cnvobj:save())
+	f:close()
+end
+
+-- To load data from a file
+function GUI.toolbar.buttons.loadButton:action()
+	local hook
+	local function resumeSel()
+		print("Resuming Selection")
+		pophelpText()
+		cnvobj:removeHook(hook)
+		sel.resumeSelection()
+	end
+	local fileDlg = iup.filedlg{
+		dialogtype = "OPEN",
+		extfilter = "Demo Files|*.dia",
+		title = "Select file to save drawing...",
+		extdefault = "dia"
+	} 
+	fileDlg:popup(iup.CENTER, iup.CENTER)
+	if fileDlg.status == "-1" then
+		return
+	end
+	f = io.open(fileDlg.value,"r")
+	local s = f:read("*a")
+	f:close()
+	sel.pauseSelection()
+	pushHelpText("Click to place the diagram")
+	cnvobj:load(s,nil,nil,true)	
+	hook = cnvobj:addHook("UNDOADDED",resumeSel)
+	--cnvobj:load(s,450,300)
+end
+
+-- Turn ON/OFF snapping on the grid
+function GUI.toolbar.buttons.snapGridButton:action()
+	if self.image == GUI.images.ongrid then
+		self.image = GUI.images.offgrid
+		self.tip = "Set Snapping On"
+		cnvobj.grid.snapGrid = false
+	else
+		self.image = GUI.images.ongrid
+		self.tip = "Set Snapping Off"
+		cnvobj.grid.snapGrid = true
+	end
+end
 
 -- Show/Hide the grid
 function GUI.toolbar.buttons.showGridButton:action(v)
@@ -333,307 +345,6 @@ function GUI.toolbar.buttons.printButton:action()
 		cnvobj:doprint("Lua-GL diagram",mL,mR,mU,mD)
 	end
 end
-
-local selList = {}
-local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the key to be garbage collected
-local objSelColor = {255, 162, 232}
-local connSelColor = {255, 128, 255}
-local callback
-
-local function updateSelList()
-	-- Remove all deleted connector segments
-	for i = #selList,1,-1 do
-		if not selList[i].id then
-			if not selList[i].conn or not selList[i].seg then
-				table.remove(selList,i)
-			end
-		end
-	end	
-end
-
-cnvobj:addHook("UNDOADDED",updateSelList)
-
--- Function to create a copy of the selList array. It also converts the seg structure pointer to the seg structure integer number of the connector segment. This is how the move/drag/etc. API of Lua-GL takes it
-local function selListCopy()
-	local c = {}
-	for i = 1,#selList do
-		if selList[i].id then
-			c[i] = selList[i]
-		else
-			local segI = tu.inArray(selList[i].conn.segments,selList[i].seg)
-			if segI then
-				c[i] = {
-					conn = selList[i].conn,
-					seg = segI
-				}
-			end
-		end
-	end
-	return c
-end
-
--- Button_CB callback to select stuff
--- If ctrl or shift is pressed then things are added to the selection list
--- Click anywhere where this is nothing to clear the list
-local function selection_cb(button,pressed,x,y, status)
-	
-	local function deselectAll()
-		-- Remove all special attributes
-		for i = 1,#selList do
-			if selList[i].id then
-				cnvobj:removeVisualAttr(selList[i])
-				if oldAttr[selList[i]] then
-					cnvobj:setObjVisualAttr(selList[i],oldAttr[selList[i]].attr,oldAttr[selList[i]].vAttr)
-				end
-			elseif selList[i].seg then
-				cnvobj:removeVisualAttr(selList[i].seg)
-				if oldAttr[selList[i].seg] then
-					cnvobj:setSegVisualAttr(selList[i].seg,oldAttr[selList[i].seg].attr,oldAttr[selList[i].seg].vAttr)
-				end
-			end
-		end
-		GUI.statBarM.title = ""
-		selList = {}		
-	end
-	
-	local function setSelectedDisplay(selI)
-		-- Set the selection attribute
-		for i = #selList,selI + 1,-1 do
-			local attr
-			if selList[i].id then
-				print("Added object "..selList[i].id.." to list.")
-				attr,_,oldAttr[selList[i]] = cnvobj:getVisualAttr(selList[i])
-				cnvobj:removeVisualAttr(selList[i])
-				attr = tu.copyTable(attr,{},true)
-				attr.color = objSelColor
-				cnvobj:setObjVisualAttr(selList[i],attr,-1)
-			else
-				if selList[i].seg then
-					print("Added segment "..tu.inArray(selList[i].conn.segments,selList[i].seg).." from connector "..selList[i].conn.id.." to the list")
-					attr,_,oldAttr[selList[i].seg] = cnvobj:getVisualAttr(selList[i].seg)			
-					cnvobj:removeVisualAttr(selList[i].seg)
-					attr = tu.copyTable(attr,{},true)
-					attr.color = connSelColor
-					cnvobj:setSegVisualAttr(selList[i].seg,attr,-1)
-				else
-					table.remove(selList,i)
-				end
-			end			
-		end
-		GUI.statBarM.title = tostring(#selList).." selected"
-		cnvobj:refresh()	
-		if callback and type(callback) == "function" and #selList > 0 then
-			callback()
-		end
-	end
-	
-	if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-		print("Left click done")
-		-- Left click somewhere
-		local multiple = cnvobj.isctrl(status) or cnvobj.isshift(status)
-		-- Add any objects at x,y to items
-		local i = cnvobj:getObjFromXY(x,y)
-		-- Get any connector segments at x,y
-		local c,s = cnvobj:getConnFromXY(x,y)
-		if (#i == 0 and #s == 0) then		-- No object or segment here so deselect everything
-			deselectAll()
-			cnvobj:refresh()
-			return true
-		end
-		if not multiple then
-			deselectAll()
-		end
-		updateSelList()
-		local selI = #selList
-		-- Merge into items
-		if #i + #s > 1 then
-			-- show the selection list to get the items
-			local lines = 5
-			if #i + #s < lines then lines = #i + #s end
-			local list = iup.flatlist{bgcolor=iup.GetGlobal("DLGBGCOLOR"),visiblelines = lines,visiblecolumns=15}
-			local doneButton = iup.flatbutton{title = "DONE",expand="HORIZONTAL"}
-			local selValue --= 0
-			if multiple then 
-				list.multiple = "YES" 
-				selValue = ""
-			end
-			local listCount = 0
-			-- Add the objects to the list
-			for j = 1,#i do
-				listCount = listCount + 1
-				list[tostring(listCount)] = "Object: "..tu.inArray(cnvobj.drawn.obj,i[j])
-				if tu.inArray(selList,i[j]) then
-					if multiple then
-						selValue = selValue.."+"
-					else
-						selValue = listCount
-					end
-				elseif multiple then
-					selValue = selValue.."-"
-				end					
-			end
-			for j = 1,#s do
-				for k = 1,#s[j].seg do
-					listCount = listCount + 1
-					list[tostring(listCount)] = "Connector: "..s[j].conn.." Segment: "..s[j].seg[k]
-					if tu.inArray(selList,s[j],function(one,two)
-						return not(one.id) and one.conn == cnvobj.drawn.conn[two.conn] and one.seg == cnvobj.drawn.conn[two.conn].segments[two.seg[k]]
-					  end) then
-						if multiple then
-							selValue = selValue.."+"
-						else
-							selValue = listCount
-						end
-					elseif multiple then
-						selValue = selValue.."-"
-					end								
-				end
-			end
-			list.value = selValue
-			local seldlg = iup.dialog{iup.vbox{list,doneButton};border="NO",resize="NO",minbox="NO",menubox="NO"}
-			local done
-			local function getSelected()
-				if not done then
-					done = true
-				else
-					return
-				end
-				local val = list.value
-				if multiple then
-					-- Get all selected items
-					local objs, connList = {},{}
-					for j = 1,#val do
-						if val:sub(j,j) == "+" then
-							if j <= #i then
-								-- This is the object
-								local obj 
-								if cnvobj.isshift(status) then
-									obj = cnvobj.populateGroupMembers({i[j]})
-								else
-									obj = {i[j]}
-								end
-								for m = 1,#obj do
-									objs[#objs + 1] = obj[m]
-								end
-							else
-								-- This is a connector segment
-								local c = j-#i
-								local ci = 0
-								for k = 1,#s do
-									if #s[k].seg+ci >= c then
-										connList[#connList + 1] = setmetatable({
-											conn = cnvobj.drawn.conn[s[k].conn],
-											seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[c-ci]]
-										},{__mode="v"})
-										break
-									else
-										ci = ci + #s[k].seg
-									end
-								end
-							end
-						end
-					end		-- for j = 1,#val doends
-					-- Add objs and connList items to selList
-					if #objs > 0 then
-						tu.mergeArrays(objs,selList,false,function(one,two) 
-							return two.id and one.id == two.id
-						  end)
-					end
-					if #connList > 0 then
-						tu.mergeArrays(connList,selList,false,function(one,two) 
-							return two.conn and one.conn == two.conn and one.seg == two.seg
-						  end)
-					end
-				else	-- if multiple then else
-					-- Only 1 item selected so add it to the selList
-					--print("Selected:",val)
-					val = tonumber(val)
-					if val and val ~= 0 then
-						if val <= #i then
-							-- This is the object
-							local obj 
-							if cnvobj.isshift(status) then
-								obj = cnvobj.populateGroupMembers({i[val]})
-							else
-								obj = {i[val]}
-							end
-							tu.mergeArrays(obj,selList,false,function(one,two) 
-								return two.id and one.id == two.id
-							  end)
-						else
-							-- This is a connector segment
-							local c = val-#i
-							local ci = 0
-							for k = 1,#s do
-								if #s[k].seg+ci >= c then
-									tu.mergeArrays({setmetatable({
-											conn = cnvobj.drawn.conn[s[k].conn],
-											seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[c-ci]]
-										},{__mode="v"})},selList,false,function(one,two) 
-											return two.conn and one.conn == two.conn and one.seg == two.seg 
-									  end)
-									break
-								else
-									ci = ci + #s[k].seg
-								end
-							end		-- for k = 1,#s do ends
-						end		-- if val <= #i then ends
-					end		-- if val ~= 0 then ends
-				end		-- if multiple then ends
-				setSelectedDisplay(selI)
-			end		-- local function getSelected() ends
-			local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(-?%d%d*)x(-?%d%d*)$")
-			gx,gy = tonumber(gx),tonumber(gy)
-			--print("Showing selection dialog at "..gx..","..gy)
-			function doneButton:flat_action()
-				seldlg:hide()
-				getSelected()
-			end
-			fd.popup(seldlg,gx,gy,getSelected)
-		else	--if #i + #s > 1 then else
-			if #i > 0 then
-				local obj 
-				if cnvobj.isshift(status) then
-					obj = cnvobj.populateGroupMembers(i)
-				else
-					obj = i
-				end
-				tu.mergeArrays(obj,selList,false,function(one,two) 
-					return two.id and one.id == two.id
-				  end)
-			else
-				local connList = {}
-				for j = 1,#s[1].seg do
-					connList[#connList + 1] = setmetatable({
-						conn = cnvobj.drawn.conn[s[1].conn],
-						seg = cnvobj.drawn.conn[s[1].conn].segments[s[1].seg[j]]
-					},{__mode="v"})
-				end
-				-- Merge into items
-				tu.mergeArrays(connList,selList,false,function(one,two) 
-					return two.conn and one.conn == two.conn and one.seg == two.seg 
-				  end)
-			end		
-			setSelectedDisplay(selI)
-		end		-- if #i + #s > 1 then ends
-	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then ends
-end
-
-local selID
-local function resumeSelection(cb)
-	callback = cb
-	if selID then
-		cnvobj:removeHook(selID)
-	end
-	selID = cnvobj:addHook("MOUSECLICKPOST",selection_cb)	
-end
-
-local function pauseSelection()
-	cnvobj:removeHook(selID)
-	selID = nil
-end
-
-resumeSelection()
 
 -- If mode == 1 then add only objects
 -- if mode == 2 then add only connectors/segments
@@ -787,27 +498,28 @@ function GUI.toolbar.buttons.moveButton:action()
 	local function resumeSel()
 		pophelpText()
 		cnvobj:removeHook(hook)
-		resumeSelection()
+		sel.resumeSelection()
 	end
 	local function getClick(button,pressed,x,y,status)
 		cnvobj:removeHook(hook)
 		pophelpText()
 		pushHelpText("Click to place")
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
-		cnvobj:move(selListCopy())
+		cnvobj:move(sel.selListCopy())
 	end
 	local function movecb()
 		pophelpText()
-		pauseSelection()
+		sel.pauseSelection()
 		pushHelpText("Click to start move")
 		-- Add the hook
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	end
 	-- First get items to move
-	if #selList == 0 then
-		pauseSelection()
+	if #sel.selList == 0 then
+		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
+		sel.pauseSelection()
 		pushHelpText("Select items to move")
-		resumeSelection(movecb)
+		sel.resumeSelection(movecb)
 	else
 		movecb()
 	end
@@ -819,27 +531,28 @@ function GUI.toolbar.buttons.dragButton:action()
 	local function resumeSel()
 		pophelpText()
 		cnvobj:removeHook(hook)
-		resumeSelection()
+		sel.resumeSelection()
 	end
 	local function getClick(button,pressed,x,y,status)
 		cnvobj:removeHook(hook)
 		pophelpText()
 		pushHelpText("Click to place")
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
-		cnvobj:drag(selListCopy())
+		cnvobj:drag(sel.selListCopy())
 	end
 	local function dragcb()
 		pophelpText()
-		pauseSelection()
+		sel.pauseSelection()
 		pushHelpText("Click to start drag")
 		-- Add the hook
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	end
 	-- First get items to move
-	if #selList == 0 then
-		pauseSelection()
+	if #sel.selList == 0 then
+		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
+		sel.pauseSelection()
 		pushHelpText("Select items to drag")
-		resumeSelection(dragcb)
+		sel.resumeSelection(dragcb)
 	else
 		dragcb()
 	end

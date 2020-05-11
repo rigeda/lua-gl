@@ -39,7 +39,7 @@ local function drawblockingrectangle(cnvobj,cnv,x,y,obj,zoom,xm,ym)
 	return true
 end
 
--- Function to check whether rectangle object is selectable by x,y within the given resolution res
+-- Function to check whether rectangle object is near the coordinate x,y within the given resolution res
 local function checkXY(cnvobj,obj, x, y, res)
 	if obj.shape ~= "RECT" and obj.shape ~= "BLOCKINGRECT" and obj.shape ~= "FILLEDRECT" then
 		return nil
@@ -62,7 +62,9 @@ local function checkXY(cnvobj,obj, x, y, res)
 	else
 		return coorc.pointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
 	end
-end				
+end		
+
+-- Function to check whether 
 
 -- Function to validate the coordinate arrays for the object
 local function validateCoords(x,y)

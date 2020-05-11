@@ -482,13 +482,16 @@ end
 -- coords is the table containing the coordinates of the shape the number of coordinates have to be pts
 -- if coords is not a table then this will be an interactive drawing
 -- data is an optional parameter which is set to obj.data. This is object handler specific and should be provided as such. The object handler will validate it.
-drawObj = function(cnvobj,shape,coords,data)
+-- attr is an optional parameter to set the visual attribute for the object
+-- num is the number associated with the visual attribute. If not given then set to -1. See the section in lua-gl file describing how visual attributes work
+drawObj = function(cnvobj,shape,coords,data,attr,num)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
 	if not M[shape] then
 		return nil,"Shape not available"
 	end
+	num = num or -1
 	if M[shape].validateData then
 		local stat,msg = M[shape].validateData(data)
 		if not stat then
@@ -533,6 +536,9 @@ drawObj = function(cnvobj,shape,coords,data)
 		t.order = #cnvobj.drawn.order + 1
 		t.port = {}
 		objs[#objs + 1] = t
+		if attr then
+			setObjVisualAttr(cnvobj,t,attr,num)
+		end
 		objs.ids = objs.ids + 1
 		-- Add the object to be drawn in the order array
 		cnvobj.drawn.order[#cnvobj.drawn.order + 1] = {
@@ -581,11 +587,43 @@ drawObj = function(cnvobj,shape,coords,data)
 	end
 	
 	-- Object drawing methodology
-	-- Object drawing starts (if 2 pt object) with Event 1. This event may be a mouse event or a keyboard event.
-	-- Connector drawing stops with Event 2 (only for 2 pt object). This event may be a mouse event or a keyboard event.
-	-- For now the events are defined as follows:
-	-- Event 1 = Mouse left click
-	-- Event 2 = Mouse left click after object start
+	-- Object drawing starts at the coordinate the mouse is at the moment
+	-- When mouse is clicked then the object drawing can end if the object module allows
+	
+	-- Set refX,refY as the mouse coordinate on the canvas
+	local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))
+	
+	-- Start the drawing
+	local op = {}
+	cnvobj.op[#cnvobj.op + 1] = op
+	opptr = #cnvobj.op
+	op.mode = "DRAWOBJ"	-- Set the mode to drawing object
+	op.obj = shape
+	op.finish = drawEnd
+	op.order = #cnvobj.drawn.order + 1
+	op.index = #objs + 1
+	op.cindex = 2	-- this is the index in the x and y arrays where the next x,y coordinates will be placed
+	local t = {}
+	t.id = "O"..tostring(objs.ids + 1)
+	t.shape = shape
+	t.x,t.y = M[shape].initObj(refX,refY)	-- create the initial x and y coordinate array from the refX,refY starting coordinate
+	t.group = nil
+	t.data = data
+	t.order = #cnvobj.drawn.order + 1
+	t.port = {}
+	objs[#objs + 1] = t
+	if attr then
+		setObjVisualAttr(cnvobj,t,attr,num)
+	end
+	objs.ids = objs.ids + 1
+	-- Add the object to be drawn in the order array
+	cnvobj.drawn.order[op.order] = {
+		type = "object",
+		item = t
+	}
+	if pts == 1 then
+		drawEnd()
+	end				
 	
 	-- button_CB to handle object drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y, status)
@@ -599,40 +637,11 @@ drawObj = function(cnvobj,shape,coords,data)
 		if button == GUIFW.BUTTON1 and pressed == 1 then
 			if opptr and cnvobj.op[opptr].mode == "DRAWOBJ" then
 				local x,y = objs[cnvobj.op[opptr].index].x,objs[cnvobj.op[opptr].index].y
-				if M[shape].endDraw(x,y) then
+				if M[shape].endDraw(x,y) then	-- Check if the object allows drawing to end otherwise continue drawing, this allows for dynamic shape modules
 					drawEnd()
 				else
 					cnvobj.op[opptr].cindex = #x + 1
 				end
-			else
-				-- Start the drawing
-				local op = {}
-				cnvobj.op[#cnvobj.op + 1] = op
-				opptr = #cnvobj.op
-				op.mode = "DRAWOBJ"	-- Set the mode to drawing object
-				op.obj = shape
-				op.finish = drawEnd
-				op.order = #cnvobj.drawn.order + 1
-				op.index = #objs + 1
-				op.cindex = 2
-				local t = {}
-				t.id = "O"..tostring(objs.ids + 1)
-				t.shape = shape
-				t.x,t.y = M[shape].initObj(x,y)
-				t.group = nil
-				t.data = data
-				t.order = #cnvobj.drawn.order + 1
-				t.port = {}
-				objs[#objs + 1] = t
-				objs.ids = objs.ids + 1
-				-- Add the object to be drawn in the order array
-				cnvobj.drawn.order[op.order] = {
-					type = "object",
-					item = t
-				}
-				if pts == 1 then
-					drawEnd()
-				end				
 			end
 		end
 		-- Process any hooks 
