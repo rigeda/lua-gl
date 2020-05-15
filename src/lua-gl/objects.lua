@@ -68,6 +68,7 @@ getObjFromXY = function(cnvobj,x,y)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
+	print("Check object at ",x,y)
 	local objs = cnvobj.drawn.obj
 	if #objs == 0 then
 		return {}
@@ -80,6 +81,25 @@ getObjFromXY = function(cnvobj,x,y)
 		end
 	end
 	return allObjs
+end
+
+-- Function to return list of objects in the bounding rectangle given by the diagnolly opposite coordinates x1,y1 and x2,y2
+-- If full is true then the object is only returned if fully enclosed in the rectangle
+getObjinRect = function(cnvobj,x1,y1,x2,y2,full)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	local objs = cnvobj.drawn.obj
+	if #objs == 0 then
+		return {}
+	end
+	local allObjs = {}
+	for i = 1,#objs do
+		if M[objs[i].shape] and M[objs[i].shape].checkRectOverlap(cnvobj,objs[i],x1,y1,x2,y2,full) then
+			allObjs[#allObjs + 1] = objs[i]
+		end
+	end
+	return allObjs	
 end
 
 -- Function to fix the order of all the items in the order table
@@ -591,7 +611,7 @@ drawObj = function(cnvobj,shape,coords,data,attr,num)
 	-- When mouse is clicked then the object drawing can end if the object module allows
 	
 	-- Set refX,refY as the mouse coordinate on the canvas
-	local refX,refY = cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))
+	local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj)))
 	
 	-- Start the drawing
 	local op = {}

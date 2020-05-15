@@ -85,6 +85,11 @@ local function pophelpText()
 	end
 end
 
+local function clearHelpTextStack()
+	helpTextStack = {}
+	GUI.statBarL.title = "Ready"
+end
+
 sel.init(cnvobj,GUI)
 sel.resumeSelection()
 
@@ -232,6 +237,28 @@ function GUI.toolbar.buttons.xygrid:action()
 	end
 end
 
+function getStartClick(msg1,msg2,cb)
+	local hook
+	local function resumeSel()
+		pophelpText()
+		cnvobj:removeHook(hook)
+		sel.resumeSelection()
+	end
+	local function getClick(button,pressed,x,y,status)
+		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
+			cnvobj:removeHook(hook)
+			pophelpText()
+			pushHelpText(msg2)
+			hook = cnvobj:addHook("UNDOADDED",resumeSel)
+			cb()
+		end
+	end
+	sel.pauseSelection()
+	pushHelpText(msg1)
+	-- Add the hook
+	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+end
+
 -- Draw line object
 function GUI.toolbar.buttons.lineButton:action()
 	-- Non interactive line draw
@@ -240,42 +267,102 @@ function GUI.toolbar.buttons.lineButton:action()
 			{x=100,y=100}
 		})]]
 	--cnvobj:refresh()
-	cnvobj:drawObj("LINE")	-- interactive line drawing
+	local function cb()
+		cnvobj:drawObj("LINE")	-- interactive line drawing
+	end
+	getStartClick("Click starting point for line","Click ending point for line",cb)
 end
 
 -- Draw rectangle object
 function GUI.toolbar.buttons.rectButton:action()
-	cnvobj:drawObj("RECT")	-- interactive rectangle drawing
+	local function cb()
+		cnvobj:drawObj("RECT")	-- interactive rectangle drawing
+	end
+	getStartClick("Click starting point for rectangle","Click ending point for rectangle",cb)
 end
 
 -- Draw filled rectangle object
 function GUI.toolbar.buttons.fRectButton:action()
-	cnvobj:drawObj("FILLEDRECT")	-- interactive filled rectangle drawing
+	local function cb()
+		cnvobj:drawObj("FILLEDRECT")	-- interactive filled rectangle drawing
+	end
+	getStartClick("Click starting point for rectangle","Click ending point for rectangle",cb)
 end
 
 -- Draw blocking rectangle object
 function GUI.toolbar.buttons.bRectButton:action()
-	cnvobj:drawObj("BLOCKINGRECT")	-- interactive blocking rectangle drawing
+	local function cb()
+		cnvobj:drawObj("BLOCKINGRECT")	-- interactive blocking rectangle drawing
+	end
+	getStartClick("Click starting point for rectangle","Click ending point for rectangle",cb)
 end
 
 -- Draw ellipse object
 function GUI.toolbar.buttons.elliButton:action()
-	cnvobj:drawObj("ELLIPSE")	-- interactive ellipse drawing
+	local function cb()
+		cnvobj:drawObj("ELLIPSE")	-- interactive ellipse drawing
+	end
+	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
 end
 
 -- Draw filled ellipse object
 function GUI.toolbar.buttons.fElliButton:action()
-	cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
+	local function cb()
+		cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
+	end
+	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
 end
 
 -- Draw Arc
 function GUI.toolbar.buttons.arcButton:action()
-	cnvobj:drawObj("ARC")
+	local hook
+	local count = 1
+	local msg = {
+		"Click to mark starting angle of the arc",
+		"Click to mark ending angle of the arc"
+	}
+	local function getClick(button,pressed,x,y,status)
+		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
+			pophelpText()
+			pushHelpText(msg[count])
+			if count == 2 then
+				cnvobj:removeHook(hook)
+			else
+				count = count + 1
+			end
+		end
+	end
+	local function cb()
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		cnvobj:drawObj("ARC")
+	end
+	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
 end
 
 -- Draw Sector
 function GUI.toolbar.buttons.filledarcButton:action()
-	cnvobj:drawObj("FILLEDARC")
+	local hook
+	local count = 1
+	local msg = {
+		"Click to mark starting angle of the arc",
+		"Click to mark ending angle of the arc"
+	}
+	local function getClick(button,pressed,x,y,status)
+		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
+			pophelpText()
+			pushHelpText(msg[count])
+			if count == 2 then
+				cnvobj:removeHook(hook)
+			else
+				count = count + 1
+			end
+		end
+	end
+	local function cb()
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		cnvobj:drawObj("FILLEDARC")
+	end
+	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
 end
 
 -- Draw text object
@@ -671,9 +758,12 @@ end
 
 function GUI.toolbar.buttons.newButton:action()
 	cnvobj:erase()
-	selList = {}
-	oldAttr = setmetatable({},{__mode="k"})
-	resumeSelection()
+	sel.deselectAll()
+	clearHelpTextStack()
+	sel.pauseSelection()
+	cnvobj:addHook("UNDOADDED",addUndoStack)
+	sel.init(cnvobj,GUI)
+	sel.resumeSelection()
 	cnvobj:refresh()
 end
 

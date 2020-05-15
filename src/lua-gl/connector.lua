@@ -4,6 +4,7 @@ local table = table
 local type = type
 local floor = math.floor
 local min = math.min
+local max = math.max
 local abs = math.abs
 local tonumber = tonumber
 local error = error
@@ -126,6 +127,74 @@ getConnFromXY = function(cnvobj,x,y,res)
 		end
 	end
 	return allConns, segInfo
+end
+
+-- Function to return list of connector segments in the bounding rectangle given by the diagnolly opposite coordinates x1,y1 and x2,y2
+-- If full is true then the connector segment is only returned if fully enclosed in the rectangle
+getConninRect = function(cnvobj,x1,y1,x2,y2,full)
+	if not cnvobj or type(cnvobj) ~= "table" then
+		return nil,"Not a valid lua-gl object"
+	end
+	local conns = cnvobj.drawn.conn
+	if #conns == 0 then
+		return {},{}
+	end
+	
+	-- Get the lesser and greater coordinates for the given rectangle
+	local xl,xg,yl,yg
+	xl = min(x1,x2)
+	xg = max(x1,x2)
+	yl = min(y1,y2)
+	yg = max(y1,y2)
+	local function addSegment(xs1,ys1,xs2,ys2,full)
+		-- Get the 2 coordinates of the line object
+		local x,y = {xs1,xs2},{ys1,ys2}
+		local ci = 0	-- To count the number of coordinates inside
+		for i = 1,2 do
+			if x[i] >= xl and x[i] <= xg and y[i] >=yl and y[i] <=yg then
+				ci = ci + 1
+			end
+		end
+		if full then
+			return ci == 2
+		end
+		if ci > 0 then
+			return true
+		end
+		-- Check whether the line segment intersects with any of the line segments of the given rectangle
+		if coorc.doIntersect(x[1],y[1],x[2],y[2],xl,yl,xl,yg) or coorc.doIntersect(x[1],y[1],x[2],y[2],xl,yl,xg,yl) or
+		  coorc.doIntersect(x[1],y[1],x[2],y[2],xg,yg,xl,yg) or coorc.doIntersect(x[1],y[1],x[2],y[2],xg,yg,xg,yl) then
+			return true
+		end
+		return false
+	end
+	local allConns = {}
+	local segInfo = {}
+	for i = 1,#conns do
+		local segs = conns[i].segments
+		local connAdded
+		if #segs == 0 then
+			-- No segments so the connector must be connecting 2 overlapping ports
+			local prt = conns[i].port[1]
+			if prt.x >= xl and prt.x <= xg and prt.y >= yl and prt.y <= yg then
+				allConns[#allConns + 1] = conns[i]
+				segInfo[#segInfo + 1] = {conn = i,seg = {}}
+			end
+		else
+			for j = 1,#segs do
+				if addSegment(segs[j].start_x, segs[j].start_y, segs[j].end_x, segs[j].end_y,full)  then
+					if not connAdded then
+						allConns[#allConns + 1] = conns[i]
+						segInfo[#segInfo + 1] = {conn = i, seg = {j}}
+						connAdded = true
+					else
+						segInfo[#segInfo].seg[#segInfo[#segInfo].seg + 1] = j	-- Add all segments that lie on that point
+					end
+				end
+			end
+		end
+	end
+	return allConns, segInfo	
 end
 
 -- Function to set the object Visual attributes

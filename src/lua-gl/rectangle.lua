@@ -5,6 +5,8 @@ local GUIFW = require("lua-gl.guifw")
 local OBJ = require("lua-gl.objects")
 
 local floor = math.floor
+local min = math.min
+local max = math.max
 
 local print = print
 
@@ -64,7 +66,69 @@ local function checkXY(cnvobj,obj, x, y, res)
 	end
 end		
 
--- Function to check whether 
+-- Function to check whether the rectangle object lies inside or overlaps with a given rectangle coordinates
+-- if full is true then returns true only if the given rectangle completely covers the object rectangle
+local function checkRectOverlap(cnvobj,obj,xr1,yr1,xr2,yr2,full)
+	if obj.shape ~= "RECT" and obj.shape ~= "BLOCKINGRECT" and obj.shape ~= "FILLEDRECT" then
+		return nil
+	end
+	-- Get the 4 coordinates of the rectangle object
+	local x,y = {},{}
+	x[1], y[1] = obj.x[1], obj.y[1]
+	x[3], y[3] = obj.x[2] , obj.y[2]
+	x[2], y[2], x[4], y[4] = x[1], y[3], x[3], y[1]
+	
+	-- Get the lesser and greater coordinates for the given rectangle
+	local xl,xg,yl,yg
+	xl = min(xr1,xr2)
+	xg = max(xr1,xr2)
+	yl = min(yr1,yr2)
+	yg = max(yr1,yr2)
+	
+	local ci = 0	-- To count the number of coordinates inside
+	for i = 1,4 do
+		if x[i] >= xl and x[i] <= xg and y[i] >=yl and y[i] <=yg then
+			ci = ci + 1
+		end
+	end
+	if full then
+		return ci == 4
+	end
+	if ci > 0 then
+		return true
+	end
+	-- Check if any coordinate of the given rectangle lies inside the object rectangle
+	xl = min(x[1],x[3])
+	xg = max(x[1],x[3])
+	yl = min(y[1],y[3])
+	yg = max(y[1],y[3])
+	x[1],y[1] = xr1,yr1
+	x[2],y[2] = xr1,yr2
+	x[3],y[3] = xr2,yr2
+	x[4],y[4] = xr2,yr1
+	ci = 0	-- To count the number of coordinates inside
+	for i = 1,4 do
+		if x[i] >= xl and x[i] <= xg and y[i] >=yl and y[i] <=yg then
+			ci = ci + 1
+		end
+	end
+	if ci == 4 then
+		return obj.shape == "FILLEDRECT"
+	end
+	if ci > 0 then
+		return true
+	end
+	-- Check if any segment of the object rectangle insersects with any segment of the given rectangle
+	-- Since the rectangles are aligned with the axis the intersection can only happen between horizontal and vertical segments
+	if coorc.doIntersect(xr1,yr1,xr1,yr2,xl,yl,xg,yl) or coorc.doIntersect(xr1,yr1,xr1,yr2,xl,yg,xg,yg) or 
+	  coorc.doIntersect(xr2,yr1,xr2,yr2,xl,yl,xg,yl) or coorc.doIntersect(xr2,yr1,xr2,yr2,xl,yg,xg,yg) or
+	  coorc.doIntersect(xr1,yr1,xr2,yr1,xl,yl,xl,yg) or coorc.doIntersect(xr1,yr1,xr2,yr1,xg,yl,xg,yg) or   
+	  coorc.doIntersect(xr1,yr2,xr2,yr2,xl,yl,xl,yg) or coorc.doIntersect(xr1,yr2,xr2,yr2,xg,yl,xg,yg) then
+		return true
+	end
+	return false	
+end
+
 
 -- Function to validate the coordinate arrays for the object
 local function validateCoords(x,y)
@@ -115,6 +179,7 @@ function init(cnvobj)
 	}
 	OBJ.RECT = {
 		checkXY = checkXY,
+		checkRectOverlap = checkRectOverlap,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		endDraw = endDraw,
@@ -122,6 +187,7 @@ function init(cnvobj)
 	}
 	OBJ.BLOCKINGRECT = {
 		checkXY = checkXY,
+		checkRectOverlap = checkRectOverlap,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		endDraw = endDraw,
@@ -129,6 +195,7 @@ function init(cnvobj)
 	}
 	OBJ.FILLEDRECT = {
 		checkXY = checkXY,
+		checkRectOverlap = checkRectOverlap,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initObj,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		endDraw = endDraw,

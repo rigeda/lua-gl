@@ -52,7 +52,13 @@ _VERSION = "B20.05.08"
 DEBUG:
 
 TASKS:
+INVESTIGATE:
+* SHOULD MOUSECLICKPRE and MOUSECLICKPOST get database coordinates always?
+
+
 * In selection clicks add functionality to select items within a rectangular region
+* Update draw connector to start drawing as soon as the call is made
+* Fix the drw objects and draw connector actions in the demo project
 * In selection clicks in demo add functionality to deselect items
 * In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action
 * Implement action cancel by ending and then undoing it.
@@ -914,6 +920,13 @@ objFuncs = {
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
+		-- First check if any operation is happenning then end it
+		local op = cnvobj.op
+		if op and #op > 0 then
+			while op[#op].finish and type(op[#op].finish) == "function" do
+				op[#op].finish()
+			end
+		end
 		cnvobj.drawn = {
 			obj = {ids=0},		-- array of object structures. See structure in objects.lua
 			group = {},			-- array of arrays containing objects intended to be grouped together
@@ -1179,6 +1192,7 @@ objFuncs = {
 	removeSegment = conn.removeSegment,
 	getConnFromID = conn.getConnFromID,
 	getConnFromXY = conn.getConnFromXY,
+	getConninRect = conn.getConninRect,
 	--setConnVisualAttr = conn.setConnVisualAttr,
 	---- HOOKS--------------
 	addHook = hooks.addHook,
@@ -1197,6 +1211,7 @@ objFuncs = {
 	groupObjects = objects.groupObjects,	
 	getObjFromID = objects.getObjFromID,
 	getObjFromXY = objects.getObjFromXY,
+	getObjinRect = objects.getObjinRect,
 	populateGroupMembers = objects.populateGroupMembers,
 	--setObjVisualAttr = objects.setObjVisualAttr,
 	-----GRAPHICS-----------

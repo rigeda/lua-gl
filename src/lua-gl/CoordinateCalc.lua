@@ -20,7 +20,18 @@ local function area(x1, y1, x2, y2, x3, y3)
     return abs((x1 * (y2 - y3) + x2 * (y3 - y1) +  x3 * (y1 - y2)) / 2.0) 
 end
 
--- Function to check whether the point x,y lies in the rectangle given by the vertices. 
+-- Function to check whether the point x,y lies in the triangle given by the vertices. 
+function pointInTriangle(x1,y1,x2,y2,x3,y3,x,y)
+	local A = area(x1,y1,x2,y2,x3,y3)
+    local A1 = area(x, y, x1, y1, x2, y2)
+  
+    local A2 = area(x, y, x2, y2, x3, y3)
+  
+    local A3 = area(x, y, x3, y3, x1, y1) 
+	
+	return abs(A-(A1+A2+A3)) < 1
+end
+
 -- Note that x2,y2 should be diagnolly opposite x4,y4
 function pointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y) 
              
@@ -33,7 +44,7 @@ function pointInRect(x1, y1, x2, y2, x3, y3, x4, y4, x, y)
     local A3 = area(x, y, x3, y3, x4, y4) 
   
     local  A4 = area(x, y, x1, y1, x4, y4)
-    return abs(A - (A1 + A2 + A3 + A4)) < 5 
+    return abs(A - (A1 + A2 + A3 + A4)) < 1 
 end
 
 -- Checks whether the point x,y lies inside the rectangle bounded by the midpoints of 2 opposite side at x1,y1 and x2,y2 with the fuzzy resolution of res which controls the rectangle height

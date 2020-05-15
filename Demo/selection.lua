@@ -30,6 +30,7 @@ local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the key to b
 local objSelColor
 local connSelColor
 local callback, selRect, opID
+selModeFull = false
 
 local function updateSelList()
 	-- Remove all deleted connector segments
@@ -69,7 +70,7 @@ function selListCopy()
 	return c
 end
 
-local function deselectAll()
+function deselectAll()
 	-- Remove all special attributes
 	for i = 1,#selList do
 		if selList[i].id then
@@ -346,8 +347,38 @@ local function selection_cb(button,pressed,x,y, status)
 				setSelectedDisplay(selI)
 			end		-- if #i + #s > 1 then ends
 		else	-- if mode == "POINT" then else
+			if not multiple then
+				deselectAll()
+			end
 			updateSelList()
+			local i = cnvobj:getObjinRect(x1,y1,x2,y2,selModeFull)
 			local selI = #selList
+			if #i > 0 then
+				local obj 
+				if cnvobj.isshift(status) then
+					obj = cnvobj.populateGroupMembers(i)
+				else
+					obj = i
+				end
+				tu.mergeArrays(obj,selList,false,function(one,two) 
+					return two.id and one.id == two.id
+				  end)
+			end
+			local c,s = cnvobj:getConninRect(x1,y1,x2,y2,selModeFull)
+			if #s > 0 then
+				local connList = {}
+				for j = 1,#s[1].seg do
+					connList[#connList + 1] = setmetatable({
+						conn = cnvobj.drawn.conn[s[1].conn],
+						seg = cnvobj.drawn.conn[s[1].conn].segments[s[1].seg[j]]
+					},{__mode="v"})
+				end
+				-- Merge into items
+				tu.mergeArrays(connList,selList,false,function(one,two) 
+					return two.conn and one.conn == two.conn and one.seg == two.seg 
+				  end)
+			end		
+			
 			setSelectedDisplay(selI)
 		end		-- -- if mode == "POINT" then ends
 	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then ends

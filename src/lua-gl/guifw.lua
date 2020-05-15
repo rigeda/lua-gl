@@ -99,7 +99,7 @@ function unmapCB(cnvobj)
 end
 
 function buttonCB(cnvobj,button,pressed,x,y, status)
-	x,y = M.sCoor2dCoor(cnvobj,x,y)
+	x,y = M.sCoor2dCoor(cnvobj,x,y)	-- Note the coordinates passed to MOUSECLICKPRE and MOUSECLICKPOST are always the database coordinates
 	cnvobj:processHooks("MOUSECLICKPRE",{button,pressed,x,y,status})
 	cnvobj:processHooks("MOUSECLICKPOST",{button,pressed,x,y,status})
 end
@@ -216,9 +216,9 @@ function getTextAttrFunc(attr)
 	local orient = attr.orient
 	local color = cd.EncodeColor(attr.color[1],attr.color[2],attr.color[3])
 	
-	return function(canvas)
+	return function(canvas,zoom)
 		-- Set the font typeface, style and size
-		canvas:Font(typeface,style,-1*size)
+		canvas:Font(typeface,style,-1*floor(size/zoom))
 		-- Set the text alignment
 		canvas:TextAlignment(align)
 		-- Set the text orientation
@@ -226,6 +226,11 @@ function getTextAttrFunc(attr)
 		-- Set the color of the text
 		canvas:SetForeground(color)
 	end	
+end
+
+-- Function to get the font properties
+function getFont(cnv)
+	return cnv:GetFont()
 end
 
 -- Function to convert the font size in points to pixels
