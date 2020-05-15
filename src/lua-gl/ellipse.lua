@@ -84,6 +84,140 @@ local function checkXY(cnvobj,obj,x,y,res)
 	return false	
 end
 
+local function checkRectOverlapEllipse(cnvobj,obj,xr1,yr1,xr2,yr2,full)
+	if obj.shape ~= "ELLIPSE" and obj.shape ~= "FILLEDELLIPSE" then
+		return nil
+	end
+	-- Get the lesser and greater coordinates for the given rectangle
+	local xl,xg,yl,yg
+	xl = min(xr1,xr2)
+	xg = max(xr1,xr2)
+	yl = min(yr1,yr2)
+	yg = max(yr1,yr2)
+	-- Get the 4 coordinates of the rectangle enclosing the object
+	local x,y = {},{}
+	x[1], y[1] = obj.x[1], obj.y[1]
+	x[3], y[3] = obj.x[2] , obj.y[2]
+	x[2], y[2], x[4], y[4] = x[1], y[3], x[3], y[1]
+	
+	local ci = 0	-- To count the number of coordinates inside
+	for i = 1,4 do
+		if x[i] >= xl and x[i] <= xg and y[i] >=yl and y[i] <=yg then
+			ci = ci + 1
+		end
+	end
+	if full then
+		return ci == 4
+	end
+	if ci == 4 then
+		return true
+	end
+	ci = 0
+	-- count how many coordinates of the given rectangle lies inside the ellipse
+	local x1,y1,x2,y2 = obj.x[1],obj.y[1],obj.x[2],obj.y[2]
+	local A = floor(abs(x2-x1)/2)
+	local B = floor(abs(y2-y1)/2)
+	local xc,yc = floor((x1+x2)/2),floor((y1+y2)/2)		-- center
+	local function checkPointInEllipse(xp,yp)
+		local dxc,dyc = (xp-xc)^2,(yp-yc)^2
+		return (dxc/A^2+dyc/B^2) <= 1 
+	end
+	if checkPointInEllipse(xr1,yr1) then
+		ci = ci + 1
+	end
+	if checkPointInEllipse(xr1,yr2) then
+		ci = ci + 1
+	end
+	if checkPointInEllipse(xr2,yr2) then
+		ci = ci + 1
+	end
+	if checkPointInEllipse(xr2,yr1) then
+		ci = ci + 1
+	end
+	if ci == 4 then
+		return obj.shape == "FILLEDELLIPSE"
+	end
+	if ci > 0 then
+		return true
+	end
+	-- Check if any segment of the given rectangle intersects with the ellipse
+	local Bsq = B*B
+	local Asq = A*A
+	local function checkyeqa(a,xi,xf)
+		-- First check whether the y=a line intersects the ellipse on real points
+		local amycsq = (a-yc)*(a-yc)
+		if Bsq < amycsq then
+			return false
+		end
+		local alphasq = Asq*(1-amycsq/Bsq)
+		local xip,xim,xfp,xfm
+		-- Comparison with xi
+		if xi < xc then
+			xip = true
+			if (xi-xc)^2 >= alphasq then
+				xim = true
+			end
+		else
+			if (xi-xc)^2 <= alphasq then
+				xip = true
+			end
+		end
+		if not xim and not xip then
+			return false
+		end
+		-- Comparison with xf
+		if xf < xc then
+			if (xf-xc)^2 <= alphasq then
+				xfm = true
+			end
+		else
+			xfm = true
+			if (xf-xc)^2 >= alphasq then
+				xfp = true
+			end
+		end
+		return xim and xfm or xip and xfp
+	end
+	
+	local function checkxeqb(b,yi,yf)
+		-- First check whether the y=a line intersects the ellipse on real points
+		local bmxcsq = (b-xc)*(b-xc)
+		if Asq < bmxcsq then
+			return false
+		end
+		local alphasq = Bsq*(1-bmxcsq/Asq)
+		local yip,yim,yfp,yfm
+		-- Comparison with yi
+		if yi < yc then
+			yip = true
+			if (yi-yc)^2 >= alphasq then
+				yim = true
+			end
+		else
+			if (yi-yc)^2 <= alphasq then
+				yip = true
+			end
+		end
+		if not yim and not yip then
+			return false
+		end
+		-- Comparison with yf
+		if yf < yc then
+			if (yf-yc)^2 <= alphasq then
+				yfm = true
+			end
+		else
+			yfm = true
+			if (yf-yc)^2 >= alphasq then
+				yfp = true
+			end
+		end
+		return yim and yfm or yip and yfp
+	end
+	-- Now check the segments
+	return checkyeqa(yl,xl,xg) or checkyeqa(yg,xl,xg) or checkxeqb(xl,yl,yg) or checkxeqb(xg,yl,yg)
+end
+
 -- Function to check whether the ellipse object lies inside or overlaps with a given rectangle coordinates
 -- if full is true then returns true only if the given rectangle completely covers the object ellipse
 local function checkRectOverlap(cnvobj,obj,xr1,yr1,xr2,yr2,full)
@@ -374,6 +508,7 @@ function init(cnvobj)
 	-- Register checkXY function
 	OBJ.ELLIPSE = {
 		checkXY = checkXYEllipse,
+		checkRectOverlap = checkRectOverlapEllipse,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initEllipse,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		endDraw = endDrawEllipse,
@@ -381,6 +516,7 @@ function init(cnvobj)
 	}
 	OBJ.FILLEDELLIPSE = {
 		checkXY = checkXYEllipse,
+		checkRectOverlap = checkRectOverlapEllipse,
 		validateCoords = validateCoords,	-- Used in non interactive and final interative step
 		initObj = initEllipse,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		endDraw = endDrawEllipse,
