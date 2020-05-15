@@ -13,7 +13,7 @@ Lua-GL depends on these other open source projects/modules
 * [Lua Language](https://www.lua.org/)
 * [IUP Toolkit](https://www.tecgraf.puc-rio.br/iup/)
 * [tableUtils](https://github.com/aryajur/tableUtils)
-* [bit] (https://github.com/aryajur/bit)
+* [bit](https://github.com/aryajur/bit)
 
 ## Resources
 
