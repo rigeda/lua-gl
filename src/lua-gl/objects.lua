@@ -541,7 +541,7 @@ drawObj = function(cnvobj,shape,coords,data,attr,num)
 			-- Take care of coordinate snapping
 			x[i],y[i] = cnvobj:snap(coords[i].x,coords[i].y)
 		end
-		local stat,msg = M[shape].validateCoords(x,y)
+		local stat,msg = M[shape].validateCoords(cnvobj,x,y)
 		if not stat then
 			return nil,msg
 		end
@@ -586,7 +586,7 @@ drawObj = function(cnvobj,shape,coords,data,attr,num)
 		-- Check if this is a zero dimension object then do not add anything
 		local t = objs[cnvobj.op[opptr].index]
 		-- Check if coordinates are valid
-		local stat,msg = M[shape].validateCoords(t.x,t.y)
+		local stat,msg = M[shape].validateCoords(cnvobj,t.x,t.y)
 		if not stat then
 			-- Coordinates not valid
 			-- Remove object from the object and the order arrays

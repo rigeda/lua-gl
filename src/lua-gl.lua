@@ -52,13 +52,9 @@ _VERSION = "B20.05.08"
 DEBUG:
 
 TASKS:
-INVESTIGATE:
-* SHOULD MOUSECLICKPRE and MOUSECLICKPOST get database coordinates always?
-
-
 * In selection clicks add functionality to select items within a rectangular region
 * Update draw connector to start drawing as soon as the call is made
-* Fix the drw objects and draw connector actions in the demo project
+* Fix the draw connector actions in the demo project
 * In selection clicks in demo add functionality to deselect items
 * In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action
 * Implement action cancel by ending and then undoing it.
@@ -989,25 +985,15 @@ objFuncs = {
 		else
 			cnvobj.rM = router.newRoutingMatrix(cnvobj)
 		end
-		----############## THIS NEEDS TO BE EVALUATED WHEN DOING ZOOM AND PAN #############################################
-		cnvobj.size = nil	-- when set should be in the form {width=<integer>,height=<integer>} and that will fix the size of the drawing area to that. Note that this is not the canvas size which is always referred from cnvobj.cnv.rastersize
-		--[[
-		cnvobj.size = {}	
-		cnvobj.size.width = cnvobj.cnv.rastersize:match("(%d%d*)x%d*")
-		cnvobj.size.height = cnvobj.cnv.rastersize:match("%d%d*x(%d%d*)")
-		
-		width = <integer>, 	--Width of the canvas	-- The width at the time of creation
-		height = <integer>,	--Height of the canvas	-- The height at the time of creation
-		]]
 		-- ################################################################################################################
 		--[[
-		grid = {
+		cnvobj.grid = {
 			grid_x = <integer>, --x direction grid distance
 			grid_y = <integer>, --y direction grid distance
 			snapGrid = <boolean>,		-- (OPTIONAL) if true then everything works on the grid, otherwise it behaves as if grid is 1px x 1px
 		}]]
 		--[[
-		viewOptions = {
+		cnvobj.viewOptions = {
 			gridVisibility = <boolean>,	-- (OPTIONAL) if true then grid is visible, default is nil
 			gridMode = <integer>		-- (OPTIONAL) default = 1 (grid points), 2 (rectangular grid)
 			showBlockingRect = <boolean>,-- (OPTIONAL) if true then blocking rectangles are drawn on screen

@@ -114,7 +114,7 @@ local function checkRectOverlap(cnvobj,obj,xr1,yr1,xr2,yr2,full)
 end
 
 -- Function to validate the coordinate arrays for the object
-local function validateCoords(x,y)
+local function validateCoords(cnvobj,x,y)
 	if #x ~= #y then
 		return nil,"Arrays not equal in length"
 	end

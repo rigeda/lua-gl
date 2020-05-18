@@ -13,6 +13,8 @@ local min = math.min
 local max = math.max
 local rad2deg = 180/pi
 
+local print = print
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
@@ -100,7 +102,7 @@ local function checkRectOverlapEllipse(cnvobj,obj,xr1,yr1,xr2,yr2,full)
 	x[3], y[3] = obj.x[2] , obj.y[2]
 	x[2], y[2], x[4], y[4] = x[1], y[3], x[3], y[1]
 	
-	local ci = 0	-- To count the number of coordinates inside
+	local ci = 0	-- To count the number of object coordinates inside the given rectangle
 	for i = 1,4 do
 		if x[i] >= xl and x[i] <= xg and y[i] >=yl and y[i] <=yg then
 			ci = ci + 1
@@ -220,163 +222,161 @@ end
 
 -- Function to check whether the ellipse object lies inside or overlaps with a given rectangle coordinates
 -- if full is true then returns true only if the given rectangle completely covers the object ellipse
-local function checkRectOverlap(cnvobj,obj,xr1,yr1,xr2,yr2,full)
-	if obj.shape ~= "ELLIPSE" and obj.shape ~= "FILLEDELLIPSE" and obj.shape ~= "ARC" and obj.shape ~= "FILLEDARC" then
+local function checkRectOverlapArc(cnvobj,obj,xr1,yr1,xr2,yr2,full)
+	if obj.shape ~= "ARC" and obj.shape ~= "FILLEDARC" then
 		return nil
 	end
 	-- Return false for incomplete arcs
-	if obj.shape == "ARC" or obj.shape == "FILLEDARC" and #obj.x < 4 then
+	if #obj.x < 4 then
 		return false
 	end
 	local x1,y1,x2,y2,x3,y3,x4,y4 = obj.x[1],obj.y[1],obj.x[2],obj.y[2],obj.x[3],obj.y[3],obj.x[4],obj.y[4]
-	local xc,yc	-- center coordinates
-	local m1,m2	-- Slopes of the lines that define the arc
-	local A,B 	-- Semi major and semi minor axis
-	local xa,ya,xb,yb
-	if obj.shape == "FILLEDARC" or obj.shape=="ARC" then
-		xc,yc = floor((x1+x2)/2),floor((y1+y2)/2)		-- center
-		m1 = (y3-yc)/(x3-xc)
-		m2 = (y4-yc)/(x4-xc)
-		-- Find the semi major axis and semi minor axis
-		A = floor(abs(x2-x1)/2)
-		B = floor(abs(y2-y1)/2)
-		local tx1,tx2,y1,ty2
-		-- Find xa,ya the coordinates on the ellipse that intersect with the m1 slope
-		local fac = 1/sqrt(1/(A*A)+(m1*m1)/(B*B))
-		tx1 = floor(xc+fac)
-		tx2 = floor(xc-fac)
-		ty1 = floor(yc+m1*fac)
-		ty2 = floor(yc-m1*fac)
-		--pick the one which is in the same direction as the x3,y3
-		if x3 > xc then
-			if tx1 > xc then
-				xa,ya = tx1,ty1
-			else
-				xa,ya = tx2,ty2
-			end
-		else
-			if tx1 < xc then
-				xa,ya = tx1,ty1
-			else
-				xa,ya = tx2,ty2
-			end
+	local A = floor(abs(x2-x1)/2)
+	local B = floor(abs(y2-y1)/2)
+	local xc,yc = floor((x1+x2)/2),floor((y1+y2)/2)		-- center
+	-- Get the start and stop angles of the arc/sector
+	local a1 = atan(y3-yc,x3-xc)
+	local a2 = atan(y4-yc,x4-xc)
+	if a2 < a1 then 
+		a1 = a1-2*pi 
+	end
+
+	-- Calculate the coordinates of points where the given rectangle intersects with the ellipse whose part the arc/sector is
+	local Asq,Bsq = A*A,B*B
+	local function getCoordsyeqa(a,xi,xf,coords)
+		local amycsq = (a-yc)^2
+		if Bsq < amycsq then
+			return 
 		end
-		-- Find xb,yb the coordinates on the ellipse that intersect with the m2 slope
-		fac = 1/sqrt(1/(A*A)+(m2*m2)/(B*B))
-		tx1 = floor(xc+fac)
-		tx2 = floor(xc-fac)
-		ty1 = floor(yc+m2*fac)
-		ty2 = floor(yc-m2*fac)
-		--pick the one which is in the same direction as the x4,y4
-		if x4 > xc then
-			if tx1 > xc then
-				xb,yb = tx1,ty1
-			else
-				xb,yb = tx2,ty2
+		local alpha = A*sqrt(1-amycsq/Bsq)
+		if xc + alpha >= xi and xc + alpha <= xf then
+			coords[#coords+1] = {xc+alpha,a}
+		end
+		if xc - alpha >= xi and xc - alpha <=xf then
+			coords[#coords+1] = {xc-alpha,a}
+		end
+	end
+	
+	local function getCoordsxeqb(b,yi,yf,coords)
+		local bmxcsq = (b-xc)^2
+		if Asq < bmxcsq then
+			return
+		end
+		local alpha = floor(B*sqrt(1-bmxcsq/Asq))
+		if yc + alpha >= yi and yc + alpha <= yf then
+			coords[#coords+1] = {b,yc+alpha}
+		end
+		if yc - alpha >= yi and yc - alpha <=yf then
+			coords[#coords+1] = {b,yc-alpha}
+		end
+	end
+	
+	-- Get the lesser and greater coordinates for the given rectangle
+	local xl,xg,yl,yg
+	xl = min(xr1,xr2)
+	xg = max(xr1,xr2)
+	yl = min(yr1,yr2)
+	yg = max(yr1,yr2)
+	local function checkPointInRectangle(x,y)
+		return x >= xl and x <= xg and y >=yl and y <=yg 
+	end
+
+	local coords = {}	-- To store all intersection coordinates
+	getCoordsxeqb(xl,yl,yg,coords)
+	getCoordsxeqb(xg,yl,yg,coords)
+	getCoordsyeqa(yl,xl,xg,coords)
+	getCoordsyeqa(yg,xl,xg,coords)
+	
+	-- Do the test for full
+	-- Check if x3,y3 or x4,y4 lies inside the rectangle
+	local fullSelect = true
+	local intersectChecked
+	if obj.shape == "FILLEDARC" then
+		if not checkPointInRectangle(xc,yc) then
+			fullSelect = false
+		end
+	end
+	if fullSelect and (not checkPointInRectangle(x3,y3) and not checkPointInRectangle(x4,y4)) then
+		fullSelect = false
+	end
+	if fullSelect and #coords > 0 then
+		-- Make sure all coordinates are outside the range [a1,a2]
+		intersectChecked = true
+		for i = 1,#coords do
+			local a = atan(coords[i][2]-yc,coords[i][1]-xc)
+			while a-2*pi > a1 do
+				a = a-2*pi
 			end
-		else
-			if tx1 < xc then
-				xb,yb = tx1,ty1
-			else
-				xb,yb = tx2,ty2
+			if a>=a1 and a<=a2 then
+				fullSelect = false
+				break
 			end
 		end
 	end
-	if full then
-		local x,y
-		if obj.shape == "FILLEDARC" or obj.shape == "ARC" then
-			local xa1,xa2,ya1,ya2	-- Rectangle coordinates for enclosing the arc
-			if obj.shape == "ARC" then
-				xa1 = min(xa,xb)
-				xa2 = max(xa,xb)
-				ya1 = min(ya,yb)
-				ya2 = max(ya,yb)
-			else
-				xa1 = min(xc,xa,xb)
-				xa2 = max(xc,xa,xb)
-				ya1 = min(yc,ya,yb)
-				ya2 = max(yc,ya,yb)
-			end
-			-- Check if the arc crosses the end of the major or minor axis
-			
-			x = {xa1,xa1,xa2,xa2}
-			y = {ya1,ya2,ya2,ya1}	
-		else		-- if obj.shape == "FILLEDARC" or obj.shape == "ARC" then else
-			-- All 4 points of the rectangle enclosing the ellipse should be inside the given rectangle
-			x = {x1,x1,x2,x2}
-			y = {y1,y2,y2,y1}
-		end		--if obj.shape == "FILLEDARC" or obj.shape == "ARC" then ends
-		-- Get the lesser and greater coordinates for the given rectangle
-		local xl,xg,yl,yg
-		xl = min(xr1,xr2)
-		xg = max(xr1,xr2)
-		yl = min(yr1,yr2)
-		yg = max(yr1,yr2)
-		local ci = 0	-- To count the number of coordinates inside
-		for i = 1,4 do
-			if x[i] >= xl and x[i] <= xg and y[i] >=yl and y[i] >=yg then
-				ci = ci + 1
-			end
-		end
-		return ci == 4
-	end		-- if full then ends here
-	
-	-- Not full
-	if obj.shape == "ARC" then
-		-- Check whether the ellipse intersects with the 
-		
+	if full or fullSelect then
+		return fullSelect
+	end
+	if intersectChecked then
+		-- Intersection with ellipse coordinates were checked and one of them had to be on the arc itself
+		return true
 	else
-		
+		for i = 1,#coords do
+			local a = atan(coords[i][2]-yc,coords[i][1]-xc)
+			while a-2*pi > a1 do
+				a = a-2*pi
+			end
+			if a>=a1 and a<=a2 then
+				return true
+			end
+		end	
+	end
+	if obj.shape == "ARC" then
+		return false
+	end
+	-- For filled ARC 2 more possibilities are if the rectangle intersects the arc ends connecting the center or if any rectangle point lies in the sector area
+	local function checkPointInEllipse(xp,yp)
+		local dxc,dyc = (xp-xc)^2,(yp-yc)^2
+		return (dxc/A^2+dyc/B^2) <= 1 
+	end
+	if checkPointInEllipse(xl,yl) or checkPointInEllipse(xg,yl) or checkPointInEllipse(xg,yg) or checkPointInEllipse(xl,yg) then
+		return true
 	end
 	
-	local ox,oy = obj.x,obj.y
-	
-	local function checkPoint(x,y)
-		local dxc,dyc = (x-xc)^2,(y-yc)^2
-		if (dxc/A^2+dyc/B^2) <= 1 then
+	-- Function to check whether a lies in the range [b,c] or [c,b]
+	local function inbetween(a,b,c)
+		if c<b then
+			b,c = c,b
+		end
+		if a >= b and a<=c then
 			return true
 		end
 		return false
 	end
-	
-	-- Get the 4 coordinates of the given rectangle
-	local x,y = {},{}
-	x[1], y[1] = xr1,yr1
-	x[2], y[2] = xr1,yr2
-	x[3], y[3] = xr2,yr2
-	x[4], y[4] = xr2,yr1
-	
-	
-	local ci = 0	-- To count the number of coordinates inside
-	for i = 1,4 do
-		if checkPoint(x[i],y[i]) then
-			-- Point is inside the ellipse. Check if this is a ARC or a FILLED ARC
-			if obj.shape == "FILLEDARC" or obj.shape == "ARC" then
-				-- Check the angle
-				-- Angles of object
-				local a1 = atan(oy[3]-floor((oy[2] + oy[1]) / 2),ox[3]-floor((ox[2] + ox[1]) / 2))
-				local a2 = atan(oy[4]-floor((oy[2] + oy[1]) / 2),ox[4]-floor((ox[2] + ox[1]) / 2))
-				-- To flip the drawing direction according to teh canvas
-				-- The canvas draws anticlockwise. WHile the coordinates received in checkXY are such that the angle in the upper half starts -pi to 0 clockwise and then the lower half goes 0 to pi clockwise.
-				if a2 > a1 then a2 = a2 - 2*pi end
-				-- Angle of given point
-				local a = atan(y-floor((oy[2] + oy[1]) / 2),x-floor((ox[2] + ox[1]) / 2))
-				local inangle = a >= a2 and a <= a1
-				if a1 - a2 < pi then
-					-- Point should be within the angle and also not be in the triangle made by the center point and the arc ends
-				elseif a1 - a2 == pi then
-					if inangle then ci = ci + 1 end
-				else
-					-- a1 - a2 > pi
-					-- Point should be within the angle or in the triangle made by the center point and the arc ends
-				end
-			else
-				ci = ci + 1
-			end
+	-- Check whether the rectangle intersects the sector lines connecting to the center`
+	local function checkVerticalSegmentIntersection(x,yi,yf,xa,ya,xb,yb)
+		if ya == yb then
+			return inbetween(x,xa,xb)
+		elseif xa==xb then
+			return x==xa and (inbetween(yi,ya,yb) or inbetween(yf,ya,yb) or inbetween(ya,yi,yf))
+		else
+			local y = (yb-ya)/(xb-xa)*(x-xa)+ya
+			return inbetween(y,ya,yb)
 		end
 	end
-	
-	return full and ci == 2 or ci > 0
+	local function checkHorizontalSegmentIntersection(y,xi,xf,xa,ya,xb,yb)
+		if xa == xb then
+			return inbetween(y,ya,yb)
+		elseif ya==yb then
+			return y==ya and (inbetween(xi,xa,xb) or inbetween(xf,xa,xb) or inbetween(xa,xi,xf))
+		else
+			local x = (xb-xa)/(yb-ya)*(y-ya)+xa
+			return inbetween(x,xa,xb)
+		end		
+	end
+	return checkVerticalSegmentIntersection(xl,yl,yg,xc,yc,x3,y3) or checkVerticalSegmentIntersection(xl,yl,yg,xc,yc,x4,y4) or 
+	  checkVerticalSegmentIntersection(xg,yl,yg,xc,yc,x3,y3) or checkVerticalSegmentIntersection(xg,yl,yg,xc,yc,x4,y4) or 
+	  checkHorizontalSegmentIntersection(yl,xl,xg,xc,yc,x3,y3) or checkHorizontalSegmentIntersection(yl,xl,xg,xc,yc,x4,y4) or   
+	  checkHorizontalSegmentIntersection(yg,xl,xg,xc,yc,x3,y3) or checkHorizontalSegmentIntersection(yg,xl,xg,xc,yc,x4,y4)
 end
 
 
@@ -398,6 +398,7 @@ local function checkXYArc(cnvobj,obj,x,y,res)
 		return false
 	end
 	local stat,msg = checkXY(cnvobj,obj,x,y,res)
+	print("checkXY returned",stat)
 	if not stat then
 		return false
 	end
@@ -405,12 +406,25 @@ local function checkXYArc(cnvobj,obj,x,y,res)
 	-- Angles of object
 	local a1 = atan(oy[3]-floor((oy[2] + oy[1]) / 2),ox[3]-floor((ox[2] + ox[1]) / 2))
 	local a2 = atan(oy[4]-floor((oy[2] + oy[1]) / 2),ox[4]-floor((ox[2] + ox[1]) / 2))
-	-- To flip the drawing direction according to teh canvas
-	-- The canvas draws anticlockwise. WHile the coordinates received in checkXY are such that the angle in the upper half starts -pi to 0 clockwise and then the lower half goes 0 to pi clockwise.
-	if a2 > a1 then a2 = a2 - 2*pi end
+	print("a1=",a1*rad2deg)
+	print("a2=",a2*rad2deg)
+	-- atan returns angle in the range -pi to +pi
+	-- The arc is drawn from a1 to a2
+	-- If the arc is large so that a2 becomes less than a1 then to make the range increasing reduce a1 by 2pi
+	if a2 < a1 then 
+		a1 = a1-2*pi 
+		print("NEW a1=",a1*rad2deg)
+		print("NEW a2=",a2*rad2deg)
+	end
 	-- Angle of given point
 	local a = atan(y-floor((oy[2] + oy[1]) / 2),x-floor((ox[2] + ox[1]) / 2))
-	if a >= a2 and a <= a1 then
+	print("a=",a*rad2deg)
+	-- a should be in the 2pi range from a1
+	while a-2*pi > a1 do
+		a = a-2*pi
+	end
+	print("NEW a=",a*rad2deg)
+	if a >= a1 and a <= a2 then
 		return true
 	end
 	return false
@@ -432,7 +446,7 @@ local function validateCoords(x,y)
 	return true
 end
 
-local function validateCoordsArc(x,y)
+local function validateCoordsArc(cnvobj,x,y)
 	if #x ~= #y then
 		return nil,"Arrays not equal in length"
 	end
@@ -442,6 +456,52 @@ local function validateCoordsArc(x,y)
 	if x[1] == x[2] and y[1] == y[2] then
 		return nil,"0 size object not allowed."
 	end
+	-- Check if the start and stop angles are the same then object is 0 sized
+	local a1 = atan(y[3]-floor((y[2] + y[1]) / 2),x[3]-floor((x[2] + x[1]) / 2))
+	local a2 = atan(y[4]-floor((y[2] + y[1]) / 2),x[4]-floor((x[2] + x[1]) / 2))
+	if a2 < a1 then 
+		a1 = a1-2*pi 
+	end
+	-- Calculate the angle the grid spacing will project on the center from the major axis end
+	local A = floor(abs(x[2]-x[1])/2)
+	local B = floor(abs(y[2]-y[1])/2)
+	local xc,yc = floor((x[1]+x[2])/2),floor((y[1]+y[2])/2)		-- center
+	local gd1 = atan(cnvobj.grid.grid_y,A/2)
+	local gd2 = atan(cnvobj.grid.grid_x,B/2)
+	local gd = min(gd1,gd2)
+	if a2-a1 < gd then
+		return nil,"Angle too small"
+	end
+	-- Update x[3] and x[4] with the coordinates on the ellipse
+	local function updateCoord(x,y)
+		if x == xc then
+			if y > yc then
+				return xc,yc+B
+			else
+				return xc,yc-B
+			end
+		elseif y == yc then
+			if x > xc then
+				return xc+A,yc
+			else
+				return xc-A,yc
+			end
+		else
+			-- Find the intersection of the line with the ellipse
+			local m = (y-yc)/(x-xc)
+			local del = 1/sqrt(1/(A*A)+m*m/(B*B))
+			local xn,yn
+			if x > xc then
+				xn = xc+floor(del)
+			else
+				xn = xc-floor(del)
+			end
+			yn = yc+floor(m*(xn-xc))
+			return xn,yn
+		end
+	end
+	x[3],y[3] = updateCoord(x[3],y[3])
+	x[4],y[4] = updateCoord(x[4],y[4])
 	return true	
 end
 
@@ -493,12 +553,14 @@ function init(cnvobj)
 	OBJ.ARC = {
 		checkXY = checkXYArc,
 		validateCoords = validateCoordsArc,
+		checkRectOverlap = checkRectOverlapArc,
 		initObj = initEllipse,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		endDraw = endDrawArc,
 		pts = 4
 	}
 	OBJ.FILLEDARC = {
 		checkXY = checkXYArc,
+		checkRectOverlap = checkRectOverlapArc,
 		validateCoords = validateCoordsArc,
 		initObj = initEllipse,	-- Used in the interactive mode to initialize the coordinate arrays from the starting coordinate
 		endDraw = endDrawArc,
