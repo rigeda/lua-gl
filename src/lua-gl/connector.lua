@@ -2456,13 +2456,9 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	-- Setup interactive drawing
 	
 	-- Connector drawing methodology
-	-- Connector drawing starts with Event 1. This event may be a mouse event or a keyboard event
-	-- Connector waypoint is set with Event 2. This event may be a mouse event or a keyboard event. The waypoint freezes the connector route up till that point
-	-- Connector drawing stops with Event 3. This event may be a mouse event or a keyboard event.
-	-- For now the events are defined as follows:
-	-- Event 1 = Mouse left click
-	-- Event 2 = Mouse left click after connector start
-	-- Event 3 = Mouse right click or clicking on a port or clicking on a connector
+	-- Connector drawing starts at the coordinate the mouse is at the moment
+	-- On a mouse left click it creates an anchor point if there is no port or connector at that point
+	-- On a mouse right click it ends the connector
 	
 	-- Backup the old button_cb and motion_cb functions
 	local oldBCB = cnvobj.cnv.button_cb
@@ -2471,6 +2467,9 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 	local op = {}
 	local opptr = #cnvobj.op + 1
 	cnvobj.op[opptr] = op
+	
+	-- Set refX,refY as the mouse coordinate on the canvas
+	local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj)))
 	
 	local function setWaypoint(x,y)
 		op.startseg = #cnvobj.drawn.conn[#cnvobj.drawn.conn].segments+1
@@ -2522,6 +2521,8 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 		--cnvobj.op.startseg is set
 	end
 	
+	startConnector(refX,refY)
+	
 	-- button_CB to handle connector drawing
 	function cnvobj.cnv:button_cb(button,pressed,x,y,status)
 		--y = cnvobj.height - y
@@ -2531,10 +2532,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 		local xo,yo = x,y
 		x,y = cnvobj:snap(x,y)
 		if button == GUIFW.BUTTON1 and pressed == 1 then
-			if cnvobj.op[opptr].mode ~= "DRAWCONN" then
-				print("Start connector drawing at ",x,y)
-				startConnector(x,y)
-			elseif #cnvobj:getPortFromXY(x, y) > 0 or #getConnFromXY(cnvobj,x,y,0) > 1 then	-- 1 is the connector being drawn right now
+			if #cnvobj:getPortFromXY(x, y) > 0 or #getConnFromXY(cnvobj,x,y,0) > 1 then	-- 1 is the connector being drawn right now
 				endConnector()
 			else
 				setWaypoint(x,y)

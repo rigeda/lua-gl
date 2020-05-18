@@ -746,7 +746,10 @@ function GUI.toolbar.buttons.connButton:action()
 		js1 = 1
 		js2 = 1
 	end
-	cnvobj:drawConnector(nil,router1,js1,router2,js2)
+	local function cb()
+		cnvobj:drawConnector(nil,router1,js1,router2,js2)
+	end
+	getStartClick("Click starting point for connector","Click ending point/waypoint for connector",cb)
 end
 
 function GUI.toolbar.buttons.connModeList:action(text,item,state)

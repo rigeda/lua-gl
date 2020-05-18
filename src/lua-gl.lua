@@ -52,9 +52,7 @@ _VERSION = "B20.05.08"
 DEBUG:
 
 TASKS:
-* In selection clicks add functionality to select items within a rectangular region
-* Update draw connector to start drawing as soon as the call is made
-* Fix the draw connector actions in the demo project
+* In resumeSel after operation complete ignore the click made for completing the operation
 * In selection clicks in demo add functionality to deselect items
 * In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action
 * Implement action cancel by ending and then undoing it.
