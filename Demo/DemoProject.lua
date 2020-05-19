@@ -183,8 +183,15 @@ function GUI.toolbar.buttons.loadButton:action()
 	f:close()
 	sel.pauseSelection()
 	pushHelpText("Click to place the diagram")
-	cnvobj:load(s,nil,nil,true)	
-	hook = cnvobj:addHook("UNDOADDED",resumeSel)
+	local stat,msg = cnvobj:load(s,nil,nil,true)
+	if not stat then
+		print("Error loading file: ",msg)
+		local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "File cannot be loaded.\n"..msg}
+		dlg:popup()
+		resumeSel()
+	else
+		hook = cnvobj:addHook("UNDOADDED",resumeSel)
+	end
 	--cnvobj:load(s,450,300)
 end
 
@@ -668,6 +675,7 @@ function GUI.toolbar.buttons.portButton:action()
 	if MODE == "ADDPORT" then
 		return
 	end
+	sel.pauseSelection()
 	-- Create a representation of the port at the location of the mouse pointer and then start its move
 	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
 	-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
@@ -702,6 +710,8 @@ function GUI.toolbar.buttons.portButton:action()
 			cnvobj:addPort(x,y,allObjs[1].id)
 			MODE = nil
 			group = false
+			pophelpText()
+			sel.resumeSelection()
 		elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
 			print("Continuing Move",#allObjs)
 			-- Continue the move only if it is out of the move mode
@@ -713,6 +723,7 @@ function GUI.toolbar.buttons.portButton:action()
 	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	-- Start the interactive move
 	MODE = "ADDPORT"
+	pushHelpText("Click to place port")
 	cnvobj:moveObj({o})
 end
 

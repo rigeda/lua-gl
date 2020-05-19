@@ -52,9 +52,8 @@ _VERSION = "B20.05.08"
 DEBUG:
 
 TASKS:
-* In resumeSel after operation complete ignore the click made for completing the operation
-* In selection clicks in demo add functionality to deselect items
-* In load setup checking the loaded structure using utility.checkdrawn if not good then cancel action
+* Check port adding undo
+* Implement Demo project resizing
 * Implement action cancel by ending and then undoing it.
 * In move and drag add functionality to pick only 1 object and not the group
 * In adding port attach port to port visual rectangle rather than the object.
@@ -742,10 +741,16 @@ objFuncs = {
 		
 		local rm = cnvobj.rM
 		
-		-- Setup undo
-		local key = utility.undopre(cnvobj)
+		-- Check whether the data is correct
 		local tab = tu.s2tr(str)
 		if not tab or (#tab.obj == 0 and #tab.conn == 0) then return nil,"No data found" end
+		local stat,msg = utility.checkDrawn({drawn=tab})
+		if not stat then
+			return nil,"Corrupted data: "..msg
+		end
+		
+		-- Setup undo
+		local key = utility.undopre(cnvobj)
 		
 		-- Lets find the extreme dimensions of the data being loaded
 		-- obj array copy

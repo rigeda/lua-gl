@@ -25,12 +25,12 @@ else
 end
 
 local cnvobj, GUI
-selList = {}
+local selList = {}
 local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the key to be garbage collected
 local objSelColor
 local connSelColor
 local callback, selRect, opID
-selModeFull = false
+selModeFull = false		-- If true then the whole item should be inside the selecting rectangle to be selected
 
 local function updateSelList()
 	-- Remove all deleted connector segments
@@ -70,20 +70,25 @@ function selListCopy()
 	return c
 end
 
+local function removeSelListItem(index)
+	if selList[index].id then
+		cnvobj:removeVisualAttr(selList[index])
+		if oldAttr[selList[index]] then
+			cnvobj:setObjVisualAttr(selList[index],oldAttr[selList[index]].attr,oldAttr[selList[index]].vAttr)
+		end
+	elseif selList[index].seg then
+		cnvobj:removeVisualAttr(selList[index].seg)
+		if oldAttr[selList[index].seg] then
+			cnvobj:setSegVisualAttr(selList[index].seg,oldAttr[selList[index].seg].attr,oldAttr[selList[index].seg].vAttr)
+		end
+	end	
+	table.remove(selList,index)
+end
+
 function deselectAll()
 	-- Remove all special attributes
-	for i = 1,#selList do
-		if selList[i].id then
-			cnvobj:removeVisualAttr(selList[i])
-			if oldAttr[selList[i]] then
-				cnvobj:setObjVisualAttr(selList[i],oldAttr[selList[i]].attr,oldAttr[selList[i]].vAttr)
-			end
-		elseif selList[i].seg then
-			cnvobj:removeVisualAttr(selList[i].seg)
-			if oldAttr[selList[i].seg] then
-				cnvobj:setSegVisualAttr(selList[i].seg,oldAttr[selList[i].seg].attr,oldAttr[selList[i].seg].vAttr)
-			end
-		end
+	for i = #selList,1,-1 do
+		removeSelListItem(i)
 	end
 	GUI.statBarM.title = ""
 	selList = {}		
@@ -160,6 +165,7 @@ local function selection_cb(button,pressed,x,y, status)
 		end
 		-- Left click somewhere
 		local multiple = cnvobj.isctrl(status) or cnvobj.isshift(status)
+		local deselect = cnvobj.isalt(status)	-- Alt pressed for deselection mode
 		if mode == "POINT" then
 			-- Add any objects at x,y to items
 			local i = cnvobj:getObjFromXY(x,y)
@@ -170,12 +176,12 @@ local function selection_cb(button,pressed,x,y, status)
 				cnvobj:refresh()
 				return true
 			end
-			if not multiple then
+			if not multiple and not deselect then
 				deselectAll()
 			end
 			updateSelList()
 			local selI = #selList
-			-- Merge into items
+			-- Merge into selList or remove from selList
 			if #i + #s > 1 then
 				-- show the selection list to get the items
 				local lines = 5
@@ -265,14 +271,38 @@ local function selection_cb(button,pressed,x,y, status)
 						end		-- for j = 1,#val doends
 						-- Add objs and connList items to selList
 						if #objs > 0 then
-							tu.mergeArrays(objs,selList,false,function(one,two) 
-								return two.id and one.id == two.id
-							  end)
+							if not deselect then
+								tu.mergeArrays(objs,selList,false,function(one,two) 
+									return two.id and one.id == two.id
+								  end)
+							else
+								-- Remove elements from selList that are in objs
+								for i = 1,#objs do
+									local ind = tu.inArray(selList,objs[i],function(one,two) 
+										return one.id and one.id == two.id
+									  end)
+									if ind then
+										removeSelListItem(ind)
+									end
+								end
+							end
 						end
 						if #connList > 0 then
-							tu.mergeArrays(connList,selList,false,function(one,two) 
-								return two.conn and one.conn == two.conn and one.seg == two.seg
-							  end)
+							if not deselect then
+								tu.mergeArrays(connList,selList,false,function(one,two) 
+									return two.conn and one.conn == two.conn and one.seg == two.seg
+								  end)
+							else
+								-- Remove elements from selList that are in connList
+								for i = 1,#connList do
+									local ind = tu.inArray(selList,connList[i],function(one,two) 
+										return one.conn and one.conn == two.conn and one.seg == two.seg
+									  end)
+									if ind then
+										removeSelListItem(ind)
+									end
+								end
+							end
 						end
 					else	-- if multiple then else
 						-- Only 1 item selected so add it to the selList
@@ -287,21 +317,46 @@ local function selection_cb(button,pressed,x,y, status)
 								else
 									obj = {i[val]}
 								end
-								tu.mergeArrays(obj,selList,false,function(one,two) 
-									return two.id and one.id == two.id
-								  end)
+								if not deselect then
+									tu.mergeArrays(obj,selList,false,function(one,two) 
+										return two.id and one.id == two.id
+									  end)
+								else
+									-- Remove elements from selList that are in obj
+									for i = 1,#obj do
+										local ind = tu.inArray(selList,obj[i],function(one,two) 
+											return one.id and one.id == two.id
+										  end)
+										if ind then
+											removeSelListItem(ind)
+										end
+									end
+								end
 							else
 								-- This is a connector segment
 								local c = val-#i
 								local ci = 0
 								for k = 1,#s do
 									if #s[k].seg+ci >= c then
-										tu.mergeArrays({setmetatable({
-												conn = cnvobj.drawn.conn[s[k].conn],
-												seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[c-ci]]
-											},{__mode="v"})},selList,false,function(one,two) 
-												return two.conn and one.conn == two.conn and one.seg == two.seg 
-										  end)
+										if not deselect then
+											tu.mergeArrays({setmetatable({
+													conn = cnvobj.drawn.conn[s[k].conn],
+													seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[c-ci]]
+												},{__mode="v"})},selList,false,function(one,two) 
+													return two.conn and one.conn == two.conn and one.seg == two.seg 
+											  end)
+										else
+											-- Remove elements from selList that are in connList
+											local ind = tu.inArray(selList,setmetatable({
+													conn = cnvobj.drawn.conn[s[k].conn],
+													seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[c-ci]]
+												},{__mode="v"}),function(one,two) 
+												return one.conn and one.conn == two.conn and one.seg == two.seg
+											  end)
+											if ind then
+												removeSelListItem(ind)
+											end
+										end
 										break
 									else
 										ci = ci + #s[k].seg
@@ -328,9 +383,21 @@ local function selection_cb(button,pressed,x,y, status)
 					else
 						obj = i
 					end
-					tu.mergeArrays(obj,selList,false,function(one,two) 
-						return two.id and one.id == two.id
-					  end)
+					if not deselect then
+						tu.mergeArrays(obj,selList,false,function(one,two) 
+							return two.id and one.id == two.id
+						  end)
+					else
+						-- Remove elements from selList that are in obj
+						for i = 1,#obj do
+							local ind = tu.inArray(selList,obj[i],function(one,two) 
+								return one.id and one.id == two.id
+							  end)
+							if ind then
+								removeSelListItem(ind)
+							end
+						end
+					end
 				else
 					local connList = {}
 					for j = 1,#s[1].seg do
@@ -340,13 +407,25 @@ local function selection_cb(button,pressed,x,y, status)
 						},{__mode="v"})
 					end
 					-- Merge into items
-					tu.mergeArrays(connList,selList,false,function(one,two) 
-						return two.conn and one.conn == two.conn and one.seg == two.seg 
-					  end)
+					if not deselect then
+						tu.mergeArrays(connList,selList,false,function(one,two) 
+							return two.conn and one.conn == two.conn and one.seg == two.seg 
+						  end)
+					else
+						-- Remove elements from selList that are in connList
+						for i = 1,#connList do
+							local ind = tu.inArray(selList,connList[i],function(one,two) 
+								return one.conn and one.conn == two.conn and one.seg == two.seg
+							  end)
+							if ind then
+								removeSelListItem(ind)
+							end
+						end
+					end
 				end		
 				setSelectedDisplay(selI)
 			end		-- if #i + #s > 1 then ends
-		else	-- if mode == "POINT" then else
+		elseif mode == "RECT" then	-- if mode == "POINT" then else
 			if not multiple then
 				deselectAll()
 			end
@@ -360,9 +439,21 @@ local function selection_cb(button,pressed,x,y, status)
 				else
 					obj = i
 				end
-				tu.mergeArrays(obj,selList,false,function(one,two) 
-					return two.id and one.id == two.id
-				  end)
+				if not delselect then
+					tu.mergeArrays(obj,selList,false,function(one,two) 
+						return two.id and one.id == two.id
+					  end)
+				else
+					-- Remove elements from selList that are in obj
+					for i = 1,#obj do
+						local ind = tu.inArray(selList,obj[i],function(one,two) 
+							return one.id and one.id == two.id
+						  end)
+						if ind then
+							removeSelListItem(ind)
+						end
+					end
+				end
 			end
 			local c,s = cnvobj:getConninRect(x1,y1,x2,y2,selModeFull)
 			if #s > 0 then
@@ -374,11 +465,22 @@ local function selection_cb(button,pressed,x,y, status)
 					},{__mode="v"})
 				end
 				-- Merge into items
-				tu.mergeArrays(connList,selList,false,function(one,two) 
-					return two.conn and one.conn == two.conn and one.seg == two.seg 
-				  end)
+				if not deselect then
+					tu.mergeArrays(connList,selList,false,function(one,two) 
+						return two.conn and one.conn == two.conn and one.seg == two.seg 
+					  end)
+				else
+					-- Remove elements from selList that are in connList
+					for i = 1,#connList do
+						local ind = tu.inArray(selList,connList[i],function(one,two) 
+							return one.conn and one.conn == two.conn and one.seg == two.seg
+						  end)
+						if ind then
+							removeSelListItem(ind)
+						end
+					end
+				end
 			end		
-			
 			setSelectedDisplay(selI)
 		end		-- -- if mode == "POINT" then ends
 	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then ends
@@ -390,7 +492,7 @@ function resumeSelection(cb)
 	if selID then
 		cnvobj:removeHook(selID)
 	end
-	selID = cnvobj:addHook("MOUSECLICKPOST",selection_cb)	
+	selID = cnvobj:addHook("MOUSECLICKPRE",selection_cb)	
 end
 
 function pauseSelection()
