@@ -1,10 +1,10 @@
 
 require("submodsearcher")
 local LGL = require("lua-gl")
-tu = require("tableUtils")
-sel = require("selection")
+local tu = require("tableUtils")
+local sel = require("selection")
 
-require("GUIStructures")
+local GUI = require("GUIStructures")
 
 iup.ImageLibOpen()
 iup.SetGlobal("IMAGESTOCKSIZE","32")
@@ -70,24 +70,45 @@ local function addUndoStack(diff)
 end
 cnvobj:addHook("UNDOADDED",addUndoStack)
 
-local helpTextStack = {}
-local function pushHelpText(text)
-	helpTextStack[#helpTextStack + 1] = text
-	GUI.statBarL.title = text
-end
+local pushHelpText,popHelpText,clearHelpTextStack
 
-local function pophelpText()
-	helpTextStack[#helpTextStack] = nil
-	if #helpTextStack == 0 then
-		GUI.statBarL.title = "Ready"
-	else
-		GUI.statBarL.title = helpTextStack[#helpTextStack]
+do
+	local order = {}
+	local ID = 0
+	local helpTextStack = {}
+	function pushHelpText(text)
+		if text then
+			ID = ID + 1
+			helpTextStack[ID] = text
+			order[#order + 1] = ID
+			GUI.statBarL.title = text
+			return ID
+		end
 	end
-end
 
-local function clearHelpTextStack()
-	helpTextStack = {}
-	GUI.statBarL.title = "Ready"
+	function popHelpText(ID)
+		if not ID then
+			return	-- Probably log here that popHelpText called without ID
+		end
+		helpTextStack[ID] = nil
+		local ind = tu.inArray(order,ID)
+		if ind then
+			table.remove(order,ind)
+			if #order == 0 then
+				GUI.statBarL.title = "Ready"
+			else
+				GUI.statBarL.title = helpTextStack[order[#order]]
+			end
+			return true
+		end
+	end
+
+	function clearHelpTextStack()
+		helpTextStack = {}
+		order = {}
+		ID = 0
+		GUI.statBarL.title = "Ready"
+	end
 end
 
 sel.init(cnvobj,GUI)
@@ -161,10 +182,10 @@ end
 
 -- To load data from a file
 function GUI.toolbar.buttons.loadButton:action()
-	local hook
+	local hook,helpID
 	local function resumeSel()
 		print("Resuming Selection")
-		pophelpText()
+		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
 	end
@@ -182,8 +203,9 @@ function GUI.toolbar.buttons.loadButton:action()
 	local s = f:read("*a")
 	f:close()
 	sel.pauseSelection()
-	pushHelpText("Click to place the diagram")
+	helpID = pushHelpText("Click to place the diagram")
 	local stat,msg = cnvobj:load(s,nil,nil,true)
+	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
 	if not stat then
 		print("Error loading file: ",msg)
 		local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "File cannot be loaded.\n"..msg}
@@ -192,7 +214,6 @@ function GUI.toolbar.buttons.loadButton:action()
 	else
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
 	end
-	--cnvobj:load(s,450,300)
 end
 
 -- Turn ON/OFF snapping on the grid
@@ -244,24 +265,24 @@ function GUI.toolbar.buttons.xygrid:action()
 	end
 end
 
-function getStartClick(msg1,msg2,cb)
-	local hook
+local function getStartClick(msg1,msg2,cb)
+	local hook,helpID
 	local function resumeSel()
-		pophelpText()
+		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
 	end
 	local function getClick(button,pressed,x,y,status)
 		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
 			cnvobj:removeHook(hook)
-			pophelpText()
-			pushHelpText(msg2)
+			popHelpText(helpID)
+			helpID = pushHelpText(msg2)
 			hook = cnvobj:addHook("UNDOADDED",resumeSel)
 			cb()
 		end
 	end
 	sel.pauseSelection()
-	pushHelpText(msg1)
+	helpID = pushHelpText(msg1)
 	-- Add the hook
 	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 end
@@ -322,16 +343,20 @@ end
 
 -- Draw Arc
 function GUI.toolbar.buttons.arcButton:action()
-	local hook
+	local hook, helpID, hook1
 	local count = 1
 	local msg = {
 		"Click to mark starting angle of the arc",
 		"Click to mark ending angle of the arc"
 	}
+	local function removeHelpText()
+		popHelpText(helpID)
+		cnvobj:removeHook(hook1)
+	end
 	local function getClick(button,pressed,x,y,status)
 		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-			pophelpText()
-			pushHelpText(msg[count])
+			popHelpText(helpID)
+			helpID = pushHelpText(msg[count])
 			if count == 2 then
 				cnvobj:removeHook(hook)
 			else
@@ -341,6 +366,7 @@ function GUI.toolbar.buttons.arcButton:action()
 	end
 	local function cb()
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		hook1 = cnvobj:addHook("UNDOADDED",removeHelpText)
 		cnvobj:drawObj("ARC")
 	end
 	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
@@ -348,16 +374,20 @@ end
 
 -- Draw Sector
 function GUI.toolbar.buttons.filledarcButton:action()
-	local hook
+	local hook, helpID, hook1
 	local count = 1
 	local msg = {
 		"Click to mark starting angle of the arc",
 		"Click to mark ending angle of the arc"
 	}
+	local function removeHelpText()
+		popHelpText(helpID)
+		cnvobj:removeHook(hook1)
+	end
 	local function getClick(button,pressed,x,y,status)
 		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-			pophelpText()
-			pushHelpText(msg[count])
+			popHelpText(helpID)
+			helpID = pushHelpText(msg[count])
 			if count == 2 then
 				cnvobj:removeHook(hook)
 			else
@@ -367,6 +397,7 @@ function GUI.toolbar.buttons.filledarcButton:action()
 	end
 	local function cb()
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		hook1 = cnvobj:addHook("UNDOADDED",removeHelpText)
 		cnvobj:drawObj("FILLEDARC")
 	end
 	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
@@ -440,141 +471,6 @@ function GUI.toolbar.buttons.printButton:action()
 	end
 end
 
--- If mode == 1 then add only objects
--- if mode == 2 then add only connectors/segments
--- If no mode then add both
--- If noclick is true then the given call back is called as soon as the selection list is completed otherwise an additional click is required by the mouse before the call back is called
-local function getSelectionList(cb,noclick,mode)
-	-- Create a dialog to show the list
-	local list = iup.list{
-		visiblelines = 10,
-		visiblecolumns = 10
-	}
-	
-	local ok = iup.button{title="OK",expand="HORIZONTAL"}
-	local cancel = iup.button{title="Cancel",expand="HORIZONTAL"}
-	local label = iup.label{
-		title="Select items on \nthe canvas and they \nwill be listed below:",
-		alignment = "ACENTER:ACENTER"
-	}
-	local label1 = iup.label{
-		title="After selecting\npress OK and click \n on canvas to start.",
-		alignment = "ACENTER:ACENTER"
-	}
-	
-	local dlg = iup.dialog{
-		title = "Selected Objects",
-		iup.vbox{
-			label,
-			list,
-			label1,
-			iup.hbox{
-				ok,
-				cancel;
-				homogenous = "YES",
-				normalizesize = "HORIZONTAL"
-			},
-		},
-		icon = GUI.images.appIcon
-	}
-	dlg:map()
-	local w = list.rastersize:match("(%d%d*)x")
-	label.rastersize = w.."x"
-	label1.rastersize = w.."x"
-	dlg.minsize = dlg.rastersize
-	dlg.maxsize = dlg.rastersize
-	dlg.minbox = "NO"
-	dlg.maxbox = "NO"
-	dlg:showxy(iup.RIGHT, iup.TOP)
-	--iup.Show(iup.LayoutDialog(dlg))
-
-	-- create hook for mouse click to add shapes to the list
-	local items = {}
-	local function clickToAdd(button,pressed,x,y,status)
-		if button == iup.BUTTON1 and pressed == 1 then
-			if mode and mode == 1 then
-				-- Add any objects at x,y to items
-				local i = cnvobj:getObjFromXY(x,y)
-				-- Merge into items
-				tu.mergeArrays(i,items,false,function(one,two) return one.id == two.id end)
-			elseif mode and mode == 2 then
-				-- Add any connectors at x,y to items
-				local c,s = cnvobj:getConnFromXY(x,y)
-				local connList = {}
-				for i = 1,#s do
-					for j = 1,#s[i].seg do
-						connList[#connList + 1] = {
-							conn = cnvobj.drawn.conn[s[i].conn],
-							seg = s[i].seg[j]
-						}
-					end
-				end
-				-- Merge into items
-				tu.mergeArrays(connList,items,false,function(one,two) return one.conn.id == two.conn.id and one.seg == two.seg end)
-			elseif not mode then
-				-- Add any objects at x,y to items
-				local i = cnvobj:getObjFromXY(x,y)
-				-- Merge into items
-				if #i > 0 then
-					tu.mergeArrays(i,items,false,function(one,two) 
-						return two.id and one.id == two.id
-					  end)
-				end
-				-- Add any connectors at x,y to items
-				local c,s = cnvobj:getConnFromXY(x,y)
-				local connList = {}
-				for i = 1,#s do
-					for j = 1,#s[i].seg do
-						connList[#connList + 1] = {
-							conn = cnvobj.drawn.conn[s[i].conn],
-							seg = s[i].seg[j]
-						}
-					end
-				end
-				-- Merge into items
-				if #connList > 0 then
-					tu.mergeArrays(connList,items,false,function(one,two) 
-						return two.conn and one.conn.id == two.conn.id and one.seg == two.seg 
-					  end)
-				end
-			end
-			-- Update the list item control to display the items
-			list.removeitem = "ALL"
-			for i = 1,#items do
-				list.appenditem = items[i].id or (items[i].conn.id.."S"..tostring(items[i].seg))
-			end
-		end
-	end
-	-- set the hook
-	local hook = cnvobj:addHook("MOUSECLICKPOST",clickToAdd)
-	function ok:action()
-		cnvobj:removeHook(hook)
-		if not noclick then
-			-- Now create a hook to start the move
-			local function getClick(button,pressed,x,y,status)
-				cnvobj:removeHook(hook)
-				if #items > 0 then
-					cb(items)
-				end
-			end
-			-- Add the hook
-			hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
-			dlg:hide()
-			dlg:destroy()
-		else
-			dlg:hide()
-			dlg:destroy()
-			cb(items)
-		end
-		-- If there are items selected then call the callback
-	end
-	function cancel:action()
-		cnvobj:removeHook(hook)
-		dlg:hide()
-		dlg:destroy()
-	end
-end
-
 function GUI.toolbar.buttons.checkButton:action()
 	cnvobj:drawConnector({
 			{start_x = 300,start_y=130,end_x=300,end_y=380},
@@ -588,31 +484,31 @@ end
 
 -- Start Move operation
 function GUI.toolbar.buttons.moveButton:action()
-	local hook
+	local hook, helpID
 	local function resumeSel()
-		pophelpText()
+		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
 	end
 	local function getClick(button,pressed,x,y,status)
 		cnvobj:removeHook(hook)
-		pophelpText()
-		pushHelpText("Click to place")
+		popHelpText(helpID)
+		helpID = pushHelpText("Click to place")
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
 		cnvobj:move(sel.selListCopy())
 	end
 	local function movecb()
-		pophelpText()
+		popHelpText(helpID)
 		sel.pauseSelection()
-		pushHelpText("Click to start move")
+		helpID = pushHelpText("Click to start move")
 		-- Add the hook
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	end
 	-- First get items to move
-	if #sel.selList == 0 then
+	if #sel.selListCopy() == 0 then
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
-		pushHelpText("Select items to move")
+		helpID = pushHelpText("Select items to move")
 		sel.resumeSelection(movecb)
 	else
 		movecb()
@@ -621,31 +517,31 @@ end
 
 -- Start Drag operation
 function GUI.toolbar.buttons.dragButton:action()
-	local hook
+	local hook, helpID
 	local function resumeSel()
-		pophelpText()
+		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
 	end
 	local function getClick(button,pressed,x,y,status)
 		cnvobj:removeHook(hook)
-		pophelpText()
-		pushHelpText("Click to place")
+		popHelpText(helpID)
+		helpID = pushHelpText("Click to place")
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
 		cnvobj:drag(sel.selListCopy())
 	end
 	local function dragcb()
-		pophelpText()
+		popHelpText(helpID)
 		sel.pauseSelection()
-		pushHelpText("Click to start drag")
+		helpID = pushHelpText("Click to start drag")
 		-- Add the hook
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	end
 	-- First get items to move
-	if #sel.selList == 0 then
+	if #sel.selListCopy() == 0 then
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
-		pushHelpText("Select items to drag")
+		helpID = pushHelpText("Select items to drag")
 		sel.resumeSelection(dragcb)
 	else
 		dragcb()
@@ -654,20 +550,27 @@ end
 
 function GUI.toolbar.buttons.groupButton:action()
 	-- Function to group objects together
-	local function groupObjects(items)
-		local it = {}
-		-- Pick only objects from the selection
-		for i = 1,#items do
-			if items[i].id:match("^O%d%d*$") then
-				it[#it + 1] = items[i]
-			end
+	local helpID
+	local function groupcb()
+		local _,objs = sel.selListCopy() 
+		if #objs < 2 then
+			return
 		end
-		if #it > 0 then
-			cnvobj:groupObjects(it)
-		end		
+		sel.pauseSelection()
+		popHelpText(helpID)
+		cnvobj:groupObjects(objs)
+		sel.resumeSelection()
 	end
-	-- Get the list of items
-	getSelectionList(groupObjects,true,1)
+	-- First get objects to group
+	local _,objs = sel.selListCopy() 
+	if #objs < 2 then
+		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
+		sel.pauseSelection()
+		helpID = pushHelpText("Select objects to group")
+		sel.resumeSelection(groupcb)
+	else
+		groupcb()
+	end	
 end
 
 function GUI.toolbar.buttons.portButton:action()
@@ -710,7 +613,7 @@ function GUI.toolbar.buttons.portButton:action()
 			cnvobj:addPort(x,y,allObjs[1].id)
 			MODE = nil
 			group = false
-			pophelpText()
+			popHelpText()
 			sel.resumeSelection()
 		elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
 			print("Continuing Move",#allObjs)
@@ -782,7 +685,7 @@ function GUI.toolbar.buttons.newButton:action()
 end
 
 -- 90 degree rotate
-function rotateFlip(para)
+local function rotateFlip(para)
 	local op = cnvobj.op[#cnvobj.op]
 	local mode = op.mode
 	local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
@@ -798,7 +701,7 @@ function rotateFlip(para)
 			end
 		end
 		-- Do the rotation 
-		cnvobj.rotateFlipItems(items,refX,refY,para)
+		cnvobj:rotateFlipItems(items,refX,refY,para)
 		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
 		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
 		cnvobj:refresh()
@@ -820,13 +723,15 @@ function rotateFlip(para)
 			end
 		end
 		-- Do the rotation 
-		cnvobj.rotateFlipItems(items,refX,refY,para)
+		cnvobj:rotateFlipItems(items,refX,refY,para)
 		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
 		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
 		cnvobj:refresh()
 	else
 		-- Get list of items
-		local function rotateItems(items)
+		local helpID
+		local function rotateItems()
+			local items = sel.selListCopy()
 			local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 			-- get all group memebers for the objects selected
 			local objList = {}
@@ -845,11 +750,23 @@ function rotateFlip(para)
 			for i = 1,#segList do
 				items[#items + 1] = segList[i]
 			end
-			cnvobj.rotateFlipItems(items,refX,refY,para)
+			cnvobj:rotateFlipItems(items,refX,refY,para)
 			cnvobj:refresh()
 		end
+		local function startRotation()
+			popHelpText(helpID)
+			getStartClick("Click at coordinate about which to rotate/flip",nil,rotateItems)
+		end
 		-- first we need to select items
-		getSelectionList(rotateItems,false)	-- Need a click 
+		if #sel.selListCopy() == 0 then
+			-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
+			sel.pauseSelection()
+			helpID = pushHelpText("Select items to rotate/flip")
+			sel.resumeSelection(startRotation)
+		else
+			startRotation()
+		end	
+		
 	end
 end
 

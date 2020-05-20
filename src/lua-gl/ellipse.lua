@@ -431,7 +431,7 @@ local function checkXYArc(cnvobj,obj,x,y,res)
 end
 
 -- Function to validate the coordinate arrays for the object
-local function validateCoords(x,y)
+local function validateCoords(cnvobj,x,y)
 	if #x ~= #y then
 		return nil,"Arrays not equal in length"
 	end

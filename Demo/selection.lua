@@ -53,21 +53,25 @@ end
 
 -- Function to create a copy of the selList array. It also converts the seg structure pointer to the seg structure integer number of the connector segment. This is how the move/drag/etc. API of Lua-GL takes it
 function selListCopy()
-	local c = {}
+	local item = {}
+	local objs = {}
+	local conns = {}
 	for i = 1,#selList do
 		if selList[i].id then
-			c[i] = selList[i]
+			item[i] = selList[i]
+			objs[#objs + 1] = selList[i]
 		else
 			local segI = tu.inArray(selList[i].conn.segments,selList[i].seg)
 			if segI then
-				c[i] = {
+				item[i] = {
 					conn = selList[i].conn,
 					seg = segI
 				}
+				conns[#conns + 1] = item[i]
 			end
 		end
 	end
-	return c
+	return item,objs,conns
 end
 
 local function removeSelListItem(index)

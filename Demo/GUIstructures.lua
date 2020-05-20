@@ -2,7 +2,7 @@
 
 
 -- The GUI structure
-GUI = {
+local GUI = {
 	_VERSION = nil,
 	images = nil,	-- To Load the images
 	toolbar = {
@@ -141,4 +141,6 @@ GUI.mainDlg = iup.dialog{
 	shrink="YES",
 	icon = GUI.images.appIcon
 }
+
+return GUI
 

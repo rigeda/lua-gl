@@ -45,7 +45,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.05.08"
+_VERSION = "B20.05.19"
 
 --- TASKS
 --[[
@@ -172,7 +172,7 @@ objFuncs = {
 	-- This is a non interactive function totally 
 	-- It just transforms the coordinates of the items does not short or repair the connectors or ports etc.
 	-- It also does not try to separate the segments from its connectors or disconnect the object ports from its connectors
-	rotateFlipItems = function(items,refx,refy,para)
+	rotateFlipItems = function(cnvobj,items,refx,refy,para)
 		if para ~= 90 and para ~= 180 and para ~= 270 and para ~= "h" and para ~= "v" then
 			return nil,"Not a valid rotation angle or flip direction"
 		end
