@@ -41,8 +41,6 @@ cnvobj = LGL.new{
 }
 GUI.mainArea:append(cnvobj.cnv)
 
-local MODE
-
 unre.init(cnvobj)
 
 local pushHelpText,popHelpText,clearHelpTextStack
@@ -548,97 +546,140 @@ function GUI.toolbar.buttons.groupButton:action()
 	end	
 end
 
-function GUI.toolbar.buttons.portButton:action()
-	-- Check if port mode already on then do nothing
-	if MODE == "ADDPORT" then
-		return
-	end
-	sel.pauseSelection()
-	-- Create a representation of the port at the location of the mouse pointer and then start its move
-	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
-	-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
-	unre.group = true
-	local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
-	cnvobj.grid.snapGrid = false
-	local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
-	cnvobj.grid.snapGrid = true
-	-- Now we need to put the mouse exactly on the center of the filled rectangle
-	-- Set the cursor position to be right on the center of the object
-	local rx,ry = cnvobj:setMouseOnCanvas(cnvobj:dCoor2sCoor(x,y))
-	-- Create the hook
-	local hook
-	local function getClick(button,pressed,x,y,status)
-		print("Run Hook getClick")
-		x,y = cnvobj:snap(x,y)
-		-- Check if there is an object here
-		local allObjs = cnvobj:getObjFromXY(x,y)
-		local stop
-		for i = 1,#allObjs do
-			if allObjs[i] ~= o then
-				stop = true	-- There is an object there other than the object drawn for the port visualization above
-				break
+do
+	local MODE
+
+	function GUI.toolbar.buttons.portButton:action()
+		-- Check if port mode already on then do nothing
+		if MODE == "ADDPORT" then
+			return
+		end
+		sel.pauseSelection()
+		-- Create a representation of the port at the location of the mouse pointer and then start its move
+		-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
+		-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
+		unre.group = true
+		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
+		cnvobj.grid.snapGrid = false
+		local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
+		cnvobj.grid.snapGrid = true
+		cnvobj:addPort(x,y,o.id)
+		-- Now we need to put the mouse exactly on the center of the filled rectangle
+		-- Set the cursor position to be right on the center of the object
+		local rx,ry = cnvobj:setMouseOnCanvas(cnvobj:dCoor2sCoor(x,y))
+		-- Create the hook
+		local hook, helpID
+		local function getClick(button,pressed,x,y,status)
+			if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
+				cnvobj:removeHook(hook)
+				MODE = nil
+				unre.group = false
+				popHelpText(helpID)
+				sel.resumeSelection()
 			end
 		end
-		if stop then
-			cnvobj:removeHook(hook)
-			-- group o with the 1st object
-			cnvobj:groupObjects({allObjs[1],o})
-			-- Create a port
-			print("Create the port at ",x,y)
-			cnvobj:addPort(x,y,allObjs[1].id)
-			MODE = nil
-			unre.group = false
-			popHelpText()
-			sel.resumeSelection()
-		elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
-			print("Continuing Move",#allObjs)
-			-- Continue the move only if it is out of the move mode
-			cnvobj:moveObj({o})
-		end
-		print("End Hook execution getClick")
+		-- Add the hook
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		-- Start the interactive move
+		MODE = "ADDPORT"
+		helpID = pushHelpText("Click to place port")
+		cnvobj:moveObj({o})
 	end
-	-- Add the hook
-	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
-	-- Start the interactive move
-	MODE = "ADDPORT"
-	pushHelpText("Click to place port")
-	cnvobj:moveObj({o})
+	--[[
+	function GUI.toolbar.buttons.portButton:action()
+		-- Check if port mode already on then do nothing
+		if MODE == "ADDPORT" then
+			return
+		end
+		sel.pauseSelection()
+		-- Create a representation of the port at the location of the mouse pointer and then start its move
+		-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
+		-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
+		unre.group = true
+		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
+		cnvobj.grid.snapGrid = false
+		local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
+		cnvobj.grid.snapGrid = true
+		-- Now we need to put the mouse exactly on the center of the filled rectangle
+		-- Set the cursor position to be right on the center of the object
+		local rx,ry = cnvobj:setMouseOnCanvas(cnvobj:dCoor2sCoor(x,y))
+		-- Create the hook
+		local hook
+		local function getClick(button,pressed,x,y,status)
+			print("Run Hook getClick")
+			x,y = cnvobj:snap(x,y)
+			-- Check if there is an object here
+			local allObjs = cnvobj:getObjFromXY(x,y)
+			local stop
+			for i = 1,#allObjs do
+				if allObjs[i] ~= o then
+					stop = true	-- There is an object there other than the object drawn for the port visualization above
+					break
+				end
+			end
+			if stop then
+				cnvobj:removeHook(hook)
+				-- group o with the 1st object
+				cnvobj:groupObjects({allObjs[1],o})
+				-- Create a port
+				print("Create the port at ",x,y)
+				cnvobj:addPort(x,y,allObjs[1].id)
+				MODE = nil
+				unre.group = false
+				popHelpText()
+				sel.resumeSelection()
+			elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
+				print("Continuing Move",#allObjs)
+				-- Continue the move only if it is out of the move mode
+				cnvobj:moveObj({o})
+			end
+			print("End Hook execution getClick")
+		end
+		-- Add the hook
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		-- Start the interactive move
+		MODE = "ADDPORT"
+		pushHelpText("Click to place port")
+		cnvobj:moveObj({o})
+	end]]
 end
 
 function GUI.toolbar.buttons.refreshButton:action()
 	cnvobj:refresh()
 end
 
-local mode = 0
+do 
+	local mode = 0
 
-function GUI.toolbar.buttons.connButton:action()
-	local router1,router2
-	local js1,js2
-	if mode == 0 then
-		router1 = cnvobj.options.router[0]
-		router2 = router1
-		js1 = 2
-		js2 = 2
-	elseif mode == 1 then
-		router1 = cnvobj.options.router[1]
-		router2 = router1
-		js1 = 0
-		js2 = 0
-	elseif mode == 2 then
-		router1 = cnvobj.options.router[2]
-		router2 = router1
-		js1 = 0
-		js2 = 0
-	else
-		router1 = cnvobj.options.router[9]
-		router2 = router1
-		js1 = 1
-		js2 = 1
+	function GUI.toolbar.buttons.connButton:action()
+		local router1,router2
+		local js1,js2
+		if mode == 0 then
+			router1 = cnvobj.options.router[0]
+			router2 = router1
+			js1 = 2
+			js2 = 2
+		elseif mode == 1 then
+			router1 = cnvobj.options.router[1]
+			router2 = router1
+			js1 = 0
+			js2 = 0
+		elseif mode == 2 then
+			router1 = cnvobj.options.router[2]
+			router2 = router1
+			js1 = 0
+			js2 = 0
+		else
+			router1 = cnvobj.options.router[9]
+			router2 = router1
+			js1 = 1
+			js2 = 1
+		end
+		local function cb()
+			cnvobj:drawConnector(nil,router1,js1,router2,js2)
+		end
+		getStartClick("Click starting point for connector","Click ending point/waypoint for connector",cb)
 	end
-	local function cb()
-		cnvobj:drawConnector(nil,router1,js1,router2,js2)
-	end
-	getStartClick("Click starting point for connector","Click ending point/waypoint for connector",cb)
 end
 
 function GUI.toolbar.buttons.connModeList:action(text,item,state)

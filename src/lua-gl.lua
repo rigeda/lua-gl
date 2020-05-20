@@ -54,7 +54,6 @@ DEBUG:
 TASKS:
 * Check port adding undo
 * Implement action cancel by ending and then undoing it.
-* In adding port attach port to port visual rectangle rather than the object.
 * add copy functionality
 * Add file linked data methodology to Demo and lua-gl library
 * Connector labeling - object to segment grouping
