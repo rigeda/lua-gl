@@ -3,6 +3,7 @@ require("submodsearcher")
 local LGL = require("lua-gl")
 local tu = require("tableUtils")
 local sel = require("selection")
+local unre = require("undoredo")
 
 local GUI = require("GUIStructures")
 
@@ -42,33 +43,7 @@ GUI.mainArea:append(cnvobj.cnv)
 
 local MODE
 
-local undo,redo = {},{}		-- The UNDO and REDO stacks
-local toRedo, doingRedo, group
-local function addUndoStack(diff)
-	local tab = undo
-	if toRedo then 
-		tab = redo 
-	elseif not doingRedo then
-		redo = {}	-- Redo is emptied if any action is done
-	end
-	if group then
-		-- To group multiple luagl actions into 1 undo action of the host application
-		if #tab == 0 or tab[#tab].type ~= "LUAGLGROUP" then
-			tab[#tab + 1] = {
-				type = "LUAGLGROUP",
-				obj = {diff}
-			}
-		else
-			tab[#tab].obj[#tab[#tab].obj + 1] = diff
-		end
-	else
-		tab[#tab + 1] = {
-			type = "LUAGL",
-			obj = diff
-		}
-	end
-end
-cnvobj:addHook("UNDOADDED",addUndoStack)
+unre.init(cnvobj)
 
 local pushHelpText,popHelpText,clearHelpTextStack
 
@@ -119,22 +94,22 @@ sel.resumeSelection()
 
 -- Undo button action
 function GUI.toolbar.buttons.undoButton:action()
-	for i = #undo,1,-1 do
-		if undo[i].type == "LUAGL" then
-			toRedo = true
-			cnvobj:undo(undo[i].obj)
-			table.remove(undo,i)
-			toRedo = false
+	for i = #unre.undo,1,-1 do
+		if unre.undo[i].type == "LUAGL" then
+			unre.toRedo = true
+			cnvobj:undo(unre.undo[i].obj)
+			table.remove(unre.undo,i)
+			unre.toRedo = false
 			break
-		elseif undo[i].type == "LUAGLGROUP" then
-			toRedo = true
-			group = true
-			for j = #undo[i].obj,1,-1 do
-				cnvobj:undo(undo[i].obj[j])
+		elseif unre.undo[i].type == "LUAGLGROUP" then
+			unre.toRedo = true
+			unre.group = true
+			for j = #unre.undo[i].obj,1,-1 do
+				cnvobj:undo(unre.undo[i].obj[j])
 			end
-			table.remove(undo,i)
-			toRedo = false
-			group = false
+			table.remove(unre.undo,i)
+			unre.toRedo = false
+			unre.group = false
 			break
 		end
 	end
@@ -142,22 +117,22 @@ end
 
 -- Redo button action
 function GUI.toolbar.buttons.redoButton:action()
-	for i = #redo,1,-1 do
-		if redo[i].type == "LUAGL" then
-			doingRedo = true
-			cnvobj:undo(redo[i].obj)
-			table.remove(redo,i)
-			doingRedo = false
+	for i = #unre.redo,1,-1 do
+		if unre.redo[i].type == "LUAGL" then
+			unre.doingRedo = true
+			cnvobj:undo(unre.redo[i].obj)
+			table.remove(unre.redo,i)
+			unre.doingRedo = false
 			break
-		elseif redo[i].type == "LUAGLGROUP" then
-			doingRedo = true
-			group = true
-			for j = #redo[i].obj,1,-1 do
-				cnvobj:undo(redo[i].obj[j])
+		elseif unre.redo[i].type == "LUAGLGROUP" then
+			unre.doingRedo = true
+			unre.group = true
+			for j = #unre.redo[i].obj,1,-1 do
+				cnvobj:undo(unre.redo[i].obj[j])
 			end
-			table.remove(redo,i)
-			doingRedo = false
-			group = false
+			table.remove(unre.redo,i)
+			unre.doingRedo = false
+			unre.group = false
 			break
 		end
 	end	
@@ -582,7 +557,7 @@ function GUI.toolbar.buttons.portButton:action()
 	-- Create a representation of the port at the location of the mouse pointer and then start its move
 	-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
 	-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
-	group = true
+	unre.group = true
 	local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 	cnvobj.grid.snapGrid = false
 	local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
@@ -612,7 +587,7 @@ function GUI.toolbar.buttons.portButton:action()
 			print("Create the port at ",x,y)
 			cnvobj:addPort(x,y,allObjs[1].id)
 			MODE = nil
-			group = false
+			unre.group = false
 			popHelpText()
 			sel.resumeSelection()
 		elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
@@ -678,7 +653,9 @@ function GUI.toolbar.buttons.newButton:action()
 	sel.deselectAll()
 	clearHelpTextStack()
 	sel.pauseSelection()
-	cnvobj:addHook("UNDOADDED",addUndoStack)
+	-- Initialize undo/redo system
+	unre.init(cnvobj)
+	-- Initialize selection system
 	sel.init(cnvobj,GUI)
 	sel.resumeSelection()
 	cnvobj:refresh()
