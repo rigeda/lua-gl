@@ -362,7 +362,8 @@ end
 -- Function to move a list of objects provided with the given offset offx,offy which are added to the coordinates
 -- if offx is not a number or not given then the move is done interactively
 -- objList is a list of object structures of the objects to be moved
-moveObj = function(cnvobj,objList,offx,offy)
+-- nogroup if true only the objects in the items will be moved not their associated grouped objects
+moveObj = function(cnvobj,objList,offx,offy,nogroup)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -378,8 +379,13 @@ moveObj = function(cnvobj,objList,offx,offy)
 	-- Setup undo
 	local key = utility.undopre(cnvobj)
 	
-	-- Compile a list of objects by adding objects in the same group as the given objects
-	local grp = populateGroupMembers(objList)
+	local grp
+	if nogroup then
+		grp = objList
+	else
+		-- Compile a list of objects by adding objects in the same group as the given objects
+		grp = populateGroupMembers(objList)
+	end
 	if #grp == 0 then
 		return nil,"No objects to move"
 	end
@@ -925,7 +931,8 @@ end
 --	= 1 generate jumping Segment and set its visual attribute to the default jumping segment visual attribute from the visualProp table
 -- 	= 2 generate jumping segment but don't set any special attribute
 --  = false or nil then do not generate jumping segment
-dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFinal)
+-- nogroup if true only the objects in the items will be moved not their associated grouped objects
+dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFinal,nogroup)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -944,8 +951,14 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 	jsDrag = jsDrag or 2
 	
 	local rm = cnvobj.rM
-	-- Collect all the objects that need to be dragged together by checking group memberships
-	local grp = populateGroupMembers(objList)
+	
+	local grp
+	if nogroup then
+		grp = objList
+	else
+		-- Collect all the objects that need to be dragged together by checking group memberships
+		grp = populateGroupMembers(objList)
+	end
 	if #grp == 0 then
 		return nil,"No objects to drag"
 	end

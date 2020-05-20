@@ -53,9 +53,7 @@ DEBUG:
 
 TASKS:
 * Check port adding undo
-* Implement Demo project resizing
 * Implement action cancel by ending and then undoing it.
-* In move and drag add functionality to pick only 1 object and not the group
 * In adding port attach port to port visual rectangle rather than the object.
 * add copy functionality
 * Add file linked data methodology to Demo and lua-gl library
@@ -228,11 +226,13 @@ objFuncs = {
 	-- * object structure
 	-- * structure with the following data
 	--[[
-{
-	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
-	seg = <integer>					-- segment index of the connector
-}	]]
-	move = function(cnvobj,items,offx,offy)
+		{
+			conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+			seg = <integer>					-- segment index of the connector
+		}
+	]]
+	-- nogroup if true only the objects in the items will be moved not their associated grouped objects
+	move = function(cnvobj,items,offx,offy,nogroup)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
@@ -264,8 +264,13 @@ objFuncs = {
 		-- Setup the objects for move
 		local rm = cnvobj.rM
 		
-		-- Compile a list of objects by adding objects in the same group as the given objects
-		local grp = objects.populateGroupMembers(objList)
+		local grp
+		if nogroup then
+			grp = objList
+		else
+			-- Compile a list of objects by adding objects in the same group as the given objects
+			grp = objects.populateGroupMembers(objList)
+		end
 		
 		-- Disconnect all the connectors from the objects being moved
 		local allConns, allPorts = objects.disconnectAllConnectors(grp)
@@ -426,11 +431,13 @@ objFuncs = {
 	-- * object structure
 	-- * structure with the following data
 	--[[
-{
-	conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
-	seg = <integer>					-- segment index of the connector
-}	]]
-	drag = function(cnvobj,items,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag)
+		{
+			conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+			seg = <integer>					-- segment index of the connector
+		}	
+	]]
+	-- nogroup if true only the objects in the items will be moved not their associated grouped objects	
+	drag = function(cnvobj,items,offx,offy,finalRouter,jsFinal,dragRouter,jsDrag,nogroup)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
@@ -471,8 +478,13 @@ objFuncs = {
 		
 		-- Setup undo
 		local key = utility.undopre(cnvobj)
-		-- Collect all the objects that need to be dragged together by checking group memberships
-		local grp = objects.populateGroupMembers(objList)
+		local grp
+		if nogroup then
+			grp = objList
+		else
+			-- Collect all the objects that need to be dragged together by checking group memberships
+			grp = objects.populateGroupMembers(objList)
+		end
 		-- Sort the group elements in ascending order ranking
 		table.sort(grp,function(one,two) 
 				return one.order < two.order
@@ -1156,6 +1168,10 @@ objFuncs = {
 		
 		function cnvobj.cnv.action()
 			GUIFW.render(cnvobj)
+		end
+		
+		function cnvobj.cnv:resize_cb(width,height)
+			GUIFW.resizeCB(cnvobj,width,height)
 		end
 		
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)

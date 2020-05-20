@@ -23,6 +23,12 @@ end
 ]]
 -- Hooks are located at cnvobj.hook
 
+--[[ DEFINED HOOKS IN lua-gl
+MOUSECLICKPRE
+MOUSECLICKPOST
+UNDOADDED
+RESIZED
+]]
 function processHooks(cnvobj, key, params)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"

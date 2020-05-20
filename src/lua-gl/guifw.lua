@@ -105,7 +105,10 @@ function buttonCB(cnvobj,button,pressed,x,y, status)
 end
 
 function motionCB(cnvobj,x, y, status)
-	
+end
+
+function resizeCB(cnvobj,width,height)
+	cnvobj:processHooks("RESIZED",{width,height})	
 end
 
 function isctrl(status)

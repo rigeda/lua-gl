@@ -841,9 +841,9 @@ end
 GUI.mainDlg.size = nil
 GUI.mainDlg:showxy(iup.CENTER, iup.CENTER)
 GUI.mainDlg.minsize = GUI.mainDlg.rastersize	-- To limit the minimum size of the dialog to the natural size
-GUI.mainDlg.maxsize = GUI.mainDlg.rastersize	-- To limit the maximum size of the dialog to the natural size
-GUI.mainDlg.resize = "NO"
-GUI.mainDlg.maxbox = "NO"
+--GUI.mainDlg.maxsize = GUI.mainDlg.rastersize	-- To limit the maximum size of the dialog to the natural size
+--GUI.mainDlg.resize = "NO"
+--GUI.mainDlg.maxbox = "NO"
 
 local timer = iup.timer{
 	time = 1000,
