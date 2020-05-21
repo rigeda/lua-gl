@@ -52,7 +52,6 @@ _VERSION = "B20.05.19"
 DEBUG:
 
 TASKS:
-* Check port adding undo
 * Implement action cancel by ending and then undoing it.
 * add copy functionality
 * Add file linked data methodology to Demo and lua-gl library

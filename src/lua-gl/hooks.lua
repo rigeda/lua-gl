@@ -5,6 +5,8 @@ local table = table
 local tostring = tostring
 local error = error
 
+local tu = require("tableUtils")
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
@@ -36,9 +38,11 @@ function processHooks(cnvobj, key, params)
 	if #cnvobj.hook == 0 then
 		return
 	end
+	local done = {}	-- This takes care of the possibility in case a hook modifies the hook array and some hook is removed then the hooks already executed are not executed again
 	params = params or {}
 	for i=#cnvobj.hook, 1, -1 do
-		if cnvobj.hook[i].key == key then
+		if cnvobj.hook[i].key == key and not tu.inArray(done,cnvobj.hook[i].func) then
+			done[#done + 1] = cnvobj.hook[i].func
 			local status, val = pcall(cnvobj.hook[i].func, table.unpack(params))
 			if not status then
 				error("error: " .. val)

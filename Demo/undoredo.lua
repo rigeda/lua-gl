@@ -10,7 +10,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-local cnvobj
+local cnvobj, hook
 undo,redo = {},{}		-- The UNDO and REDO stacks
 toRedo = false
 doingRedo = false
@@ -40,7 +40,18 @@ local function addUndoStack(diff)
 	end
 end
 
+function pauseUndoRedo()
+	cnvobj:removeHook(hook)
+	hook = nil
+end
+
+function resumeUndoRedo()
+	if not hook then
+		hook = cnvobj:addHook("UNDOADDED",addUndoStack)
+	end
+end
+
 function init(cnvO)
 	cnvobj = cnvO
-	cnvobj:addHook("UNDOADDED",addUndoStack)
+	hook = cnvobj:addHook("UNDOADDED",addUndoStack)
 end

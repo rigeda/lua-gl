@@ -11,6 +11,8 @@ local type = type
 local tu = require("tableUtils")
 local fd = require("iupcFocusDialog")
 
+local unre = require("undoredo")
+
 local iup = iup
 
 local print = print
@@ -137,6 +139,8 @@ local function selection_cb(button,pressed,x,y, status)
 		-- Button was released
 		-- The highest index in cnvobj.op should contain the object information since we won't reach here if any other operation is stacked since selection is disabled when any action is started
 	-- put it in the rectangle drawing mode
+		unre.pauseUndoRedo()
+		print("Start selection rectangle")
 		cnvobj:drawObj("RECT",nil,nil,{	-- Selection rectangle attribute
 					color = {0, 0, 0},
 					style = cnvobj.GRAPHICS.DOTTED,
@@ -146,6 +150,7 @@ local function selection_cb(button,pressed,x,y, status)
 				},-1)	-- interactive rectangle drawing
 		opID = #cnvobj.op
 		selRect = cnvobj.drawn.obj[cnvobj.op[opID].index]
+		
 	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 0 then  
 
 	if button == cnvobj.MOUSE.BUTTON1 and pressed == 0 then
@@ -178,6 +183,7 @@ local function selection_cb(button,pressed,x,y, status)
 			if (#i == 0 and #s == 0) then		-- No object or segment here so deselect everything
 				deselectAll()
 				cnvobj:refresh()
+				unre.resumeUndoRedo()
 				return true
 			end
 			if not multiple and not deselect then
@@ -234,7 +240,7 @@ local function selection_cb(button,pressed,x,y, status)
 				local done
 				local function getSelected()
 					if not done then
-						done = true
+						done = true	-- To make it run only once
 					else
 						return
 					end
@@ -487,7 +493,8 @@ local function selection_cb(button,pressed,x,y, status)
 			end		
 			setSelectedDisplay(selI)
 		end		-- -- if mode == "POINT" then ends
-	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then ends
+		unre.resumeUndoRedo()
+	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 0 then ends
 end
 
 local selID
@@ -501,6 +508,5 @@ end
 
 function pauseSelection()
 	cnvobj:removeHook(selID)
-	
 	selID = nil
 end
