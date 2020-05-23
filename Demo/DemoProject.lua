@@ -41,7 +41,7 @@ cnvobj = LGL.new{
 }
 GUI.mainArea:append(cnvobj.cnv)
 
-unre.init(cnvobj)
+unre.init(cnvobj,GUI.toolbar.buttons.undoButton,GUI.toolbar.buttons.redoButton)
 
 local pushHelpText,popHelpText,clearHelpTextStack
 
@@ -92,48 +92,12 @@ sel.resumeSelection()
 
 -- Undo button action
 function GUI.toolbar.buttons.undoButton:action()
-	for i = #unre.undo,1,-1 do
-		if unre.undo[i].type == "LUAGL" then
-			unre.toRedo = true
-			cnvobj:undo(unre.undo[i].obj)
-			table.remove(unre.undo,i)
-			unre.toRedo = false
-			break
-		elseif unre.undo[i].type == "LUAGLGROUP" then
-			unre.toRedo = true
-			unre.group = true
-			for j = #unre.undo[i].obj,1,-1 do
-				cnvobj:undo(unre.undo[i].obj[j])
-			end
-			table.remove(unre.undo,i)
-			unre.toRedo = false
-			unre.group = false
-			break
-		end
-	end
+	unre.doUndo()
 end
 
 -- Redo button action
 function GUI.toolbar.buttons.redoButton:action()
-	for i = #unre.redo,1,-1 do
-		if unre.redo[i].type == "LUAGL" then
-			unre.doingRedo = true
-			cnvobj:undo(unre.redo[i].obj)
-			table.remove(unre.redo,i)
-			unre.doingRedo = false
-			break
-		elseif unre.redo[i].type == "LUAGLGROUP" then
-			unre.doingRedo = true
-			unre.group = true
-			for j = #unre.redo[i].obj,1,-1 do
-				cnvobj:undo(unre.redo[i].obj[j])
-			end
-			table.remove(unre.redo,i)
-			unre.doingRedo = false
-			unre.group = false
-			break
-		end
-	end	
+	unre.doRedo()
 end
 
 -- TO save data to file
@@ -874,6 +838,15 @@ function GUI.mainDlg:k_any(c)
 		vp.xmin = vp.xmin+dx
 		cnvobj:refresh()				
 		return iup.IGNORE 
+	elseif c == iup.K_ESC then
+		-- Check if any operation is going on
+		if #cnvobj.op > 1 then
+			-- End the operation
+			cnvobj.op[#cnvobj.op].finish()
+			unre.doUndo()
+			cnvobj:refresh()				
+			return iup.IGNORE 		
+		end
 	end
 	return iup.CONTINUE
 end

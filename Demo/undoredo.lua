@@ -1,6 +1,7 @@
 -- Module in DemoProject for undo/redo handling
 -- NOTE: The module does not allow for multiple independent instances to be created in the application since undo/redo stacks are 1
 
+local table = table
 
 local M = {}
 package.loaded[...] = M
@@ -10,11 +11,25 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-local cnvobj, hook
-undo,redo = {},{}		-- The UNDO and REDO stacks
-toRedo = false
-doingRedo = false
-group = false
+local cnvobj, hook, undoButton, redoButton 
+local undo,redo = {},{}		-- The UNDO and REDO stacks
+local toRedo = false
+local doingRedo = false
+local group = false
+
+local function updateButtons()
+	if #undo == 0 then
+		undoButton.active = "NO"
+	else
+		undoButton.active = "YES"
+	end
+	if #redo == 0 then
+		redoButton.active = "NO"
+	else
+		redoButton.active = "YES"
+	end	
+end
+
 local function addUndoStack(diff)
 	local tab = undo
 	if toRedo then 
@@ -38,7 +53,54 @@ local function addUndoStack(diff)
 			obj = diff
 		}
 	end
+	updateButtons()
 end
+
+function doUndo()
+	for i = #undo,1,-1 do
+		if undo[i].type == "LUAGL" then
+			toRedo = true
+			cnvobj:undo(undo[i].obj)
+			table.remove(undo,i)
+			toRedo = false
+			break
+		elseif undo[i].type == "LUAGLGROUP" then
+			toRedo = true
+			group = true
+			for j = #undo[i].obj,1,-1 do
+				cnvobj:undo(undo[i].obj[j])
+			end
+			table.remove(undo,i)
+			toRedo = false
+			group = false
+			break
+		end
+	end
+	updateButtons()
+end
+
+function doRedo()
+	for i = #redo,1,-1 do
+		if redo[i].type == "LUAGL" then
+			doingRedo = true
+			cnvobj:undo(redo[i].obj)
+			table.remove(redo,i)
+			doingRedo = false
+			break
+		elseif redo[i].type == "LUAGLGROUP" then
+			doingRedo = true
+			group = true
+			for j = #redo[i].obj,1,-1 do
+				cnvobj:undo(redo[i].obj[j])
+			end
+			table.remove(redo,i)
+			doingRedo = false
+			group = false
+			break
+		end
+	end	
+	updateButtons()
+end	
 
 function pauseUndoRedo()
 	cnvobj:removeHook(hook)
@@ -51,7 +113,9 @@ function resumeUndoRedo()
 	end
 end
 
-function init(cnvO)
+function init(cnvO,ub,rb)
 	cnvobj = cnvO
+	undoButton = ub
+	redoButton = rb
 	hook = cnvobj:addHook("UNDOADDED",addUndoStack)
 end
