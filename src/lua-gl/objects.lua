@@ -500,7 +500,8 @@ moveObj = function(cnvobj,objList,offx,offy,nogroup)
 			cnvobj:refresh()
 		end
 	end	
-	return true
+	op.motion = cnvobj.cnv.motion_cb
+	return opptr
 end
 
 -- Function to draw a shape on the canvas
@@ -685,6 +686,8 @@ drawObj = function(cnvobj,shape,coords,data,attr,num)
 			cnvobj:refresh()
 		end
 	end    
+	op.motion = cnvobj.cnv.motion_cb
+	return opptr
 end	-- end drawObj function
 
 -- Function to return the list of nodes from where each connector needs to be routed to a particular port when an object is dragged. If the segment connected to the port exists in segList then that node is not added to be routed
@@ -1105,5 +1108,6 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 		regenConn(cnvobj,rm,grp,connSrc,dragRouter,jsDrag)
 		cnvobj:refresh()
 	end
-	return true
+	op.motion = cnvobj.cnv.motion_cb
+	return opptr
 end

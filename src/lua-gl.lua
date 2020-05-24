@@ -52,7 +52,6 @@ _VERSION = "B20.05.19"
 DEBUG:
 
 TASKS:
-* Implement action cancel by ending and then undoing it.
 * add copy functionality
 * Add file linked data methodology to Demo and lua-gl library
 * Connector labeling - object to segment grouping
@@ -153,6 +152,32 @@ objFuncs = {
 			op[#op].finish()
 		end
 		return tu.t2sr(cnvobj.drawn)
+	end,
+	
+	-- Function to rotate/flip a coordinate
+	rotateFlip = function(cnvobj,x,y,refx,refy,para)
+		if para ~= 90 and para ~= 180 and para ~= 270 and para ~= "h" and para ~= "v" then
+			return nil,"Not a valid rotation angle or flip direction"
+		end
+		
+		local rot = {
+			[90] = function(x,y)
+				return refx+refy-y,x-refx+refy
+			end,
+			[180] = function(x,y)
+				return 2*refx-x,2*refy-y
+			end,
+			[270] = function(x,y)
+				return refx-refy+y,refx+refy-x
+			end,
+			h = function(x,y)
+				return 2*refx-x,y
+			end,
+			v = function(x,y)
+				return x,2*refy-y
+			end
+		}
+		return rot[para](x,y)
 	end,
 	
 	-- Function to rotate or flip the list of items around a reference point given by refx,refy
@@ -420,7 +445,8 @@ objFuncs = {
 				cnvobj:refresh()
 			end
 		end	
-		return true
+		op.motion = cnvobj.cnv.motion_cb
+		return opptr
 	end,
 	
 	-- Function to drag a list of items by moving all the items offx and offy offsets	
@@ -698,7 +724,7 @@ objFuncs = {
 		-- fill segsToRemove with the segments in segList
 		op.segsToRemove = segsToRemove	-- to store the segments generated after every motion_cb
 		op.dragNodes = dragNodes
-		op.segList = segList
+		op.connList = segList
 		op.objList = grp
 		
 		-- button_CB to handle object dragging
@@ -732,7 +758,8 @@ objFuncs = {
 			objects.regenConn(cnvobj,rm,grp,connSrc,dragRouter,jsDrag)
 			cnvobj:refresh()
 		end
-		return true
+		op.motion = cnvobj.cnv.motion_cb
+		return opptr
 	end,
 
 	-- function to load the drawn structures in str and put them in the canvas 

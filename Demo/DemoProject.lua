@@ -41,8 +41,16 @@ cnvobj = LGL.new{
 }
 GUI.mainArea:append(cnvobj.cnv)
 
+local op = {}	-- To track interactive operations
+
+-- Undo Redo module Initialize
 unre.init(cnvobj,GUI.toolbar.buttons.undoButton,GUI.toolbar.buttons.redoButton)
 
+-- Selection module initialize
+sel.init(cnvobj,GUI)
+sel.resumeSelection()
+
+-- Help text system on the status bar
 local pushHelpText,popHelpText,clearHelpTextStack
 
 do
@@ -84,10 +92,6 @@ do
 	end
 end
 
-sel.init(cnvobj,GUI)
-sel.resumeSelection()
-
-
 --********************* Callbacks *************
 
 -- Undo button action
@@ -119,12 +123,13 @@ end
 
 -- To load data from a file
 function GUI.toolbar.buttons.loadButton:action()
-	local hook,helpID
+	local hook,helpID,opptr
 	local function resumeSel()
 		print("Resuming Selection")
 		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
+		table.remove(op,opptr)
 	end
 	local fileDlg = iup.filedlg{
 		dialogtype = "OPEN",
@@ -149,6 +154,13 @@ function GUI.toolbar.buttons.loadButton:action()
 		dlg:popup()
 		resumeSel()
 	else
+		-- Setup the operation table
+		op[#op + 1] = {
+			finish = cnvobj.op[#cnvobj.op].finish,
+			mode = "LUAGL",
+			opptr = #cnvobj.op
+		}
+		opptr = #op
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
 	end
 end
@@ -202,26 +214,81 @@ function GUI.toolbar.buttons.xygrid:action()
 	end
 end
 
-local function getStartClick(msg1,msg2,cb)
-	local hook,helpID
+-- Function to manage clicks for interactive functions
+-- msg is the help message table
+-- cb is the operation callback table
+-- finish is a operation finish table
+-- The function will handle i-1 successive left clicks where i is the number of messages
+-- finish has a lengthof i-1 to have finish functions after each callback but the last one is made
+-- cb has i-1 callback functions at most and 1 function at min
+-- The timeline is as follows:
+--[[
+	Display Message [1] ----> Left Click [1] ----> Display Message [2] + callback[1] ----> .....
+												   (finish[1] is the finish function)
+												
+												
+	........... Left Click [i-1] ----> Display Message [i] + callback[i-1] + Setup operation end hook  
+	                                  (finish[i-1] is the finish function)
+									
+	EXAMPLE 1:
+	For Rectangle drawing it needs 2 clicks so the function is called for 1 click and 2 messages so the timeline looks as:
+	Display Message [1] ----> Left Click [1] ----> Display Message [2] + callback[1] + Setup operation end hook
+	                                                (finish[1] is the finish function)
+													
+	EXAMPLE 2: 
+	For Arc drawing it needs 4 clicks so the function is called for 3 clicks and 4 messages. The timeline looks as:
+	
+	Display Message [1] ----> Left Click [1] ----> Display Message [2] + callback[1] ----> Left Click [2] ----
+													(finish [1])
+	----> Display Message [3] + callback[2] ----> Left Click [3] ----> Display Message [4] + callback[3] + Setup operation end hook
+	        (finish [2])												(finish[3])
+]]
+local function manageClicks(msg,cb,finish)
+	local hook,helpID,opptr
+	local msgIndex = 2
 	local function resumeSel()
 		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
+		table.remove(op,opptr)
 	end
 	local function getClick(button,pressed,x,y,status)
 		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-			cnvobj:removeHook(hook)
 			popHelpText(helpID)
-			helpID = pushHelpText(msg2)
-			hook = cnvobj:addHook("UNDOADDED",resumeSel)
-			cb()
+			helpID = pushHelpText(msg[msgIndex])
+			msgIndex = msgIndex + 1
+			if msgIndex > #msg then
+				cnvobj:removeHook(hook)
+				hook = cnvobj:addHook("UNDOADDED",resumeSel)
+			end
+			-- Update operation finish
+			op[opptr].finish = function()
+				popHelpText(helpID)
+				cnvobj:removeHook(hook)
+				sel.resumeSelection()
+				table.remove(op,opptr)
+				finish[msgIndex-2]()
+			end
+			if cb[msgIndex-2] then
+				cb[msgIndex-2]()
+			end
 		end
 	end
 	sel.pauseSelection()
-	helpID = pushHelpText(msg1)
+	helpID = pushHelpText(msg[1])
 	-- Add the hook
 	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+	-- Setup the operation
+	opptr = #op + 1
+	op[opptr] = {
+		mode = "DEMOAPP",
+		finish = function()
+			cnvobj:removeHook(hook)
+			sel.resumeSelection()
+			table.remove(op,opptr)
+			popHelpText(helpID)
+		end,
+	}
 end
 
 -- Draw line object
@@ -232,112 +299,134 @@ function GUI.toolbar.buttons.lineButton:action()
 			{x=100,y=100}
 		})]]
 	--cnvobj:refresh()
+	local opptr
 	local function cb()
-		cnvobj:drawObj("LINE")	-- interactive line drawing
+		opptr = cnvobj:drawObj("LINE")	-- interactive line drawing
 	end
-	getStartClick("Click starting point for line","Click ending point for line",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for line",
+			"Click ending point for line"
+		},{cb},{finish}
+	)
 end
 
 -- Draw rectangle object
 function GUI.toolbar.buttons.rectButton:action()
+	local opptr
 	local function cb()
-		cnvobj:drawObj("RECT")	-- interactive rectangle drawing
+		opptr = cnvobj:drawObj("RECT")	-- interactive rectangle drawing
 	end
-	getStartClick("Click starting point for rectangle","Click ending point for rectangle",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for rectangle",
+			"Click ending point for rectangle"
+		},{cb},{finish}
+	)
 end
 
 -- Draw filled rectangle object
 function GUI.toolbar.buttons.fRectButton:action()
+	local opptr
 	local function cb()
-		cnvobj:drawObj("FILLEDRECT")	-- interactive filled rectangle drawing
+		opptr = cnvobj:drawObj("FILLEDRECT")	-- interactive filled rectangle drawing
 	end
-	getStartClick("Click starting point for rectangle","Click ending point for rectangle",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for rectangle",
+			"Click ending point for rectangle"
+		},{cb},{finish}
+	)
 end
 
 -- Draw blocking rectangle object
 function GUI.toolbar.buttons.bRectButton:action()
+	local opptr
 	local function cb()
-		cnvobj:drawObj("BLOCKINGRECT")	-- interactive blocking rectangle drawing
+		opptr = cnvobj:drawObj("BLOCKINGRECT")	-- interactive blocking rectangle drawing
 	end
-	getStartClick("Click starting point for rectangle","Click ending point for rectangle",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for rectangle",
+			"Click ending point for rectangle"
+		},{cb},{finish}
+	)
 end
 
 -- Draw ellipse object
 function GUI.toolbar.buttons.elliButton:action()
+	local opptr
 	local function cb()
-		cnvobj:drawObj("ELLIPSE")	-- interactive ellipse drawing
+		opptr = cnvobj:drawObj("ELLIPSE")	-- interactive ellipse drawing
 	end
-	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for ellipse",
+			"Click ending point for ellipse"
+		},{cb},{finish}
+	)
 end
 
 -- Draw filled ellipse object
 function GUI.toolbar.buttons.fElliButton:action()
+	local opptr
 	local function cb()
-		cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
+		opptr = cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
 	end
-	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for ellipse",
+			"Click ending point for ellipse"
+		},{cb},{finish}
+	)
 end
 
 -- Draw Arc
 function GUI.toolbar.buttons.arcButton:action()
-	local hook, helpID, hook1
-	local count = 1
-	local msg = {
-		"Click to mark starting angle of the arc",
-		"Click to mark ending angle of the arc"
-	}
-	local function removeHelpText()
-		popHelpText(helpID)
-		cnvobj:removeHook(hook1)
-	end
-	local function getClick(button,pressed,x,y,status)
-		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-			popHelpText(helpID)
-			helpID = pushHelpText(msg[count])
-			if count == 2 then
-				cnvobj:removeHook(hook)
-			else
-				count = count + 1
-			end
-		end
-	end
+	local opptr
 	local function cb()
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
-		hook1 = cnvobj:addHook("UNDOADDED",removeHelpText)
-		cnvobj:drawObj("ARC")
+		opptr = cnvobj:drawObj("ARC")
 	end
-	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for ellipse",
+			"Click ending point for ellipse",
+			"Click to mark starting angle of the arc",
+			"Click to mark ending angle of the arc"
+		},{cb},{finish,finish,finish}
+	)
 end
 
 -- Draw Sector
 function GUI.toolbar.buttons.filledarcButton:action()
-	local hook, helpID, hook1
-	local count = 1
-	local msg = {
-		"Click to mark starting angle of the arc",
-		"Click to mark ending angle of the arc"
-	}
-	local function removeHelpText()
-		popHelpText(helpID)
-		cnvobj:removeHook(hook1)
-	end
-	local function getClick(button,pressed,x,y,status)
-		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-			popHelpText(helpID)
-			helpID = pushHelpText(msg[count])
-			if count == 2 then
-				cnvobj:removeHook(hook)
-			else
-				count = count + 1
-			end
-		end
-	end
+	local opptr
 	local function cb()
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
-		hook1 = cnvobj:addHook("UNDOADDED",removeHelpText)
-		cnvobj:drawObj("FILLEDARC")
+		opptr = cnvobj:drawObj("FILLEDARC")
 	end
-	getStartClick("Click starting point for ellipse","Click ending point for ellipse",cb)
+	local function finish()
+		cnvobj.op[opptr].finish()
+	end
+	manageClicks({
+			"Click starting point for ellipse",
+			"Click ending point for ellipse",
+			"Click to mark starting angle of the arc",
+			"Click to mark ending angle of the arc"
+		},{cb},{finish,finish,finish}
+	)
 end
 
 -- Draw text object
@@ -375,6 +464,7 @@ function GUI.toolbar.buttons.textButton:action()
 		-- Create a representation of the text at the location of the mouse pointer and then start its move
 		-- Set refX,refY as the mouse coordinate on the canvas
 		local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
+		unre.group = true
 		local o = cnvobj:drawObj("TEXT",{{x=refX,y=refY}},{text=text})
 		-- If the formatting is not the same as the default then add a formatting attribute for the text
 		if color ~= "0 0 0" or font ~= "Courier, 12" or as ~= "base right" or ori ~= 0 then
@@ -390,10 +480,36 @@ function GUI.toolbar.buttons.textButton:action()
 			o.vattr = {color = clr,typeface = typeface, style = style,size=size,align=align[alignList[as+1]],orient = ori}
 			cnvobj.attributes.visualAttr[o] = {
 				visualAttr = cnvobj.getTextAttrFunc(o.vattr),
-				vAttr = 100	-- Unique attribute not stored in the bank
+				vAttr = -1	-- Unique attribute not stored in the bank
 			}
 		end
-		cnvobj:moveObj({o})
+		local hook, helpID,opptr,opptrlgl
+		local function getClick(button,pressed,x,y,status)
+			if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
+				cnvobj:removeHook(hook)
+				unre.group = false
+				popHelpText(helpID)
+				table.remove(op,opptr)
+				sel.resumeSelection()
+			end
+		end
+		-- Add the hook
+		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		helpID = pushHelpText("Click to place text")
+	-- Setup the operation
+		opptr = #op + 1
+		op[opptr] = {
+			mode = "LUAGL",
+			finish = function()
+				cnvobj:removeHook(hook)
+				unre.group = false
+				table.remove(op,opptr)
+				popHelpText(helpID)
+				cnvobj.op[opptrlgl].finish()
+				sel.resumeSelection()
+			end,
+		}
+		opptrlgl = cnvobj:moveObj({o})
 	end
 end
 
@@ -421,31 +537,41 @@ end
 
 -- Start Move operation
 function GUI.toolbar.buttons.moveButton:action()
-	local hook, helpID
-	local function resumeSel()
-		popHelpText(helpID)
-		cnvobj:removeHook(hook)
-		sel.resumeSelection()
+	local hook, helpID, opptrlgl, opptr
+	local function cb()
+		opptrlgl = cnvobj:move(sel.selListCopy())
 	end
-	local function getClick(button,pressed,x,y,status)
-		cnvobj:removeHook(hook)
-		popHelpText(helpID)
-		helpID = pushHelpText("Click to place")
-		hook = cnvobj:addHook("UNDOADDED",resumeSel)
-		cnvobj:move(sel.selListCopy())
+	local function finish()
+		cnvobj.op[opptrlgl].finish()
 	end
 	local function movecb()
 		popHelpText(helpID)
-		sel.pauseSelection()
-		helpID = pushHelpText("Click to start move")
-		-- Add the hook
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		if opptr then
+			table.remove(op,opptr)	-- manageClicks manages its own operation table
+		end
+		manageClicks({
+				"Click to start move",
+				"Click to place"
+			},{cb},{finish}
+		)
 	end
 	-- First get items to move
 	if #sel.selListCopy() == 0 then
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
 		helpID = pushHelpText("Select items to move")
+		-- Setup operation entry
+		opptr = #op + 1
+		op[opptr] = {
+			mode = "DEMOAPP",
+			finish = function()
+				popHelpText(helpID)
+				table.remove(op,opptr)
+				-- Remove the callback from the selection 
+				sel.pauseSelection()
+				sel.resumeSelection()
+			end
+		}
 		sel.resumeSelection(movecb)
 	else
 		movecb()
@@ -454,23 +580,23 @@ end
 
 -- Start Drag operation
 function GUI.toolbar.buttons.dragButton:action()
-	local hook, helpID
-	local function resumeSel()
-		popHelpText(helpID)
-		cnvobj:removeHook(hook)
-		sel.resumeSelection()
+	local hook, helpID, opptrlgl, opptr
+	local function cb()
+		opptrlgl = cnvobj:drag(sel.selListCopy())
 	end
-	local function getClick(button,pressed,x,y,status)
-		cnvobj:removeHook(hook)
-		popHelpText(helpID)
-		helpID = pushHelpText("Click to place")
-		hook = cnvobj:addHook("UNDOADDED",resumeSel)
-		cnvobj:drag(sel.selListCopy())
+	local function finish()
+		cnvobj.op[opptrlgl].finish()
 	end
 	local function dragcb()
 		popHelpText(helpID)
-		sel.pauseSelection()
-		helpID = pushHelpText("Click to start drag")
+		if opptr then
+			table.remove(op,opptr)	-- manageClicks manages its own operation table
+		end
+		manageClicks({
+				"Click to start drag",
+				"Click to place"
+			},{cb},{finish}
+		)
 		-- Add the hook
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	end
@@ -479,6 +605,18 @@ function GUI.toolbar.buttons.dragButton:action()
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
 		helpID = pushHelpText("Select items to drag")
+		-- Setup operation entry
+		opptr = #op + 1
+		op[opptr] = {
+			mode = "DEMOAPP",
+			finish = function()
+				popHelpText(helpID)
+				table.remove(op,opptr)
+				-- Remove the callback from the selection 
+				sel.pauseSelection()
+				sel.resumeSelection()
+			end
+		}
 		sel.resumeSelection(dragcb)
 	else
 		dragcb()
@@ -487,7 +625,7 @@ end
 
 function GUI.toolbar.buttons.groupButton:action()
 	-- Function to group objects together
-	local helpID
+	local helpID, opptr
 	local function groupcb()
 		local _,objs = sel.selListCopy() 
 		if #objs < 2 then
@@ -504,6 +642,18 @@ function GUI.toolbar.buttons.groupButton:action()
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
 		helpID = pushHelpText("Select objects to group")
+		-- Setup operation entry
+		opptr = #op + 1
+		op[opptr] = {
+			mode = "DEMOAPP",
+			finish = function()
+				popHelpText(helpID)
+				table.remove(op,opptr)
+				-- Remove the callback from the selection 
+				sel.pauseSelection()
+				sel.resumeSelection()
+			end
+		}
 		sel.resumeSelection(groupcb)
 	else
 		groupcb()
@@ -547,65 +697,22 @@ do
 		-- Start the interactive move
 		MODE = "ADDPORT"
 		helpID = pushHelpText("Click to place port")
-		cnvobj:moveObj({o})
-	end
-	--[[
-	function GUI.toolbar.buttons.portButton:action()
-		-- Check if port mode already on then do nothing
-		if MODE == "ADDPORT" then
-			return
-		end
-		sel.pauseSelection()
-		-- Create a representation of the port at the location of the mouse pointer and then start its move
-		-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
-		-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
-		unre.group = true
-		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
-		cnvobj.grid.snapGrid = false
-		local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
-		cnvobj.grid.snapGrid = true
-		-- Now we need to put the mouse exactly on the center of the filled rectangle
-		-- Set the cursor position to be right on the center of the object
-		local rx,ry = cnvobj:setMouseOnCanvas(cnvobj:dCoor2sCoor(x,y))
-		-- Create the hook
-		local hook
-		local function getClick(button,pressed,x,y,status)
-			print("Run Hook getClick")
-			x,y = cnvobj:snap(x,y)
-			-- Check if there is an object here
-			local allObjs = cnvobj:getObjFromXY(x,y)
-			local stop
-			for i = 1,#allObjs do
-				if allObjs[i] ~= o then
-					stop = true	-- There is an object there other than the object drawn for the port visualization above
-					break
-				end
-			end
-			if stop then
-				cnvobj:removeHook(hook)
-				-- group o with the 1st object
-				cnvobj:groupObjects({allObjs[1],o})
-				-- Create a port
-				print("Create the port at ",x,y)
-				cnvobj:addPort(x,y,allObjs[1].id)
+		-- Setup operation entry
+		local opptr = #op + 1
+		local opptrlgl = cnvobj:moveObj({o})
+		op[opptr] = {
+			mode = "LUAGL",		-- The finish command does a finish in the library and will generate an undo function
+			finish = function()
+				cnvobj.op[opptrlgl].finish()
+				popHelpText(helpID)
+				table.remove(op,opptr)
 				MODE = nil
+				cnvobj:removeHook(hook)
 				unre.group = false
-				popHelpText()
 				sel.resumeSelection()
-			elseif cnvobj.op[#cnvobj.op].mode ~= "MOVEOBJ" then
-				print("Continuing Move",#allObjs)
-				-- Continue the move only if it is out of the move mode
-				cnvobj:moveObj({o})
 			end
-			print("End Hook execution getClick")
-		end
-		-- Add the hook
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
-		-- Start the interactive move
-		MODE = "ADDPORT"
-		pushHelpText("Click to place port")
-		cnvobj:moveObj({o})
-	end]]
+		}
+	end
 end
 
 function GUI.toolbar.buttons.refreshButton:action()
@@ -639,19 +746,26 @@ do
 			js1 = 1
 			js2 = 1
 		end
+		local opptr
 		local function cb()
-			cnvobj:drawConnector(nil,router1,js1,router2,js2)
+			opptr = cnvobj:drawConnector(nil,router1,js1,router2,js2)
 		end
-		getStartClick("Click starting point for connector","Click ending point/waypoint for connector",cb)
+		local function finish()
+			cnvobj.op[opptr].finish()
+		end
+		manageClicks({
+				"Click starting point for connector",
+				"Click ending point/waypoint for connector"
+			},{cb},{finish}
+		)
 	end
+	function GUI.toolbar.buttons.connModeList:action(text,item,state)
+		mode = item-1
+		if item == 4 then
+			mode = 9
+		end
+	end 
 end
-
-function GUI.toolbar.buttons.connModeList:action(text,item,state)
-	mode = item-1
-	if item == 4 then
-		mode = 9
-	end
-end 
 
 function GUI.toolbar.buttons.newButton:action()
 	cnvobj:erase()
@@ -659,7 +773,7 @@ function GUI.toolbar.buttons.newButton:action()
 	clearHelpTextStack()
 	sel.pauseSelection()
 	-- Initialize undo/redo system
-	unre.init(cnvobj)
+	unre.init(cnvobj,GUI.toolbar.buttons.undoButton,GUI.toolbar.buttons.redoButton)
 	-- Initialize selection system
 	sel.init(cnvobj,GUI)
 	sel.resumeSelection()
@@ -674,24 +788,31 @@ local function rotateFlip(para)
 	if mode == "DRAG" or  mode == "DRAGSEG" or mode == "DRAGOBJ" then
 		-- Compile item list
 		local items = {}
-		for i = 1,#op.objList do
-			items[#items + 1] = op.objList[i]
+		if op.objList then
+			for i = 1,#op.objList do
+				items[#items + 1] = op.objList[i]
+			end
 		end
-		if op.segList then
-			for i = 1,#op.segList do
-				items[#items + 1] = op.segList[i]
+		if op.connList then
+			for i = 1,#op.connList do
+				items[#items + 1] = op.connList[i]
 			end
 		end
 		-- Do the rotation 
 		cnvobj:rotateFlipItems(items,refX,refY,para)
 		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
-		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
+		-- Rotate/Flip the reference coordinate for the drag operation
+		op.coor1.x,op.coor1.y = cnvobj:rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
+		local x,y = cnvobj:getMouseOnCanvas()
+		op.motion(x,y)
 		cnvobj:refresh()
 	elseif mode == "MOVE" or mode == "MOVESEG" or mode == "MOVEOBJ" then
 		-- Compile item list
 		local items = {}
-		for i = 1,#op.objList do
-			items[#items + 1] = op.objList[i]
+		if op.objList then
+			for i = 1,#op.objList do
+				items[#items + 1] = op.objList[i]
+			end
 		end
 		if op.connList then
 			for i = 1,#op.connList do
@@ -708,10 +829,12 @@ local function rotateFlip(para)
 		cnvobj:rotateFlipItems(items,refX,refY,para)
 		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
 		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
+		local x,y = cnvobj:getMouseOnCanvas()
+		op.motion(x,y)
 		cnvobj:refresh()
 	else
 		-- Get list of items
-		local helpID
+		local helpID, opptr
 		local function rotateItems()
 			local items = sel.selListCopy()
 			local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
@@ -737,18 +860,38 @@ local function rotateFlip(para)
 		end
 		local function startRotation()
 			popHelpText(helpID)
-			getStartClick("Click at coordinate about which to rotate/flip",nil,rotateItems)
+			if opptr then
+				table.remove(op,opptr)
+			end
+			manageClicks({
+					"Click at coordinate about which to rotate/flip"
+				},{rotateItems},{function()
+						
+					end
+				}
+			)
 		end
 		-- first we need to select items
 		if #sel.selListCopy() == 0 then
 			-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 			sel.pauseSelection()
 			helpID = pushHelpText("Select items to rotate/flip")
+			-- Setup operation entry
+			opptr = #op + 1
+			op[opptr] = {
+				mode = "DEMOAPP",
+				finish = function()
+					popHelpText(helpID)
+					table.remove(op,opptr)
+					-- Remove the callback from the selection 
+					sel.pauseSelection()
+					sel.resumeSelection()
+				end
+			}
 			sel.resumeSelection(startRotation)
 		else
 			startRotation()
 		end	
-		
 	end
 end
 
@@ -840,10 +983,13 @@ function GUI.mainDlg:k_any(c)
 		return iup.IGNORE 
 	elseif c == iup.K_ESC then
 		-- Check if any operation is going on
-		if #cnvobj.op > 1 then
+		if #op > 0 then
 			-- End the operation
-			cnvobj.op[#cnvobj.op].finish()
-			unre.doUndo()
+			local mode = op[#op].mode
+			op[#op].finish()
+			if mode == "LUAGL" then
+				unre.doUndo(true)	-- Skip Redo
+			end
 			cnvobj:refresh()				
 			return iup.IGNORE 		
 		end

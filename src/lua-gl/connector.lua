@@ -1675,8 +1675,8 @@ moveConn = function(cnvobj,connM,offx,offy)
 			cnvobj:refresh()
 		end
 	end
-	
-	return true
+	op.motion = cnvobj.cnv.motion_cb
+	return opptr
 end
 
 -- Function to split connectors based on the segments passed. The segments in the passed list are separated into a different connector (multiple connectors if they are not touching) and
@@ -2025,7 +2025,7 @@ function regenSegments(cnvobj,op,rtr,js,offx,offy)
 	op.segsToRemove = {}
 	segsToRemove = op.segsToRemove
 	local dragNodes = op.dragNodes
-	local segList = op.segList
+	local segList = op.connList
 	for i = 1,#segList do
 		local seg = segList[i].seg
 		rm:removeSegment(seg)	-- this was already removed because is always added to segsToRemove table
@@ -2254,7 +2254,7 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		
 	cnvobj.op[opptr] = op
 	op.mode = "DRAGSEG"
-	op.segList = segList
+	op.connList = segList
 	op.coor1 = {x=segList[1].seg.start_x,y=segList[1].seg.start_y}	-- Initial starting coordinate of the 1st segment in the connector to serve as reference of the total movement
 	op.ref = {x=refX,y=refY}
 	op.finish = dragEnd
@@ -2287,8 +2287,8 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		regenSegments(cnvobj,op,dragRouter,jsDrag,offx,offy)
 		cnvobj:refresh()
 	end
-	
-	return true
+	op.motion = cnvobj.cnv.motion_cb
+	return opptr
 end
 
 -- Function to draw a connector on the canvas
@@ -2588,7 +2588,8 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 			cnvobj:refresh()
 		end			
 	end
-	
+	op.motion = cnvobj.cnv.motion_cb
+	return opptr
 end	-- end drawConnector function
 
 
