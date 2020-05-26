@@ -40,13 +40,18 @@ function processHooks(cnvobj, key, params)
 	end
 	local done = {}	-- This takes care of the possibility in case a hook modifies the hook array and some hook is removed then the hooks already executed are not executed again
 	params = params or {}
-	for i=#cnvobj.hook, 1, -1 do
+	--for i=#cnvobj.hook, 1, -1 do
+	local i = 1
+	while i <= #cnvobj.hook do
 		if cnvobj.hook[i].key == key and not tu.inArray(done,cnvobj.hook[i].func) then
 			done[#done + 1] = cnvobj.hook[i].func
 			local status, val = pcall(cnvobj.hook[i].func, table.unpack(params))
 			if not status then
 				error("error: " .. val)
 			end
+			i = 1
+		else
+			i = i + 1
 		end
 	end
 end

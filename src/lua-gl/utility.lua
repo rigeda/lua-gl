@@ -602,6 +602,9 @@ function checkDrawn(cnvobj)
 	
 	-- Order
 	for i = 1,#drawn.order do
+		if not drawn.order[i].type then
+			return nil,"Order at "..i.." does not have a type.",IDMAP
+		end
 		if drawn.order[i].type ~= "object" and drawn.order[i].type ~= "connector" then
 			return nil,"Order at "..i.." is of the wrong type: "..drawn.order[i].type..".",IDMAP
 		end

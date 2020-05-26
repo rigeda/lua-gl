@@ -126,6 +126,7 @@ function GUI.toolbar.buttons.loadButton:action()
 	local hook,helpID,opptr
 	local function resumeSel()
 		print("Resuming Selection")
+		unre.group = false
 		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
@@ -146,6 +147,7 @@ function GUI.toolbar.buttons.loadButton:action()
 	f:close()
 	sel.pauseSelection()
 	helpID = pushHelpText("Click to place the diagram")
+	unre.group = true
 	local stat,msg = cnvobj:load(s,nil,nil,true)
 	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
 	if not stat then
@@ -156,7 +158,10 @@ function GUI.toolbar.buttons.loadButton:action()
 	else
 		-- Setup the operation table
 		op[#op + 1] = {
-			finish = cnvobj.op[#cnvobj.op].finish,
+			finish = function()
+				cnvobj.op[stat].finish()
+				resumeSel()
+			end,
 			mode = "LUAGL",
 			opptr = #cnvobj.op
 		}
@@ -257,10 +262,6 @@ local function manageClicks(msg,cb,finish)
 			popHelpText(helpID)
 			helpID = pushHelpText(msg[msgIndex])
 			msgIndex = msgIndex + 1
-			if msgIndex > #msg then
-				cnvobj:removeHook(hook)
-				hook = cnvobj:addHook("UNDOADDED",resumeSel)
-			end
 			-- Update operation finish
 			op[opptr].finish = function()
 				popHelpText(helpID)
@@ -271,6 +272,10 @@ local function manageClicks(msg,cb,finish)
 			end
 			if cb[msgIndex-2] then
 				cb[msgIndex-2]()
+			end
+			if msgIndex > #msg then
+				cnvobj:removeHook(hook)
+				hook = cnvobj:addHook("UNDOADDED",resumeSel)
 			end
 		end
 	end
@@ -534,6 +539,51 @@ function GUI.toolbar.buttons.checkButton:action()
 	cnvobj:refresh()
 end
 
+-- Start Move operation
+function GUI.toolbar.buttons.copyButton:action()
+	local hook, helpID, opptrlgl, opptr, copyStr
+	local function cb()
+		opptrlgl = cnvobj:load(copyStr,nil,nil,true)
+	end
+	local function finish()
+		cnvobj.op[opptrlgl].finish()
+	end
+	local function copycb()
+		popHelpText(helpID)
+		if opptr then
+			table.remove(op,opptr)	-- manageClicks manages its own operation table
+		end
+		-- Get the copy of the selected items
+		local copy = cnvobj:copy((sel.selListCopy()))
+		copyStr = tu.t2sr(copy)
+		manageClicks({
+				"Click to copy",
+				"Click to place"
+			},{cb},{finish}
+		)
+	end
+	-- First get items to move
+	if #sel.selListCopy() == 0 then
+		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
+		sel.pauseSelection()
+		helpID = pushHelpText("Select items to copy")
+		-- Setup operation entry
+		opptr = #op + 1
+		op[opptr] = {
+			mode = "DEMOAPP",
+			finish = function()
+				popHelpText(helpID)
+				table.remove(op,opptr)
+				-- Remove the callback from the selection 
+				sel.pauseSelection()
+				sel.resumeSelection()
+			end
+		}
+		sel.resumeSelection(copycb)
+	else
+		copycb()
+	end
+end
 
 -- Start Move operation
 function GUI.toolbar.buttons.moveButton:action()
@@ -693,7 +743,7 @@ do
 			end
 		end
 		-- Add the hook
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		hook = cnvobj:addHook("UNDOADDED",getClick)
 		-- Start the interactive move
 		MODE = "ADDPORT"
 		helpID = pushHelpText("Click to place port")

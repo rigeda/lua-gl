@@ -2445,7 +2445,7 @@ drawConnector  = function(cnvobj,segs,finalRouter,jsFinal,dragRouter,jsDrag)
 				item = conn[#conn]
 			}
 		end		-- for i = 1,#segBins do ends
-		-- Now lets check whether there are any shorts to any other connector by this dragged segment. The shorts can be on the segment end points
+		-- Now lets check whether there are any shorts to any other connector by this drawn segment. The shorts can be on the segment end points
 		-- remove any overlaps in the final merged connector
 		local mergeMap = shortAndMergeConnectors(cnvobj,newConns)
 		-- Connect overlapping ports

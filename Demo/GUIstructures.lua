@@ -60,7 +60,8 @@ GUI.toolbar.buttons = {
 	filledarcButton = iup.button{image=GUI.images.filledarc,tip = "Draw sector"},
 	printButton = iup.button{image="IUP_Print",tip="Print Drawing"},
 	undoButton = iup.button{image="IUP_EditUndo",tip="Undo",active="NO"},
-	redoButton = iup.button{image="IUP_EditRedo",tip="Redo",active="NO"} 
+	redoButton = iup.button{image="IUP_EditRedo",tip="Redo",active="NO"},
+	copyButton = iup.button{image="IUP_EditCopy",tip="Copy"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -72,6 +73,7 @@ GUI.toolbar.top = iup.hbox{
 	GUI.toolbar.buttons.xygrid,
 	GUI.toolbar.buttons.showBlockingRect,
 	GUI.toolbar.buttons.refreshButton,
+	GUI.toolbar.buttons.copyButton,
 	GUI.toolbar.buttons.checkButton,
 	GUI.toolbar.buttons.printButton,
 	GUI.toolbar.buttons.undoButton,

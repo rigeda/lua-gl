@@ -45,7 +45,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.05.19"
+_VERSION = "B23.05.19"
 
 --- TASKS
 --[[
@@ -241,6 +241,237 @@ objFuncs = {
 		end
 		utility.undopost(cnvobj,key)
 		return true
+	end,
+	
+	-- Function to copy the list of items
+	-- It returns a structure equivalent to the cnvobj.drawn structure which can be converted to string and then loaded
+	-- using the load api function
+	-- items is an array with either of the 2 things:
+	-- * object structure
+	-- * structure with the following data
+	--[[
+		{
+			conn = <connector structure>,	-- Connector structure to whom this segment belongs to 
+			seg = <integer>					-- segment index of the connector
+		}
+	]]
+	-- nogroup if true only the objects in the items will be moved not their associated grouped objects
+	copy = function(cnvobj,items,nogroup)
+		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
+			return nil,"Not a valid lua-gl object"
+		end
+		-- The cnvobj.drawn structure looks like this:
+		--[=[
+		cnvobj.drawn = {
+			obj = {ids=0},		-- array of object structures. See structure in objects.lua
+			group = {},			-- array of arrays containing objects intended to be grouped together
+			port = {ids=0},		-- array of port structures. See structure of port in ports.lua
+			conn = {ids=0},		-- array of connector structures. See structure of connector in connector.lua
+			order = {},			-- array of structures containing the things to draw in order
+			--[[ Order stucture looks like this:
+			{
+				[i] = {
+					type = <string>,	-- string describing what type of item this is. Values are like "object", "connector"
+					item = <table>		-- table structure of the item that is at this order position. For object it will be the object structure. For connector it will be the connector structure.
+				},
+			}
+			]]
+		}	]=]
+		-- Separate the objects list and the segments list
+		local objList,segList = separateObjSeg(items)
+		local drawn = {
+			obj = {ids = 0},
+			group = {},
+			port = {ids=0},
+			conn = {ids=0},
+			order = {}
+		}
+		local orderMap = {}
+		local copyMap = {}
+		local obj = drawn.obj
+		local port = drawn.port
+		local grp = drawn.group
+		local conn = drawn.conn
+		-- Function to copy the port structure. Connectors are not copied nor the object
+		local function copyPortData(p)
+			port.ids = port.ids + 1
+			port[#port + 1] = {
+				id = "P"..tostring(port.ids),
+				conn = {},
+				x = p.x,
+				y = p.y
+			}
+			return port[#port]
+		end
+		-- Function to copy everything in the given object structure except group and order
+		local function copyObjectData(o)
+			-- Create a new id
+			obj.ids = obj.ids + 1
+			obj[#obj + 1] = {
+				id = "O"..tostring(obj.ids),
+				shape = o.shape,
+				x = tu.copyTable(o.x,{}),
+				y = tu.copyTable(o.y,{}),
+				port = {}
+			}
+			if o.data then
+				obj[#obj].data = tu.copyTable(o.data,{},true)
+			end
+			if o.vattr then
+				obj[#obj].vattr = tu.copyTable(o.vattr,{},true)
+			end
+			-- Copy the ports
+			local pc = obj[#obj].port
+			for i = 1,#o.port do
+				local p = copyPortData(o.port[i])
+				pc[#pc+1] = p
+				p.obj = obj[#obj]
+			end
+			orderMap[#orderMap + 1] = {order=o.order,item=obj[#obj],type="object"}
+			return obj[#obj]
+		end
+		for i = 1,#objList do
+			if not copyMap[objList[i]] then	-- still not copied
+				copyMap[objList[i]] = true
+				-- Copy the object
+				local o = copyObjectData(objList[i])
+				-- Copy the group members
+				if objList[i].group and not nogroup then
+					grp[#grp + 1] = {o}
+					o.group = grp[#grp]
+					for j = 1,#objList[i].group do
+						if objList[i].group[j] ~= objList[i] then
+							grp[#grp][#grp[#grp]+1] = copyObjectData(objList[i].group[j])
+							grp[#grp][#grp[#grp]].group = grp[#grp]
+							copyMap[objList[i].group[j]] = true
+						end
+					end
+				end					
+			end
+		end
+		-- Now copy over the connector segments
+		for i = 1,#segList do
+			if not copyMap[segList[i].conn] then
+				copyMap[segList[i].conn] = true
+				-- Collect all the segments for this connector
+				local allSegs = {segList[i]}
+				for j = 1,#segList do
+					if j ~= i then
+						if segList[j].conn == segList[i].conn then
+							allSegs[#allSegs+1] = segList[j]
+						end
+					end
+				end
+				-- Now from allSegs create connectors of disjoined segment groups
+				local conngrps = {}
+				local c = allSegs[1].conn	-- The connector
+				while #allSegs > 0 do
+					local added
+					-- Check if any segment goes into existing conngrps
+					for j = #allSegs,1,-1 do
+						local seg = c.segments[allSegs[j].seg]
+						for k = 1,#conngrps do
+							for m = 1,#conngrps[k] do
+								if seg.start_x == conngrps[k][m].start_x and seg.start_y == conngrps[k][m].start_y or 
+								  seg.start_x == conngrps[k][m].end_x and seg.start_y == conngrps[k][m].end_y or
+								  seg.end_x == conngrps[k][m].start_x and seg.end_y == conngrps[k][m].start_y or
+								  seg.end_x == conngrps[k][m].end_x and seg.end_y == conngrps[k][m].end_y then
+									--this segment can be in this conngrp
+									added = true
+									conngrps[k][#conngrps[k]+1] = seg
+									if conngrps[k].ep[seg.start_x] then
+										if conngrps[k].ep[seg.start_x][seg.start_y] then
+											conngrps[k].ep[seg.start_x][seg.start_y] = conngrps[k].ep[seg.start_x][seg.start_y] + 1
+										else
+											conngrps[k].ep[seg.start_x][seg.start_y] = 1
+										end
+									else
+										conngrps[k].ep[seg.start_x] = {
+											[seg.start_y] = 1
+										}
+									end
+									if conngrps[k].ep[seg.end_x] then
+										if conngrps[k].ep[seg.end_x][seg.end_y] then
+											conngrps[k].ep[seg.end_x][seg.end_y] = conngrps[k].ep[seg.end_x][seg.end_y] + 1
+										else
+											conngrps[k].ep[seg.end_x][seg.end_y] = 1
+										end
+									else
+										conngrps[k].ep[seg.end_x] = {
+											[seg.end_y] = 1
+										}
+									end
+									break
+								end		-- if seg connection to end point ends here
+							end	-- for m = 1,#conngrps[k] ends here
+							if added then break end
+						end		-- for k = 1,#conngrps ends here	
+						if added then
+							table.remove(allSegs,j)
+						end
+					end		-- for j = 1,#allSegs ends here
+					if not added then
+						-- Create a new connector with the 1st segment in allSegs
+						local seg = c.segments[allSegs[1].seg]
+						conngrps[#conngrps + 1] = {
+							seg,
+							ep = {
+								[seg.start_x] = {
+									[seg.start_y] = 1
+								},
+								[seg.end_x] = {
+									[seg.end_y] = 1
+								}
+							}
+						}
+					end
+				end		-- while #allSegs > 0 do ends
+				-- Now take all the segment groups in conngrps and make connectors with it
+				for j = 1,#conngrps do
+					conn.ids = conn.ids + 1
+					conn[#conn + 1] = {
+						id = "C"..tostring(conn.ids),
+						port = {},
+						junction = {},
+						vattr = c.vattr and tu.copyTable(c.vattr,{},true)
+					}
+					-- Fill the junctions
+					local jn = conn[#conn].junction
+					for x,yt in pairs(conngrps[j].ep) do
+						for y,num in pairs(yt) do
+							-- Check if a port exits at this coordinate
+							for k = 1,#port do
+								if port[k].x == x and port[k].y == y then
+									conn[#conn].port[#conn[#conn].port+1] = port[k]
+								end
+							end
+							if num > 2 then	-- greater than 2 segments were at this point
+								jn[#jn + 1] = {x=x,y=y}
+							end
+						end						
+					end
+					-- Copy the segments
+					local segm = {}
+					for k = 1,#conngrps[j] do
+						segm[#segm + 1] = tu.copyTable(conngrps[j][k],{},true)
+					end
+					conn[#conn].segments = segm
+					orderMap[#orderMap + 1] = {order = c.order,item = conn[#conn],type="connector"}
+				end		-- for j = 1,#conngrps do ends
+			end		-- if not copyMap[segList[i].conn] then ends
+		end		-- for i = 1,#segList do ends
+		
+		-- Now setup the order structure and fix the orders
+		table.sort(orderMap,function(one,two)
+				return one.order < two.order
+			end)
+		for i = 1,#orderMap do
+			drawn.order[#drawn.order + 1] = {type = orderMap[i].type,item=orderMap[i].item}
+		end
+		for i = 1,#drawn.order do
+			drawn.order[i].item.order = i
+		end
+		return drawn
 	end,
 	
 	-- Function to move the list of items by moving all the items offx and offy offsets	
@@ -1188,15 +1419,12 @@ objFuncs = {
 		function cnvobj.cnv:resize_cb(width,height)
 			cnvobj.width = width
 			cnvobj.height = height
+			GUIFW.resizeCB(cnvobj,width,height)
 			GUIFW.render(cnvobj)
 		end
 		
 		function cnvobj.cnv.action()
 			GUIFW.render(cnvobj)
-		end
-		
-		function cnvobj.cnv:resize_cb(width,height)
-			GUIFW.resizeCB(cnvobj,width,height)
 		end
 		
 		function cnvobj.cnv:button_cb(button,pressed,x,y, status)

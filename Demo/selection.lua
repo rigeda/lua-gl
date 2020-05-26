@@ -42,7 +42,21 @@ local function updateSelList()
 				table.remove(selList,i)
 			end
 		end
-	end	
+	end
+	-- Incase some other operation called the finish function then updateSelList will be called when the UNDOADDED hook is executed
+	-- So the next block will clean up the selRect drawing
+	if opID then
+		if selRect then
+			if cnvobj.op[opID] and cnvobj.drawn.obj[cnvobj.op[opID].index] == selRect then
+				cnvobj.op[opID].finish()
+			end
+			if tu.inArray(cnvobj.drawn.obj,selRect) then
+				cnvobj:removeObj(selRect)
+			end
+			selRect = nil
+		end
+		opID = nil
+	end
 end
 
 function init(cvobj, gui,objSelC,connSelC)
@@ -141,14 +155,13 @@ local function selection_cb(button,pressed,x,y, status)
 	-- put it in the rectangle drawing mode
 		unre.pauseUndoRedo()
 		print("Start selection rectangle")
-		cnvobj:drawObj("RECT",nil,nil,{	-- Selection rectangle attribute
+		opID = cnvobj:drawObj("RECT",nil,nil,{	-- Selection rectangle attribute
 					color = {0, 0, 0},
 					style = cnvobj.GRAPHICS.DOTTED,
 					width = 2,
 					join = cnvobj.GRAPHICS.MITER,
 					cap = cnvobj.GRAPHICS.CAPFLAT
 				},-1)	-- interactive rectangle drawing
-		opID = #cnvobj.op
 		selRect = cnvobj.drawn.obj[cnvobj.op[opID].index]
 		
 	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 0 then  
@@ -160,8 +173,11 @@ local function selection_cb(button,pressed,x,y, status)
 		-- Check if the selRect has anything and if the drawn rectangle needs to be considered a rectangle
 		if selRect then
 			x1,x2,y1,y2 = selRect.x[1],selRect.x[2],selRect.y[1],selRect.y[2]
+			if not cnvobj.op[opID] or cnvobj.drawn.obj[cnvobj.op[opID].index] ~= selRect then
+				return
+			end
 			cnvobj.op[opID].finish()
-			if cnvobj.drawn.order[selRect.order] and cnvobj.drawn.order[selRect.order].item == selRect then
+			if selRect and tu.inArray(cnvobj.drawn.obj,selRect) then
 				cnvobj:removeObj(selRect)
 			end
 			local res = math.floor(math.min(cnvobj.grid.grid_x/2,cnvobj.grid.grid_y/2))
