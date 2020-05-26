@@ -530,13 +530,10 @@ function GUI.toolbar.buttons.printButton:action()
 end
 
 function GUI.toolbar.buttons.checkButton:action()
-	cnvobj:drawConnector({
-			{start_x = 300,start_y=130,end_x=300,end_y=380},
-			{start_x = 300,start_y=380,end_x=500,end_y=380},
-			{start_x = 500,start_y=360,end_x=320,end_y=360},
-			{start_x = 320,start_y=360,end_x=320,end_y=130},
-		})
-	cnvobj:refresh()
+	local f = io.open("../test/schematic.dia")
+	local s = f:read("*a")
+	f:close()
+	cnvobj:load(s)
 end
 
 -- Start Move operation

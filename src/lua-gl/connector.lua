@@ -737,7 +737,7 @@ local function repairSegAndJunc(cnvobj,conn)
 	-- The loop below handles the case then 2 segments touch but not of the same equation
 	-- So they don't overlap. For example 2 segments making a T. The top of the T would need to split into 2 segments, i.e. a T should be always made of 3 segments and a junction
 	local donecoor = {}		-- Store coordinates of the end points of all the segments and also indicate how many segments connect there
-	for i = 1,#segs do
+	for i = #segs,1,-1 do
 		-- Do the starting coordinate
 		local X,Y = segs[i].start_x,segs[i].start_y
 		if not donecoor[X] then
@@ -838,7 +838,7 @@ do
 	-- Function to look at the given connector conn and short an merge it with any other connector its segments end points touch
 	-- All the touching connectors are merged into 1 connector and all data structures updated appropriately
 	-- Order of the resulting connector will be the highest order of all the merged conectors
-	-- The connector ID of the resultant connector is the highest connector ID of all the connectors
+	-- The connector ID of the resultant connector is the lowest connector ID of all the connectors
 	-- Returns the final merged connector together with the list of connector ids that were merged (including the merged connector - which is at the last spot in the list)
 	local shortAndMergeConnector = function(cnvobj,conn)
 		local coor = {}
@@ -917,9 +917,9 @@ do
 			local segTableS = conns[allSegs[i].conn].segments
 			for i = 1,#segTableS do
 				local one = segTableS[i]
+				local found
 				for j = 1,#segTableD do
 					local two = segTableD[j]
-					local found
 					if (one.start_x == two.start_x and one.start_y == two.start_y and
 					  one.end_x == two.end_x and one.end_y == two.end_y) or
 					  (one.start_x == two.end_x and one.start_y == two.end_y and
@@ -1786,6 +1786,15 @@ splitConnectorAtSegments = function(cnvobj,segList)
 						type = "connector",
 						item = connM[j]
 					})
+				-- Check if there was any vattr table
+				if connM[j].vattr then
+					setConnVisualAttr(cnvobj,connM[j],connM[j].vattr)
+				end
+				for k = 1,#connM[j].segments do
+					if connM[j].segments[k].vattr then
+						setSegVisualAttr(cnvobj,connM[j].segments[k],connM[j].segments[k].vattr)
+					end
+				end
 			end
 			for j = connNMp,#connNM do
 				table.insert(cnvobj.drawn.conn,connNM[j])	-- put connNM in drawn connectors
@@ -1793,6 +1802,14 @@ splitConnectorAtSegments = function(cnvobj,segList)
 						type = "connector",
 						item = connNM[j]
 					})
+				if connNM[j].vattr then
+					setConnVisualAttr(cnvobj,connNM[j],connNM[j].vattr)
+				end
+				for k = 1,#connNM[j].segments do
+					if connNM[j].segments[k].vattr then
+						setSegVisualAttr(cnvobj,connNM[j].segments[k],connNM[j].segments[k].vattr)
+					end
+				end
 			end
 			cnst = i + 1
 		end		-- if i == #segList or segList[i+1].conn ~= segList[i].conn ends

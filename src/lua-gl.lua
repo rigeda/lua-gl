@@ -424,6 +424,7 @@ objFuncs = {
 								}
 							}
 						}
+						table.remove(allSegs,1)
 					end
 				end		-- while #allSegs > 0 do ends
 				-- Now take all the segment groups in conngrps and make connectors with it
@@ -994,17 +995,11 @@ objFuncs = {
 	end,
 
 	-- function to load the drawn structures in str and put them in the canvas 
-	-- x and y are the coordinates where the structures will be loaded. If x,y are not given then they default to center of the canvas
-	-- If interactive is true then x,y are ignored and the placement of the loaded structure is done with a mouse with the loaded structure's
-	-- 1st item's start_x and start_y coincident on the mouse location
+	-- x and y are the database coordinates where the loaded structures anchor point will be placed. If x,y are not given then they default to center of the canvas. If interactive is true then x,y are ignored and set to the mouse position.
+	-- xa,ya are the anchor points of the loaded structures. If not given the anchor point defaults to the center of maximum expanse of loaded structures. Note: xa and ya are database coordinates in the coordinate space of the loaded structure.
 	load = function(cnvobj,str,x,y,interactive)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
-		end
-		
-		-- Check whether this is an interactive move or not
-		if not interactive and (not x or type(x) ~= "number" or not y or type(y) ~= "number") then
-			return nil, "Not interactive and Coordinates not given"
 		end
 		
 		local rm = cnvobj.rM
@@ -1029,7 +1024,7 @@ objFuncs = {
 			minX,minY = objS[1].x[1],objS[1].y[1]
 			maxX,maxY = minX,minY
 		else
-			minX,minY = conn[1].segments[1].start_x,conn[1].segments[1].start_y
+			minX,minY = connS[1].segments[1].start_x,connS[1].segments[1].start_y
 			maxX,maxY = minX,minY
 		end
 		local function storeMaxMin(x,y)
@@ -1058,12 +1053,12 @@ objFuncs = {
 			end
 		end
 		
-		-- Get the center coordinates of the data being loaded
+		-- Get the center coordinates of the data being loaded. This will be the anchor point where the mouse will hold it or which will be placed on the center of the visible canvas
 		local ctrX,ctrY = math.floor((maxX+minX)/2),math.floor((maxY+minY)/2)
 		if not interactive then
 			x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
 			y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
-			x,y = cnvobj:snap(x,y)
+			x,y = cnvobj:snap(cnvobj:sCoor2dCoor(x,y))
 		else
 			-- Mouse coordinates on the canvas snapped to the grid
 			x,y = cnvobj:snap(cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))) 
