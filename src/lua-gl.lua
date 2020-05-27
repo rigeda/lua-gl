@@ -418,12 +418,20 @@ objFuncs = {
 							ep = {
 								[seg.start_x] = {
 									[seg.start_y] = 1
-								},
-								[seg.end_x] = {
-									[seg.end_y] = 1
 								}
 							}
 						}
+						if conngrps[#conngrps].ep[seg.end_x] then
+							if conngrps[#conngrps].ep[seg.end_x][seg.end_y] then
+								conngrps[#conngrps].ep[seg.end_x][seg.end_y] = conngrps[#conngrps].ep[seg.end_x][seg.end_y] + 1
+							else
+								conngrps[#conngrps].ep[seg.end_x][seg.end_y] = 1
+							end
+						else
+							conngrps[#conngrps].ep[seg.end_x] = {
+								[seg.end_y] = 1
+							}
+						end
 						table.remove(allSegs,1)
 					end
 				end		-- while #allSegs > 0 do ends
@@ -444,6 +452,7 @@ objFuncs = {
 							for k = 1,#port do
 								if port[k].x == x and port[k].y == y then
 									conn[#conn].port[#conn[#conn].port+1] = port[k]
+									port[k].conn[#port[k].conn + 1] = conn[#conn]
 								end
 							end
 							if num > 2 then	-- greater than 2 segments were at this point
