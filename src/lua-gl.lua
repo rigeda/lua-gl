@@ -45,14 +45,13 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B23.05.19"
+_VERSION = "B20.05.27"
 
 --- TASKS
 --[[
 DEBUG:
 
 TASKS:
-* add copy functionality
 * Add file linked data methodology to Demo and lua-gl library
 * Connector labeling - object to segment grouping
 * Add object resize functionality

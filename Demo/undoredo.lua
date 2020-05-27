@@ -3,6 +3,8 @@
 
 local table = table
 
+local print = print
+
 local M = {}
 package.loaded[...] = M
 if setfenv and type(setfenv) == "function" then
@@ -16,7 +18,17 @@ local undo,redo = {},{}		-- The UNDO and REDO stacks
 local toRedo = false
 local doingRedo = false
 local skip = false
-group = false
+local group = false
+local newGroup = false
+
+function beginGroup()
+	newGroup = true
+	group = true
+end
+
+function endGroup()
+	group = false
+end
 
 local function updateButtons()
 	if #undo == 0 then
@@ -34,26 +46,32 @@ end
 local function addUndoStack(diff)
 	local tab = undo
 	if toRedo then 
+		print("Doing UNDO",skip)
 		tab = redo 
 	elseif not doingRedo then
 		redo = {}	-- Redo is emptied if any action is done
+	else
+		print("DOING REDO",skip)
 	end
 	if not skip then
 		if group then
 			-- To group multiple luagl actions into 1 undo action of the host application
-			if #tab == 0 or tab[#tab].type ~= "LUAGLGROUP" then
+			if newGroup then
 				tab[#tab + 1] = {
 					type = "LUAGLGROUP",
 					obj = {diff}
 				}
+				newGroup = false
 			else
 				tab[#tab].obj[#tab[#tab].obj + 1] = diff
 			end
+			print("Add LUAGLGROUP to stack")
 		else
 			tab[#tab + 1] = {
 				type = "LUAGL",
 				obj = diff
 			}
+			print("Add LUAGL to stack")
 		end
 	end
 	updateButtons()
@@ -71,13 +89,13 @@ function doUndo(skipRedo)
 			break
 		elseif undo[i].type == "LUAGLGROUP" then
 			toRedo = true
-			group = true
+			beginGroup()
 			for j = #undo[i].obj,1,-1 do
 				cnvobj:undo(undo[i].obj[j])
 			end
 			table.remove(undo,i)
 			toRedo = false
-			group = false
+			endGroup()
 			break
 		end
 	end
@@ -87,6 +105,7 @@ end
 
 -- skipUndo if true will skip adding the action to the undo stack
 function doRedo(skipUndo)
+	skip = skipUndo
 	for i = #redo,1,-1 do
 		if redo[i].type == "LUAGL" then
 			doingRedo = true
@@ -96,13 +115,13 @@ function doRedo(skipUndo)
 			break
 		elseif redo[i].type == "LUAGLGROUP" then
 			doingRedo = true
-			group = true
+			beginGroup()
 			for j = #redo[i].obj,1,-1 do
 				cnvobj:undo(redo[i].obj[j])
 			end
 			table.remove(redo,i)
 			doingRedo = false
-			group = false
+			endGroup()
 			break
 		end
 	end	
@@ -125,5 +144,12 @@ function init(cnvO,ub,rb)
 	cnvobj = cnvO
 	undoButton = ub
 	redoButton = rb
+	undo,redo = {},{}
+	toRedo = false
+	doingRedo = false
+	skip = false
+	group = false
+	newGroup = false
+	updateButtons()
 	hook = cnvobj:addHook("UNDOADDED",addUndoStack)
 end

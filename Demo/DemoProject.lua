@@ -126,7 +126,7 @@ function GUI.toolbar.buttons.loadButton:action()
 	local hook,helpID,opptr
 	local function resumeSel()
 		print("Resuming Selection")
-		unre.group = false
+		unre.endGroup()
 		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
@@ -147,7 +147,7 @@ function GUI.toolbar.buttons.loadButton:action()
 	f:close()
 	sel.pauseSelection()
 	helpID = pushHelpText("Click to place the diagram")
-	unre.group = true
+	unre.beginGroup()
 	local stat,msg = cnvobj:load(s,nil,nil,nil,nil,true)
 	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
 	if not stat then
@@ -469,7 +469,7 @@ function GUI.toolbar.buttons.textButton:action()
 		-- Create a representation of the text at the location of the mouse pointer and then start its move
 		-- Set refX,refY as the mouse coordinate on the canvas
 		local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
-		unre.group = true
+		unre.beginGroup()
 		local o = cnvobj:drawObj("TEXT",{{x=refX,y=refY}},{text=text})
 		-- If the formatting is not the same as the default then add a formatting attribute for the text
 		if color ~= "0 0 0" or font ~= "Courier, 12" or as ~= "base right" or ori ~= 0 then
@@ -492,7 +492,7 @@ function GUI.toolbar.buttons.textButton:action()
 		local function getClick(button,pressed,x,y,status)
 			if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
 				cnvobj:removeHook(hook)
-				unre.group = false
+				unre.endGroup()
 				popHelpText(helpID)
 				table.remove(op,opptr)
 				sel.resumeSelection()
@@ -507,7 +507,7 @@ function GUI.toolbar.buttons.textButton:action()
 			mode = "LUAGL",
 			finish = function()
 				cnvobj:removeHook(hook)
-				unre.group = false
+				unre.endGroup()
 				table.remove(op,opptr)
 				popHelpText(helpID)
 				cnvobj.op[opptrlgl].finish()
@@ -539,12 +539,18 @@ end
 -- Start Move operation
 function GUI.toolbar.buttons.copyButton:action()
 	local hook, helpID, opptrlgl, opptr, copyStr
+	local function wrapup()
+		unre.endGroup()
+		cnvobj:removeHook(hook)
+	end
 	local function cb()
 		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 		opptrlgl = cnvobj:load(copyStr,nil,nil,x,y,true)
+		hook = cnvobj:addHook("UNDOADDED",wrapup)
 	end
 	local function finish()
 		cnvobj.op[opptrlgl].finish()
+		wrapup()
 	end
 	local function copycb()
 		popHelpText(helpID)
@@ -552,8 +558,11 @@ function GUI.toolbar.buttons.copyButton:action()
 			table.remove(op,opptr)	-- manageClicks manages its own operation table
 		end
 		-- Get the copy of the selected items
+		sel.turnOFFVisuals()
 		local copy = cnvobj:copy((sel.selListCopy()))
+		sel.turnONVisuals()
 		copyStr = tu.t2sr(copy)
+		unre.beginGroup()
 		manageClicks({
 				"Click to copy",
 				"Click to place"
@@ -720,7 +729,7 @@ do
 		-- Create a representation of the port at the location of the mouse pointer and then start its move
 		-- Create a MOUSECLICKPOST hook to check whether the move ended on a object. If not continue the move
 		-- Set refX,refY as the mouse coordinate on the canvas transformed to the database coordinates snapped
-		unre.group = true
+		unre.beginGroup()
 		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 		cnvobj.grid.snapGrid = false
 		local o = cnvobj:drawObj("FILLEDRECT",{{x=x-3,y=y-3},{x=x+3,y=y+3}})
@@ -735,7 +744,7 @@ do
 			if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
 				cnvobj:removeHook(hook)
 				MODE = nil
-				unre.group = false
+				unre.endGroup()
 				popHelpText(helpID)
 				sel.resumeSelection()
 			end
@@ -756,7 +765,7 @@ do
 				table.remove(op,opptr)
 				MODE = nil
 				cnvobj:removeHook(hook)
-				unre.group = false
+				unre.endGroup()
 				sel.resumeSelection()
 			end
 		}

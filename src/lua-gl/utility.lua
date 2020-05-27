@@ -113,7 +113,7 @@ do
 			for j = 1,#segs do
 				-- Set the connector attribute if any
 				if segs[j].vattr then
-					conns.setSegVisualAttr(cnvobj,segs[j],segs[j].vattr,-1)	-- -1 because it is a unique attribute
+					conn.setSegVisualAttr(cnvobj,segs[j],segs[j].vattr,-1)	-- -1 because it is a unique attribute
 				end
 				-- Add to routing Matrix
 				rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)

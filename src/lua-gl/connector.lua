@@ -737,90 +737,101 @@ local function repairSegAndJunc(cnvobj,conn)
 	-- The loop below handles the case then 2 segments touch but not of the same equation
 	-- So they don't overlap. For example 2 segments making a T. The top of the T would need to split into 2 segments, i.e. a T should be always made of 3 segments and a junction
 	local donecoor = {}		-- Store coordinates of the end points of all the segments and also indicate how many segments connect there
-	for i = #segs,1,-1 do
-		-- Do the starting coordinate
-		local X,Y = segs[i].start_x,segs[i].start_y
-		if not donecoor[X] then
-			donecoor[X] = {}
-		end
-		if not donecoor[X][Y] then
-			donecoor[X][Y] = 1
-			local conns,segmts = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
-			-- We should just have 1 connector here ideally but if not lets find the index for this connector
-			local l
-			for j = 1,#conns do
-				if conns[j] == conn then
-					l = j 
-					break
+	do
+		local i = 1
+		local doneSegs = {}
+		while i <= #segs do
+			if not doneSegs[segs[i]] then
+				doneSegs[segs[i]] = true
+				-- Do the starting coordinate
+				local X,Y = segs[i].start_x,segs[i].start_y
+				if not donecoor[X] then
+					donecoor[X] = {}
 				end
-			end
-			-- Sort the segments in ascending order
-			table.sort(segmts[l].seg)
-			-- Iterate over all the segments at this point
-			for k = #segmts[l].seg,1,-1 do		-- Iterate from the highest segment number so that if segment is inserted then index of lower segments do not change
-				local j = segmts[l].seg[k]	-- Contains the segment number where the point X,Y lies
-				-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
-				if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
-					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-					rm:removeSegment(segs[j])
-					table.insert(segs,j+1,{
-						start_x = X,
-						start_y = Y,
-						end_x = segs[j].end_x,
-						end_y = segs[j].end_y
-					})
-					rm:addSegment(segs[j+1],segs[j+1].start_x,segs[j+1].start_y,segs[j+1].end_x,segs[j+1].end_y)
-					segs[j].end_x = X
-					segs[j].end_y = Y
-					rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
-					donecoor[X][Y] = donecoor[X][Y] + 2		-- 2 more end points now added at this point
+				if not donecoor[X][Y] then
+					donecoor[X][Y] = 1
+					local conns,segmts = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
+					-- We should just have 1 connector here ideally but if not lets find the index for this connector
+					local l
+					for j = 1,#conns do
+						if conns[j] == conn then
+							l = j 
+							break
+						end
+					end
+					-- Sort the segments in ascending order
+					table.sort(segmts[l].seg)
+					-- Iterate over all the segments at this point
+					for k = #segmts[l].seg,1,-1 do		-- Iterate from the highest segment number so that if segment is inserted then index of lower segments do not change
+						local j = segmts[l].seg[k]	-- Contains the segment number where the point X,Y lies
+						-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+						if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
+							-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+							rm:removeSegment(segs[j])
+							table.insert(segs,j+1,{
+								start_x = X,
+								start_y = Y,
+								end_x = segs[j].end_x,
+								end_y = segs[j].end_y
+							})
+							rm:addSegment(segs[j+1],segs[j+1].start_x,segs[j+1].start_y,segs[j+1].end_x,segs[j+1].end_y)
+							segs[j].end_x = X
+							segs[j].end_y = Y
+							rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
+							donecoor[X][Y] = donecoor[X][Y] + 2		-- 2 more end points now added at this point
+							i = 1	-- Restart from beginning
+						end
+					end
+				else
+					donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point
 				end
-			end
-		else
-			donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point
-		end
-		-- Do the end coordinate
-		X,Y = segs[i].end_x,segs[i].end_y
-		if not donecoor[X] then
-			donecoor[X] = {}
-		end
-		if not donecoor[X][Y] then
-			donecoor[X][Y] = 1
-			local conns,segmts = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
-			-- We should just have 1 connector here ideally but if not lets find the index for this connector
-			local l
-			for j = 1,#conns do
-				if conns[j] == conn then
-					l = j 
-					break
+				-- Do the end coordinate
+				X,Y = segs[i].end_x,segs[i].end_y
+				if not donecoor[X] then
+					donecoor[X] = {}
 				end
-			end
-			-- Sort the segments in ascending order
-			table.sort(segmts[l].seg)
-			-- Iterate over all the segments at this point
-			for k = #segmts[l].seg,1,-1 do		-- Iterate from the highest segment number so that if segment is inserted then index of lower segments do not change
-				local j = segmts[l].seg[k]	-- Contains the segment number where the point X,Y lies
-				-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
-				if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
-					-- The point X,Y lies somewhere on this segment in between so split the segment into 2
-					rm:removeSegment(segs[j])
-					table.insert(segs,j+1,{
-						start_x = X,
-						start_y = Y,
-						end_x = segs[j].end_x,
-						end_y = segs[j].end_y
-					})
-					rm:addSegment(segs[j+1],segs[j+1].start_x,segs[j+1].start_y,segs[j+1].end_x,segs[j+1].end_y)
-					segs[j].end_x = X
-					segs[j].end_y = Y
-					rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
-					donecoor[X][Y] = donecoor[X][Y] + 2		-- 2 more end points now added at this point
-				end
-			end
-		else
-			donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point
-		end		
-	end
+				if not donecoor[X][Y] then
+					donecoor[X][Y] = 1
+					local conns,segmts = getConnFromXY(cnvobj,X,Y,0)	-- 0 resolution check
+					-- We should just have 1 connector here ideally but if not lets find the index for this connector
+					local l
+					for j = 1,#conns do
+						if conns[j] == conn then
+							l = j 
+							break
+						end
+					end
+					-- Sort the segments in ascending order
+					table.sort(segmts[l].seg)
+					-- Iterate over all the segments at this point
+					for k = #segmts[l].seg,1,-1 do		-- Iterate from the highest segment number so that if segment is inserted then index of lower segments do not change
+						local j = segmts[l].seg[k]	-- Contains the segment number where the point X,Y lies
+						-- Check whether any of the end points match X,Y (allSegs[i].x,allSegs[i].y)
+						if not(segs[j].start_x == X and segs[j].start_y == Y or segs[j].end_x == X and segs[j].end_y == Y) then 
+							-- The point X,Y lies somewhere on this segment in between so split the segment into 2
+							rm:removeSegment(segs[j])
+							table.insert(segs,j+1,{
+								start_x = X,
+								start_y = Y,
+								end_x = segs[j].end_x,
+								end_y = segs[j].end_y
+							})
+							rm:addSegment(segs[j+1],segs[j+1].start_x,segs[j+1].start_y,segs[j+1].end_x,segs[j+1].end_y)
+							segs[j].end_x = X
+							segs[j].end_y = Y
+							rm:addSegment(segs[j],segs[j].start_x,segs[j].start_y,segs[j].end_x,segs[j].end_y)
+							donecoor[X][Y] = donecoor[X][Y] + 2		-- 2 more end points now added at this point
+							i = 1	-- Restart from beginning
+						end
+					end
+				else
+					donecoor[X][Y] = donecoor[X][Y] + 1	-- Add to the number of segments connected at this point
+				end		
+			else	-- if not doneSegs[segs[i]] then else
+				i = i + 1
+			end		-- if not doneSegs[segs[i]] then ends
+		end		-- while i <= #segs do ends here
+	end		-- local do scope ends here
 	-- Figure out the junctions
 	local j = {}
 	for k,v in pairs(donecoor) do

@@ -7,6 +7,8 @@ local table = table
 local math = math
 local setmetatable = setmetatable
 local type = type
+local collectgarbage = collectgarbage
+local rawset = rawset
 
 local tu = require("tableUtils")
 local fd = require("iupcFocusDialog")
@@ -27,8 +29,22 @@ else
 end
 
 local cnvobj, GUI
-local selList = {}
+local connList = {}
+local selList = setmetatable({},{
+		__mode="v",
+		__newindex = function(t,k,v)
+			if v.id then
+				-- object
+				rawset(t,k,v)
+			else
+				-- connector segment
+				rawset(t,k,v)
+				connList[v] = true	-- To prevent v from garbage collection since selList is weak table
+			end
+		end
+	})
 local oldAttr = setmetatable({},{__mode="k"})	-- Weak keys to allow the key to be garbage collected
+local visualON = setmetatable({},{__mode="k"})	-- Table to link which items have their selection visual turned ON
 local objSelColor
 local connSelColor
 local callback, selRect, opID
@@ -39,10 +55,11 @@ local function updateSelList()
 	for i = #selList,1,-1 do
 		if not selList[i].id then
 			if not selList[i].conn or not selList[i].seg then
-				table.remove(selList,i)
+				connList[selList[i]] = nil
 			end
 		end
 	end
+	collectgarbage()
 	-- Incase some other operation called the finish function then updateSelList will be called when the UNDOADDED hook is executed
 	-- So the next block will clean up the selRect drawing
 	if opID then
@@ -91,18 +108,25 @@ function selListCopy()
 end
 
 local function removeSelListItem(index)
-	if selList[index].id then
-		cnvobj:removeVisualAttr(selList[index])
-		if oldAttr[selList[index]] then
-			cnvobj:setObjVisualAttr(selList[index],oldAttr[selList[index]].attr,oldAttr[selList[index]].vAttr)
+	if visualON[selList[index]] then
+		visualON[selList[index]] = nil
+		if selList[index].id then
+			cnvobj:removeVisualAttr(selList[index])
+			if oldAttr[selList[index]] then
+				cnvobj:setObjVisualAttr(selList[index],oldAttr[selList[index]].attr,oldAttr[selList[index]].vAttr)
+				oldAttr[selList[index]] = nil
+			end
+			table.remove(selList,index)
+		elseif selList[index].seg then
+			cnvobj:removeVisualAttr(selList[index].seg)
+			if oldAttr[selList[index].seg] then
+				cnvobj:setSegVisualAttr(selList[index].seg,oldAttr[selList[index].seg].attr,oldAttr[selList[index].seg].vAttr)
+				oldAttr[selList[index].seg] = nil
+			end
+			connList[selList[index]] = nil
 		end
-	elseif selList[index].seg then
-		cnvobj:removeVisualAttr(selList[index].seg)
-		if oldAttr[selList[index].seg] then
-			cnvobj:setSegVisualAttr(selList[index].seg,oldAttr[selList[index].seg].attr,oldAttr[selList[index].seg].vAttr)
-		end
-	end	
-	table.remove(selList,index)
+	end
+	collectgarbage()
 end
 
 function deselectAll()
@@ -111,38 +135,68 @@ function deselectAll()
 		removeSelListItem(i)
 	end
 	GUI.statBarM.title = ""
-	selList = {}		
 end
 
 local function setSelectedDisplay(selI)
 	-- Set the selection attribute
 	for i = #selList,selI + 1,-1 do
 		local attr
-		if selList[i].id then
-			print("Added object "..selList[i].id.." to list.")
-			attr,_,oldAttr[selList[i]] = cnvobj:getVisualAttr(selList[i])
-			cnvobj:removeVisualAttr(selList[i])
-			attr = tu.copyTable(attr,{},true)
-			attr.color = objSelColor
-			cnvobj:setObjVisualAttr(selList[i],attr,-1)
-		else
-			if selList[i].seg then
-				print("Added segment "..tu.inArray(selList[i].conn.segments,selList[i].seg).." from connector "..selList[i].conn.id.." to the list")
-				attr,_,oldAttr[selList[i].seg] = cnvobj:getVisualAttr(selList[i].seg)			
-				cnvobj:removeVisualAttr(selList[i].seg)
+		if not visualON[selList[i]] then
+			visualON[selList[i]] = true
+			if selList[i].id then
+				print("Added object "..selList[i].id.." to list.")
+				attr,_,oldAttr[selList[i]] = cnvobj:getVisualAttr(selList[i])
+				cnvobj:removeVisualAttr(selList[i])
 				attr = tu.copyTable(attr,{},true)
-				attr.color = connSelColor
-				cnvobj:setSegVisualAttr(selList[i].seg,attr,-1)
+				attr.color = objSelColor
+				cnvobj:setObjVisualAttr(selList[i],attr,-1)
 			else
-				table.remove(selList,i)
-			end
-		end			
+				if selList[i].seg then
+					print("Added segment "..tu.inArray(selList[i].conn.segments,selList[i].seg).." from connector "..selList[i].conn.id.." to the list")
+					attr,_,oldAttr[selList[i].seg] = cnvobj:getVisualAttr(selList[i].seg)			
+					cnvobj:removeVisualAttr(selList[i].seg)
+					attr = tu.copyTable(attr,{},true)
+					attr.color = connSelColor
+					cnvobj:setSegVisualAttr(selList[i].seg,attr,-1)
+				else
+					connList[selList[i]] = nil
+					table.remove(selList,i)
+				end
+			end	
+		end
 	end
 	GUI.statBarM.title = tostring(#selList).." selected"
 	cnvobj:refresh()	
 	if callback and type(callback) == "function" and #selList > 0 then
 		callback()
 	end
+end
+
+-- Function to turn OFF the visual indications of the element being selected
+function turnOFFVisuals()
+	for i = 1,#selList do
+		if visualON[selList[i]] then
+			visualON[selList[i]] = nil
+			if selList[i].id then
+				cnvobj:removeVisualAttr(selList[i])
+				if oldAttr[selList[i]] then
+					cnvobj:setObjVisualAttr(selList[i],oldAttr[selList[i]].attr,oldAttr[selList[i]].vAttr)
+					oldAttr[selList[i]] = nil
+				end
+			elseif selList[i].seg then
+				cnvobj:removeVisualAttr(selList[i].seg)
+				if oldAttr[selList[i].seg] then
+					cnvobj:setSegVisualAttr(selList[i].seg,oldAttr[selList[i].seg].attr,oldAttr[selList[i].seg].vAttr)
+					oldAttr[selList[i].seg] = nil
+				end
+			end
+		end
+	end
+end
+
+-- Function to turn ON the visual indications of the element being selected
+function turnONVisuals()
+	setSelectedDisplay(0)
 end
 
 -- Button_CB callback to select stuff. Set as a hook in MOUSECLICKPOST event
