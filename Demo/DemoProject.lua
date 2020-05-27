@@ -148,7 +148,7 @@ function GUI.toolbar.buttons.loadButton:action()
 	sel.pauseSelection()
 	helpID = pushHelpText("Click to place the diagram")
 	unre.group = true
-	local stat,msg = cnvobj:load(s,nil,nil,true)
+	local stat,msg = cnvobj:load(s,nil,nil,nil,nil,true)
 	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
 	if not stat then
 		print("Error loading file: ",msg)
@@ -540,7 +540,8 @@ end
 function GUI.toolbar.buttons.copyButton:action()
 	local hook, helpID, opptrlgl, opptr, copyStr
 	local function cb()
-		opptrlgl = cnvobj:load(copyStr,nil,nil,true)
+		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
+		opptrlgl = cnvobj:load(copyStr,nil,nil,x,y,true)
 	end
 	local function finish()
 		cnvobj.op[opptrlgl].finish()

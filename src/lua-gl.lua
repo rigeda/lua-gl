@@ -997,7 +997,7 @@ objFuncs = {
 	-- function to load the drawn structures in str and put them in the canvas 
 	-- x and y are the database coordinates where the loaded structures anchor point will be placed. If x,y are not given then they default to center of the canvas. If interactive is true then x,y are ignored and set to the mouse position.
 	-- xa,ya are the anchor points of the loaded structures. If not given the anchor point defaults to the center of maximum expanse of loaded structures. Note: xa and ya are database coordinates in the coordinate space of the loaded structure.
-	load = function(cnvobj,str,x,y,interactive)
+	load = function(cnvobj,str,x,y,xa,ya,interactive)
 		if not cnvobj or type(cnvobj) ~= "table" or getmetatable(cnvobj).__index ~= objFuncs then
 			return nil,"Not a valid lua-gl object"
 		end
@@ -1069,9 +1069,9 @@ objFuncs = {
 		-- * conn
 		-- * group
 		-- * order
-		
+		xa,ya = xa or ctrX, ya or ctrY
 		-- Offset to move each item for placement
-		local offx,offy = x-ctrX,y-ctrY
+		local offx,offy = x-xa,y-ya
 		local items = {}	-- To store all objects and connector segments in case it is interactive move then we will send this to move API
 		
 		local objD = cnvobj.drawn.obj
