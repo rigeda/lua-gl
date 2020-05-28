@@ -135,7 +135,7 @@ function GUI.toolbar.buttons.loadButton:action()
 	local fileDlg = iup.filedlg{
 		dialogtype = "OPEN",
 		extfilter = "Demo Files|*.dia",
-		title = "Select file to save drawing...",
+		title = "Select file to load drawing...",
 		extdefault = "dia"
 	} 
 	fileDlg:popup(iup.CENTER, iup.CENTER)
@@ -147,6 +147,55 @@ function GUI.toolbar.buttons.loadButton:action()
 	f:close()
 	sel.pauseSelection()
 	helpID = pushHelpText("Click to place the diagram")
+	unre.beginGroup()
+	local stat,msg = cnvobj:load(s,nil,nil,nil,nil,true)
+	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
+	if not stat then
+		print("Error loading file: ",msg)
+		local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "File cannot be loaded.\n"..msg}
+		dlg:popup()
+		resumeSel()
+	else
+		-- Setup the operation table
+		op[#op + 1] = {
+			finish = function()
+				cnvobj.op[stat].finish()
+				resumeSel()
+			end,
+			mode = "LUAGL",
+			opptr = #cnvobj.op
+		}
+		opptr = #op
+		hook = cnvobj:addHook("UNDOADDED",resumeSel)
+	end
+end
+
+-- To load data from a file
+function GUI.toolbar.buttons.addComponentButton:action()
+	local hook,helpID,opptr
+	local function resumeSel()
+		print("Resuming Selection")
+		unre.endGroup()
+		popHelpText(helpID)
+		cnvobj:removeHook(hook)
+		sel.resumeSelection()
+		table.remove(op,opptr)
+	end
+	local fileDlg = iup.filedlg{
+		dialogtype = "OPEN",
+		extfilter = "Demo Files|*.dia",
+		title = "Select file to load linked component...",
+		extdefault = "dia"
+	} 
+	fileDlg:popup(iup.CENTER, iup.CENTER)
+	if fileDlg.status == "-1" then
+		return
+	end
+	f = io.open(fileDlg.value,"r")
+	local s = f:read("*a")
+	f:close()
+	sel.pauseSelection()
+	helpID = pushHelpText("Click to place component")
 	unre.beginGroup()
 	local stat,msg = cnvobj:load(s,nil,nil,nil,nil,true)
 	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate

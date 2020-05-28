@@ -61,7 +61,8 @@ GUI.toolbar.buttons = {
 	printButton = iup.button{image="IUP_Print",tip="Print Drawing"},
 	undoButton = iup.button{image="IUP_EditUndo",tip="Undo",active="NO"},
 	redoButton = iup.button{image="IUP_EditRedo",tip="Redo",active="NO"},
-	copyButton = iup.button{image="IUP_EditCopy",tip="Copy"}
+	copyButton = iup.button{image="IUP_EditCopy",tip="Copy"},
+	addComponentButton = iup.button{image=GUI.images.addcomponent,tip = "Add a file linked diagram"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -96,6 +97,7 @@ GUI.toolbar.right = iup.vbox{
 	GUI.toolbar.buttons.textButton,
 	GUI.toolbar.buttons.portButton,
 	GUI.toolbar.buttons.connButton,
+	GUI.toolbar.buttons.addComponentButton,
 	iup.space{size="2x1"},
 	iup.label{separator="HORIZONTAL"},
 	iup.space{size="2x1"},
