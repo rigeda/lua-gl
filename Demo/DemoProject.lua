@@ -42,6 +42,19 @@ cnvobj = LGL.new{
 GUI.mainArea:append(cnvobj.cnv)
 
 local op = {}	-- To track interactive operations
+--[[ components structure stores the information about components linked to files i.e. they are updated when the file is updated
+The components structure will be an array of the following tables:
+{
+	file = Path and name of file",
+	items = {}
+}
+Here items is a weak value array where an entry is either the object structure or a structure:
+{
+	conn = connector structure,
+	seg = segment structure belonging to the connector
+}
+]]
+local components = {}
 
 -- Undo Redo module Initialize
 unre.init(cnvobj,GUI.toolbar.buttons.undoButton,GUI.toolbar.buttons.redoButton)
