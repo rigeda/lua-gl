@@ -1110,11 +1110,12 @@ objFuncs = {
 		-- Offset to move each item for placement
 		local offx,offy = x-xa,y-ya
 		local items = {}	-- To store all objects and connector segments in case it is interactive move then we will send this to move API
-		
+		local IDMAP = {}	-- Map of IDs from loaded structure to str data
 		local objD = cnvobj.drawn.obj
 		for i = 1,#objS do
 			objD[#objD + 1] = objS[i]
 			objD.ids = objD.ids + 1
+			IDMAP["O"..tostring(objD.ids)] = objS[i].id
 			objS[i].id = "O"..tostring(objD.ids)
 			local objx,objy = objS[i].x,objS[i].y
 			for j = 1,#objx do
@@ -1156,6 +1157,7 @@ objFuncs = {
 		local connD = cnvobj.drawn.conn
 		for i = 1,#connS do
 			connD[#connD + 1] = connS[i]
+			IDMAP["C"..tostring(connD.ids + 1)] = connS[i].id
 			connS[i].id = "C"..tostring(connD.ids + 1)
 			connD.ids = connD.ids + 1
 			-- Set the connector attribute if any
@@ -1208,12 +1210,13 @@ objFuncs = {
 			ports.connectOverlapPorts(cnvobj,portS)		
 			cnvobj:refresh()
 			utility.undopost(cnvobj,key)
-			return true
+			return true, items, IDMAP
 		end
 		utility.undopost(cnvobj,key)
 		-- For interactive move just create the item list and send it to the Move API
 		local retVal = {cnvobj:move(items)}
 		retVal[#retVal + 1] = items
+		retVal[#retVal + 1] = IDMAP
 		return table.unpack(retVal)
 	end,
 
@@ -1586,6 +1589,9 @@ objFuncs = {
 		return coorc.snapX(x, grdx),coorc.snapY(y, grdy)	
 	end,
 	undo = utility.doundo,
+	checkData = function(drawnData)
+		return utility.checkDrawn({drawn=drawnData})
+	end
 }	-- objFuncs table ends here
 
 -- cnvobj options meta table

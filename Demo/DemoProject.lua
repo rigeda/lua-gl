@@ -4,6 +4,7 @@ local LGL = require("lua-gl")
 local tu = require("tableUtils")
 local sel = require("selection")
 local unre = require("undoredo")
+local comp = require("component")
 
 local GUI = require("GUIStructures")
 
@@ -41,6 +42,8 @@ cnvobj = LGL.new{
 }
 GUI.mainArea:append(cnvobj.cnv)
 
+local WEAKK = {__mode="k"}	-- metatable to set weak keys
+
 local op = {}	-- To track interactive operations
 --[[ components structure stores the information about components linked to files i.e. they are updated when the file is updated
 The components structure will be an array of the following tables:
@@ -48,13 +51,14 @@ The components structure will be an array of the following tables:
 	file = Path and name of file",
 	items = {}
 }
-Here items is a weak value array where an entry is either the object structure or a structure:
+Here items is a weak key table where an entry is either the object structure or a structure:
 {
 	conn = connector structure,
 	seg = segment structure belonging to the connector
 }
 ]]
 local components = {}
+
 
 -- Undo Redo module Initialize
 unre.init(cnvobj,GUI.toolbar.buttons.undoButton,GUI.toolbar.buttons.redoButton)
@@ -210,7 +214,7 @@ function GUI.toolbar.buttons.addComponentButton:action()
 	sel.pauseSelection()
 	helpID = pushHelpText("Click to place component")
 	unre.beginGroup()
-	local stat,msg = cnvobj:load(s,nil,nil,nil,nil,true)
+	local stat,msg,IDMAP = cnvobj:load(s,nil,nil,nil,nil,true)
 	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
 	if not stat then
 		print("Error loading file: ",msg)
@@ -218,6 +222,8 @@ function GUI.toolbar.buttons.addComponentButton:action()
 		dlg:popup()
 		resumeSel()
 	else
+		-- Add the items in the components table
+		comp.newComponent(fileDlg.value,s,msg,IDMAP)
 		-- Setup the operation table
 		op[#op + 1] = {
 			finish = function()
@@ -835,6 +841,70 @@ do
 end
 
 function GUI.toolbar.buttons.refreshButton:action()
+	-- First refresh all the components from their files
+	-- We are just going to refresh the objects in the component items since connectors may already be used and if they are at the same place they will just be overlapped and merged when we reload the component from the file
+	local coData = {}	-- To store data for all components to load
+	local errs = {}
+	local function getFileData(file)
+		if not coData[file] then
+			local f = io.open(file,"r")
+			if not f then
+				if not errs[file] then
+					errs[file] = "Cannot open file."
+				end
+				return false
+			else
+				coData[file] = f:read("*a")
+				f:close()
+				return true
+			end
+		end
+		return true
+	end
+	local function deleteComponent(component)
+		local items = component.items
+		local id = component.id
+		for i = 1,#items do
+			if items[i].type == "object" and items[i].obj then
+				cnvobj:removeObj(items[i].obj)
+			end			
+		end
+		comp.deleteComponent(id)
+		return true
+	end
+	
+	for component in comp.comps() do
+		-- Read the file of the component
+		local file = component.file
+		if getFileData(file) then
+			local dData = tu.s2tr(coData[file])
+			local stat,msg = cnvobj.checkData(dData)
+			if not stat then
+				errs[#errs + 1] = {file=file,msg = msg}
+			else
+				-- Get the placement point
+				local idmap = component.IDMAP
+				local items = component.items
+				for i = 1,#items do
+					if items[i].type == "object" and items[i].obj then
+						local id = items[i].obj.id
+						local fid = idmap[id]
+						local x = items[i].obj.x[1]
+						local y = items[i].obj.y[1]
+						local xa,ya = items[i].xa,items[i].ya
+						-- Delete the component
+						deleteComponent(component)
+						-- Load the file data at the right spot
+						stat,msg,idmap = cnvobj:load(coData[file],x,y,xa,ya)
+						-- load the component into components database
+						comp.newComponent(file,coData[file],msg,idmap)
+						break
+					end		-- if items[i].type == "object" and items[i].obj then ends
+				end		-- for i = 1,#items do ends			
+			end		-- if not stat then ends
+		end		-- if getFileData(file) then ends
+	end		-- for component in comp.comps() do ends
+	-- Now refresh the canvas
 	cnvobj:refresh()
 end
 
