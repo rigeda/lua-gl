@@ -128,11 +128,14 @@ local function addInselList(item)
 	for i = len,1,-1 do
 		if selList[i] == nil then
 			index = i
-		elseif not selList[i].conn or not selList[i].seg then
+		elseif not selList[i].id and (not selList[i].conn or not selList[i].seg) then
+			-- Connector selection entry but connector/segment no longer there. 
+			-- Do some garbage collection
 			connList[selList[i]] = nil
 			selList[i] = nil
 			index = i
-		elseif item.id then
+		end
+		if item.id then
 			if selList[i] == item then
 				found = true
 				break
@@ -198,7 +201,7 @@ local function setSelectedDisplay()
 				if v.seg then
 					print("Added segment "..tu.inArray(v.conn.segments,v.seg).." from connector "..v.conn.id.." to the list")
 					attr,_,oldAttr[v.seg] = cnvobj:getVisualAttr(v.seg)			
-					cnvobj:removeVisualAttr(v].seg)
+					cnvobj:removeVisualAttr(v.seg)
 					attr = tu.copyTable(attr,{},true)
 					attr.color = connSelColor
 					cnvobj:setSegVisualAttr(v.seg,attr,-1)
@@ -395,7 +398,7 @@ local function selection_cb(button,pressed,x,y, status)
 							if not deselect then
 								for k = 1,#objs do
 									addInselList(objs[k])
-								emd
+								end
 							else
 								-- Remove elements from selList that are in objs
 								for i = 1,#objs do
@@ -562,11 +565,13 @@ local function selection_cb(button,pressed,x,y, status)
 			local c,s = cnvobj:getConninRect(x1,y1,x2,y2,selModeFull)
 			if #s > 0 then
 				local connList = {}
-				for j = 1,#s[1].seg do
-					connList[#connList + 1] = setmetatable({
-						conn = cnvobj.drawn.conn[s[1].conn],
-						seg = cnvobj.drawn.conn[s[1].conn].segments[s[1].seg[j]]
-					},{__mode="v"})
+				for k = 1,#s do
+					for j = 1,#s[k].seg do
+						connList[#connList + 1] = setmetatable({
+							conn = cnvobj.drawn.conn[s[k].conn],
+							seg = cnvobj.drawn.conn[s[k].conn].segments[s[k].seg[j]]
+						},{__mode="v"})
+					end
 				end
 				-- Merge into items
 				if not deselect then

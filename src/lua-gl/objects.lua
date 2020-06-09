@@ -283,10 +283,12 @@ removeObj = function(cnvobj,obj)
 	end
 	-- Remove references from any groups
 	if obj.group then
-		for i = 1,#obj.group do
-			local ind = tu.inArray(obj.group[i],obj)
-			table.remove(obj.group[i],ind)
+		local ind = tu.inArray(obj.group,obj)
+		if #obj.group <= 1 then
+			ind = tu.inArray(cnvobj.drawn.group,obj.group)
+			table.remove(cnvobj.drawn.group,ind)
 		end
+		table.remove(obj.group,ind)
 	end
 	-- remove from object array
 	ind = tu.inArray(cnvobj.drawn.obj,obj)

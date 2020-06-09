@@ -42,23 +42,13 @@ cnvobj = LGL.new{
 }
 GUI.mainArea:append(cnvobj.cnv)
 
-local WEAKK = {__mode="k"}	-- metatable to set weak keys
-
-local op = {}	-- To track interactive operations
---[[ components structure stores the information about components linked to files i.e. they are updated when the file is updated
-The components structure will be an array of the following tables:
-{
-	file = Path and name of file",
-	items = {}
-}
-Here items is a weak key table where an entry is either the object structure or a structure:
-{
-	conn = connector structure,
-	seg = segment structure belonging to the connector
-}
-]]
-local components = {}
-
+-- To track interactive operations
+-- op has the following keys"
+-- mode - This can have values "LUAGL" and "DEMOAPP". 
+--		LUAGL value means that the operation going on also involves some action of LuaGL library going on. So it the operation is aborted and has to be rolled back then undo for LuaGL will have to be called.
+--		DEMOAPP means the operation consists of things being done purely above the LuaGL library.
+-- finish - This is a function to end the operation in its current state
+local op = {}	
 
 -- Undo Redo module Initialize
 unre.init(cnvobj,GUI.toolbar.buttons.undoButton,GUI.toolbar.buttons.redoButton)
@@ -180,7 +170,6 @@ function GUI.toolbar.buttons.loadButton:action()
 				resumeSel()
 			end,
 			mode = "LUAGL",
-			opptr = #cnvobj.op
 		}
 		opptr = #op
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
@@ -231,7 +220,6 @@ function GUI.toolbar.buttons.addComponentButton:action()
 				resumeSel()
 			end,
 			mode = "LUAGL",
-			opptr = #cnvobj.op
 		}
 		opptr = #op
 		hook = cnvobj:addHook("UNDOADDED",resumeSel)
@@ -293,7 +281,7 @@ end
 -- finish is a operation finish table
 -- The function will handle i-1 successive left clicks where i is the number of messages
 -- finish has a lengthof i-1 to have finish functions after each callback but the last one is made
--- cb has i-1 callback functions at most and 1 function at min
+-- cb has i-1 callback functions at most and 1 function at min. If a cb call returns true then the mode of op entry is LUAGL otherwise it remains unchanged
 -- The timeline is as follows:
 --[[
 	Display Message [1] ----> Left Click [1] ----> Display Message [2] + callback[1] ----> .....
@@ -319,6 +307,7 @@ end
 local function manageClicks(msg,cb,finish)
 	local hook,helpID,opptr
 	local msgIndex = 2
+	-- Function for operation end
 	local function resumeSel()
 		popHelpText(helpID)
 		cnvobj:removeHook(hook)
@@ -339,7 +328,9 @@ local function manageClicks(msg,cb,finish)
 				finish[msgIndex-2]()
 			end
 			if cb[msgIndex-2] then
-				cb[msgIndex-2]()
+				if cb[msgIndex-2]() then
+					op[opptr].mode = "LUAGL"
+				end
 			end
 			if msgIndex > #msg then
 				cnvobj:removeHook(hook)
@@ -375,6 +366,7 @@ function GUI.toolbar.buttons.lineButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("LINE")	-- interactive line drawing
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -391,6 +383,7 @@ function GUI.toolbar.buttons.rectButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("RECT")	-- interactive rectangle drawing
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -407,6 +400,7 @@ function GUI.toolbar.buttons.fRectButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("FILLEDRECT")	-- interactive filled rectangle drawing
+		return true	-- To set op mode to LUAGL		
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -423,6 +417,7 @@ function GUI.toolbar.buttons.bRectButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("BLOCKINGRECT")	-- interactive blocking rectangle drawing
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -439,6 +434,7 @@ function GUI.toolbar.buttons.elliButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("ELLIPSE")	-- interactive ellipse drawing
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -455,6 +451,7 @@ function GUI.toolbar.buttons.fElliButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("FILLEDELLIPSE")	-- interactive filled ellipse drawing
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -471,6 +468,7 @@ function GUI.toolbar.buttons.arcButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("ARC")
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -489,6 +487,7 @@ function GUI.toolbar.buttons.filledarcButton:action()
 	local opptr
 	local function cb()
 		opptr = cnvobj:drawObj("FILLEDARC")
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptr].finish()
@@ -615,6 +614,7 @@ function GUI.toolbar.buttons.copyButton:action()
 		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 		opptrlgl = cnvobj:load(copyStr,nil,nil,x,y,true)
 		hook = cnvobj:addHook("UNDOADDED",wrapup)
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptrlgl].finish()
@@ -665,6 +665,7 @@ function GUI.toolbar.buttons.moveButton:action()
 	local hook, helpID, opptrlgl, opptr
 	local function cb()
 		opptrlgl = cnvobj:move(sel.selListCopy())
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptrlgl].finish()
@@ -708,6 +709,7 @@ function GUI.toolbar.buttons.dragButton:action()
 	local hook, helpID, opptrlgl, opptr
 	local function cb()
 		opptrlgl = cnvobj:drag(sel.selListCopy())
+		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptrlgl].finish()
@@ -746,6 +748,44 @@ function GUI.toolbar.buttons.dragButton:action()
 	else
 		dragcb()
 	end
+end
+
+function GUI.toolbar.buttons.delButton:action()
+	-- Function to group objects together
+	local helpID, opptr
+	local function delcb()
+		local _,objs,conns = sel.selListCopy() 
+		sel.pauseSelection()
+		popHelpText(helpID)
+		for i = 1,#objs do
+			cnvobj:removeObj(objs[i])
+		end
+		cnvobj:removeSegment(conns)
+		sel.resumeSelection()
+		cnvobj:refresh()
+	end
+	-- First get objects to group
+	local _,objs,conns = sel.selListCopy() 
+	if #objs == 0 and #conns == 0 then
+		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
+		sel.pauseSelection()
+		helpID = pushHelpText("Select items to delete")
+		-- Setup operation entry
+		opptr = #op + 1
+		op[opptr] = {
+			mode = "DEMOAPP",
+			finish = function()
+				popHelpText(helpID)
+				table.remove(op,opptr)
+				-- Remove the callback from the selection 
+				sel.pauseSelection()
+				sel.resumeSelection()
+			end
+		}
+		sel.resumeSelection(delcb)
+	else
+		delcb()
+	end	
 end
 
 function GUI.toolbar.buttons.groupButton:action()
@@ -808,17 +848,15 @@ do
 		local rx,ry = cnvobj:setMouseOnCanvas(cnvobj:dCoor2sCoor(x,y))
 		-- Create the hook
 		local hook, helpID
-		local function getClick(button,pressed,x,y,status)
-			if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-				cnvobj:removeHook(hook)
-				MODE = nil
-				unre.endGroup()
-				popHelpText(helpID)
-				sel.resumeSelection()
-			end
+		local function endop()
+			cnvobj:removeHook(hook)
+			MODE = nil
+			unre.endGroup()
+			popHelpText(helpID)
+			sel.resumeSelection()
 		end
 		-- Add the hook
-		hook = cnvobj:addHook("UNDOADDED",getClick)
+		hook = cnvobj:addHook("UNDOADDED",endop)
 		-- Start the interactive move
 		MODE = "ADDPORT"
 		helpID = pushHelpText("Click to place port")
@@ -938,6 +976,7 @@ do
 		local opptr
 		local function cb()
 			opptr = cnvobj:drawConnector(nil,router1,js1,router2,js2)
+			return true	-- To set op mode to LUAGL
 		end
 		local function finish()
 			cnvobj.op[opptr].finish()
@@ -993,7 +1032,7 @@ local function rotateFlip(para)
 		-- Rotate/Flip the reference coordinate for the drag operation
 		op.coor1.x,op.coor1.y = cnvobj:rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
 		local x,y = cnvobj:getMouseOnCanvas()
-		op.motion(x,y)
+		op.motion(cnvobj.cnv,x,y)
 		cnvobj:refresh()
 	elseif mode == "MOVE" or mode == "MOVESEG" or mode == "MOVEOBJ" then
 		-- Compile item list
@@ -1019,7 +1058,7 @@ local function rotateFlip(para)
 		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
 		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
 		local x,y = cnvobj:getMouseOnCanvas()
-		op.motion(x,y)
+		--op.motion(cnvobj.cnv,x,y)
 		cnvobj:refresh()
 	else
 		-- Get list of items
@@ -1046,6 +1085,7 @@ local function rotateFlip(para)
 			end
 			cnvobj:rotateFlipItems(items,refX,refY,para)
 			cnvobj:refresh()
+			return true	-- To set op mode to LUAGL
 		end
 		local function startRotation()
 			popHelpText(helpID)
