@@ -1056,9 +1056,9 @@ local function rotateFlip(para)
 		-- Do the rotation 
 		cnvobj:rotateFlipItems(items,refX,refY,para)
 		local prx,pry = cnvobj:snap(op.ref.x,op.ref.y)
-		op.coor1.x,op.coor1.y = cnvobj.rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
+		op.coor1.x,op.coor1.y = cnvobj:rotateFlip(op.coor1.x,op.coor1.y,prx,pry,para)
 		local x,y = cnvobj:getMouseOnCanvas()
-		--op.motion(cnvobj.cnv,x,y)
+		op.motion(cnvobj.cnv,x,y)
 		cnvobj:refresh()
 	else
 		-- Get list of items
