@@ -123,15 +123,21 @@ function GUI.toolbar.buttons.saveButton:action()
 	if fileDlg.status == "-1" then
 		return
 	end
+	local lgl = cnvobj:save()
+	local comps = tu.t2sr(comp.saveComponents())
 	local f = io.open(fileDlg.value,"w+")
-	f:write(cnvobj:save())
+	f:write("lgl=[["..lgl.."]]\ncomps=[["..comps.."]]")
 	f:close()
 end
 
 -- To load data from a file
 function GUI.toolbar.buttons.loadButton:action()
-	local hook,helpID,opptr
+	local hook,helpID,opptr,comps,stat,msg,IDMAP
 	local function resumeSel()
+		print("Loading components")
+		if comps then
+			comp.loadComponents(comps,msg,IDMAP)
+		end
 		print("Resuming Selection")
 		unre.endGroup()
 		popHelpText(helpID)
@@ -149,37 +155,60 @@ function GUI.toolbar.buttons.loadButton:action()
 	if fileDlg.status == "-1" then
 		return
 	end
-	f = io.open(fileDlg.value,"r")
+	local f = io.open(fileDlg.value,"r")
 	local s = f:read("*a")
 	f:close()
-	sel.pauseSelection()
-	helpID = pushHelpText("Click to place the diagram")
-	unre.beginGroup()
-	local stat,msg = cnvobj:load(s,nil,nil,nil,nil,true)
-	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
+	local env = {}
+	local func = load(s,nil,nil,env)
+	stat,msg = pcall(func)
+	
 	if not stat then
-		print("Error loading file: ",msg)
+		print("Error loading file...")
 		local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "File cannot be loaded.\n"..msg}
 		dlg:popup()
 		resumeSel()
 	else
-		-- Setup the operation table
-		op[#op + 1] = {
-			finish = function()
-				cnvobj.op[stat].finish()
+		local lgl = env.lgl
+		comps = tu.s2tr(env.comps)
+		if not comps then
+			local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "Components cannot be loaded.\n"..msg}
+			dlg:popup()
+			resumeSel()
+		else
+			sel.pauseSelection()
+			helpID = pushHelpText("Click to place the diagram")
+			unre.beginGroup()
+			stat,msg,IDMAP = cnvobj:load(lgl,nil,nil,nil,nil,true)
+			--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
+			if not stat then
+				print("Error loading file: ",msg)
+				local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "File cannot be loaded.\n"..msg}
+				dlg:popup()
 				resumeSel()
-			end,
-			mode = "LUAGL",
-		}
-		opptr = #op
-		hook = cnvobj:addHook("UNDOADDED",resumeSel)
+			else
+				-- Setup the operation table
+				op[#op + 1] = {
+					finish = function()
+						cnvobj.op[stat].finish()
+						resumeSel()
+					end,
+					mode = "LUAGL",
+				}
+				opptr = #op
+				hook = cnvobj:addHook("UNDOADDED",resumeSel)
+			end
+		end
 	end
 end
 
 -- To load data from a file
 function GUI.toolbar.buttons.addComponentButton:action()
-	local hook,helpID,opptr
+	local hook,helpID,opptr,fileDlg,stat,msg,IDMAP,lgl
 	local function resumeSel()
+		-- Add the items in the components table
+		if IDMAP then
+			comp.newComponent(fileDlg.value,lgl,msg,IDMAP)
+		end
 		print("Resuming Selection")
 		unre.endGroup()
 		popHelpText(helpID)
@@ -187,7 +216,7 @@ function GUI.toolbar.buttons.addComponentButton:action()
 		sel.resumeSelection()
 		table.remove(op,opptr)
 	end
-	local fileDlg = iup.filedlg{
+	fileDlg = iup.filedlg{
 		dialogtype = "OPEN",
 		extfilter = "Demo Files|*.dia",
 		title = "Select file to load linked component...",
@@ -197,32 +226,43 @@ function GUI.toolbar.buttons.addComponentButton:action()
 	if fileDlg.status == "-1" then
 		return
 	end
-	f = io.open(fileDlg.value,"r")
+	local f = io.open(fileDlg.value,"r")
 	local s = f:read("*a")
 	f:close()
-	sel.pauseSelection()
-	helpID = pushHelpText("Click to place component")
-	unre.beginGroup()
-	local stat,msg,IDMAP = cnvobj:load(s,nil,nil,nil,nil,true)
-	--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
+	local env = {}
+	local func = load(s,nil,nil,env)
+	stat,msg = pcall(func)
+	
 	if not stat then
-		print("Error loading file: ",msg)
+		print("Error loading file...")
 		local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "File cannot be loaded.\n"..msg}
 		dlg:popup()
 		resumeSel()
 	else
-		-- Add the items in the components table
-		comp.newComponent(fileDlg.value,s,msg,IDMAP)
-		-- Setup the operation table
-		op[#op + 1] = {
-			finish = function()
-				cnvobj.op[stat].finish()
-				resumeSel()
-			end,
-			mode = "LUAGL",
-		}
-		opptr = #op
-		hook = cnvobj:addHook("UNDOADDED",resumeSel)
+		lgl = env.lgl
+		-- Ignore any comps since nested comps provide no advantage just more complexity
+		sel.pauseSelection()
+		helpID = pushHelpText("Click to place component")
+		unre.beginGroup()
+		stat,msg,IDMAP = cnvobj:load(lgl,nil,nil,nil,nil,true)
+		--local stat,msg = cnvobj:load(s,450,300)	-- Non interactive load at the given coordinate
+		if not stat then
+			print("Error loading file: ",msg)
+			local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "File cannot be loaded.\n"..msg}
+			dlg:popup()
+			resumeSel()
+		else
+			-- Setup the operation table
+			op[#op + 1] = {
+				finish = function()
+					cnvobj.op[stat].finish()
+					resumeSel()
+				end,
+				mode = "LUAGL",
+			}
+			opptr = #op
+			hook = cnvobj:addHook("UNDOADDED",resumeSel)
+		end
 	end
 end
 
@@ -892,8 +932,19 @@ function GUI.toolbar.buttons.refreshButton:action()
 				end
 				return false
 			else
-				coData[file] = f:read("*a")
+				local fData = f:read("*a")
 				f:close()
+				local env = {}
+				local func = load(fData,nil,nil,env)
+				local stat,msg = pcall(func)
+				
+				if not stat then
+					if not errs[file] then
+						errs[file] = "Error loading file data: "..msg
+					end
+				else
+					coData[file] = env.lgl
+				end
 				return true
 			end
 		end
@@ -910,38 +961,43 @@ function GUI.toolbar.buttons.refreshButton:action()
 		comp.deleteComponent(id)
 		return true
 	end
-	
+	unre.pauseUndoRedo()
+	local compDone = {}
 	for component in comp.comps() do
-		-- Read the file of the component
-		local file = component.file
-		if getFileData(file) then
-			local dData = tu.s2tr(coData[file])
-			local stat,msg = cnvobj.checkData(dData)
-			if not stat then
-				errs[#errs + 1] = {file=file,msg = msg}
-			else
-				-- Get the placement point
-				local idmap = component.IDMAP
-				local items = component.items
-				for i = 1,#items do
-					if items[i].type == "object" and items[i].obj then
-						local id = items[i].obj.id
-						local fid = idmap[id]
-						local x = items[i].obj.x[1]
-						local y = items[i].obj.y[1]
-						local xa,ya = items[i].xa,items[i].ya
-						-- Delete the component
-						deleteComponent(component)
-						-- Load the file data at the right spot
-						stat,msg,idmap = cnvobj:load(coData[file],x,y,xa,ya)
-						-- load the component into components database
-						comp.newComponent(file,coData[file],msg,idmap)
-						break
-					end		-- if items[i].type == "object" and items[i].obj then ends
-				end		-- for i = 1,#items do ends			
-			end		-- if not stat then ends
-		end		-- if getFileData(file) then ends
+		if not compDone[component.id] then
+			-- Read the file of the component
+			local file = component.file
+			if getFileData(file) then
+				local dData = tu.s2tr(coData[file])
+				local stat,msg = cnvobj.checkData(dData)
+				if not stat then
+					errs[#errs + 1] = {file=file,msg = msg}
+				else
+					-- Get the placement point
+					local idmap = component.IDMAP
+					local items = component.items
+					for i = 1,#items do
+						if items[i].type == "object" and items[i].obj then
+							local id = items[i].obj.id
+							local fid = idmap[id]
+							local x = items[i].obj.x[1]
+							local y = items[i].obj.y[1]
+							local xa,ya = items[i].xa,items[i].ya
+							-- Delete the component
+							deleteComponent(component)
+							-- Load the file data at the right spot
+							stat,msg,idmap = cnvobj:load(coData[file],x,y,xa,ya)
+							-- load the component into components database
+							local c = comp.newComponent(file,coData[file],msg,idmap)
+							compDone[c.id] = true
+							break
+						end		-- if items[i].type == "object" and items[i].obj then ends
+					end		-- for i = 1,#items do ends			
+				end		-- if not stat then ends
+			end		-- if getFileData(file) then ends
+		end		-- if not compDone[component.id] then ends
 	end		-- for component in comp.comps() do ends
+	unre.resumeUndoRedo()
 	-- Now refresh the canvas
 	cnvobj:refresh()
 end

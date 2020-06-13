@@ -81,7 +81,6 @@ _VERSION = "B20.05.27"
 DEBUG:
 
 TASKS:
-* Add file linked data methodology to Demo and lua-gl library
 * Connector labeling - object to segment grouping
 * Add object resize functionality
 ]]
@@ -1095,7 +1094,8 @@ objFuncs = {
 		if not interactive then
 			x = x or math.floor(tonumber(cnvobj.cnv.rastersize:match("(%d+)x%d+"))/2)
 			y = y or math.floor(tonumber(cnvobj.cnv.rastersize:match("%d+x(%d+)"))/2)
-			x,y = cnvobj:snap(cnvobj:sCoor2dCoor(x,y))
+			--x,y = cnvobj:snap(cnvobj:sCoor2dCoor(x,y))
+			x,y = cnvobj:snap(x,y)
 		else
 			-- Mouse coordinates on the canvas snapped to the grid
 			x,y = cnvobj:snap(cnvobj:sCoor2dCoor(GUIFW.getMouseOnCanvas(cnvobj))) 
