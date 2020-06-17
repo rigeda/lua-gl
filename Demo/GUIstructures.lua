@@ -63,7 +63,8 @@ GUI.toolbar.buttons = {
 	redoButton = iup.button{image="IUP_EditRedo",tip="Redo",active="NO"},
 	copyButton = iup.button{image="IUP_EditCopy",tip="Copy"},
 	addComponentButton = iup.button{image=GUI.images.addcomponent,tip = "Add a file linked diagram"},
-	delButton = iup.button{image="IUP_EditErase",tip="Delete"}
+	delButton = iup.button{image="IUP_EditErase",tip="Delete"},
+	attachObj = iup.button{image=GUI.images.attachObj,tip="Attach Object to connector"}
 }		-- buttons ends
 
 GUI.toolbar.top = iup.hbox{
@@ -106,6 +107,7 @@ GUI.toolbar.right = iup.vbox{
 	GUI.toolbar.buttons.dragButton,
 	GUI.toolbar.buttons.moveButton,
 	GUI.toolbar.buttons.groupButton,
+	GUI.toolbar.buttons.attachObj,
 	iup.fill{};
 	margin="2x2",
 	gap="2",

@@ -313,6 +313,9 @@ local function selection_cb(button,pressed,x,y, status)
 				local lines = 5
 				if #i + #s < lines then lines = #i + #s end
 				local list = iup.flatlist{bgcolor=iup.GetGlobal("DLGBGCOLOR"),visiblelines = lines,visiblecolumns=15}
+				function list:k_any(c)
+					return iup.CONTINUE
+				end
 				local doneButton = iup.flatbutton{title = "DONE",expand="HORIZONTAL"}
 				local selValue --= 0
 				if multiple then 
@@ -338,7 +341,7 @@ local function selection_cb(button,pressed,x,y, status)
 					for k = 1,#s[j].seg do
 						listCount = listCount + 1
 						list[tostring(listCount)] = "Connector: "..s[j].conn.." Segment: "..s[j].seg[k]
-						if inselList({conn=cnvobj.drawn.conn[two.conn],seg=cnvobj.drawn.conn[two.conn].segments[two.seg[k]]}) then
+						if inselList({conn=cnvobj.drawn.conn[s[j].conn],seg=cnvobj.drawn.conn[s[j].conn].segments[s[j].seg[k]]}) then
 							if multiple then
 								selValue = selValue.."+"
 							else
@@ -351,6 +354,14 @@ local function selection_cb(button,pressed,x,y, status)
 				end
 				list.value = selValue
 				local seldlg = iup.dialog{iup.vbox{list,doneButton};border="NO",resize="NO",minbox="NO",menubox="NO"}
+				function seldlg:k_any(c)
+					if c == iup.K_ESC then
+						-- Hide the dialog
+						seldlg:hide()
+						return iup.IGNORE
+					end
+					return iup.IGNORE
+				end
 				local done
 				local function getSelected()
 					if not done then

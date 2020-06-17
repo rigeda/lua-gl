@@ -169,12 +169,17 @@ function GUI.toolbar.buttons.loadButton:action()
 		resumeSel()
 	else
 		local lgl = env.lgl
-		comps = tu.s2tr(env.comps)
-		if not comps then
-			local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "Components cannot be loaded.\n"..msg}
-			dlg:popup()
-			resumeSel()
-		else
+		local cont = true
+		if env.comps then
+			comps = tu.s2tr(env.comps)
+			if not comps then
+				local dlg = iup.messagedlg{dialogtype="ERROR",title = "Error loading file...",value = "Components cannot be loaded.\n"..msg}
+				dlg:popup()
+				resumeSel()
+				cont = false
+			end
+		end
+		if cont then
 			sel.pauseSelection()
 			helpID = pushHelpText("Click to place the diagram")
 			unre.beginGroup()
@@ -352,29 +357,40 @@ local function manageClicks(msg,cb,finish)
 		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
+		if op[opptr].mode == "LUAGL" then
+			unre.endGroup()
+		end
 		table.remove(op,opptr)
 	end
 	local function getClick(button,pressed,x,y,status)
 		if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-			popHelpText(helpID)
-			helpID = pushHelpText(msg[msgIndex])
-			msgIndex = msgIndex + 1
 			-- Update operation finish
 			op[opptr].finish = function()
 				popHelpText(helpID)
 				cnvobj:removeHook(hook)
 				sel.resumeSelection()
 				table.remove(op,opptr)
-				finish[msgIndex-2]()
+				finish[msgIndex-1](x,y,status)
 			end
-			if cb[msgIndex-2] then
-				if cb[msgIndex-2]() then
+			local cbret
+			if cb[msgIndex-1] then
+				cbret = cb[msgIndex-1](x,y,status)
+				if cbret then
 					op[opptr].mode = "LUAGL"
+					unre.beginGroup()
 				end
 			end
+			popHelpText(helpID)
+			helpID = pushHelpText(msg[msgIndex])
+			msgIndex = msgIndex + 1
 			if msgIndex > #msg then
 				cnvobj:removeHook(hook)
-				hook = cnvobj:addHook("UNDOADDED",resumeSel)
+				-- If the last callback returned false i.e. the last callback did something which did not involve a Lua-GL operation then we cannot wait for the UNDOADDED hook to be triggerred so just call resumeSel immediately
+				if not cbret then
+					resumeSel()
+				else
+					hook = cnvobj:addHook("UNDOADDED",resumeSel)
+				end
 			end
 		end
 	end
@@ -744,6 +760,84 @@ function GUI.toolbar.buttons.moveButton:action()
 	end
 end
 
+-- Drag an object to associate with a connector segment
+function GUI.toolbar.buttons.attachObj:action()
+	local hook, helpID, opptrlgl, opptr, msgs,callBacks,finishers,obj
+	local function finish()
+		cnvobj.op[opptrlgl].finish()
+	end
+	local function cb2(x,y,status)
+		-- Check if there is a connector here
+		local conn,segs = cnvobj:getConnFromXY(x,y)
+		if #segs == 0 then
+			-- Need to keep clicking so add callback and msg to the tables passed to manageClicks
+			callBacks[#callBacks + 1] = cb2
+			finishers[#finishers + 1] = finish
+			msgs[#msgs + 1] = "Click connector to attach"
+			opptrlgl = cnvobj:drag({obj})
+			return true	-- To set op mode to LUAGL
+		else
+			local s = segs
+			if #segs > 1 then
+				-- We need to give the option to select which segment
+			end
+			-- Connect the obj to the segment in s
+			
+			-- Add operation to undo stack
+			
+			return false	-- So that manageClicks ends
+		end
+	end
+	local function cb1(x,y,status)
+		opptrlgl = cnvobj:drag({obj})
+		return true	-- To set op mode to LUAGL		
+	end
+	local function dragcb()
+		local sList,objs,conns = sel.selListCopy()
+		if #objs == 1 and #conns == 0 then
+			obj = objs[1]
+			popHelpText(helpID)
+			if opptr then
+				table.remove(op,opptr)	-- manageClicks manages its own operation table
+			end
+			msgs = {
+				"Click to set anchor point and drag",
+				"Click connector to attach"
+			}
+			callBacks = {cb1,cb2}
+			finishers = {finish,finish}
+			manageClicks(msgs,callBacks,finishers)
+			-- Add the hook
+			hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+		else
+			sel.deselectAll()
+		end
+	end
+	-- First get the object to drag and attach
+	local sList,objs,conns = sel.selListCopy()
+	if not (#objs == 1 and #conns == 0)then
+		sel.deselectAll()
+		-- Number of items not 1 so stop the selection and resume it with a callback which is called as soon as a selection is made.
+		sel.pauseSelection()
+		helpID = pushHelpText("Select object to attach")
+		-- Setup operation entry
+		opptr = #op + 1
+		op[opptr] = {
+			mode = "DEMOAPP",
+			finish = function()
+				popHelpText(helpID)
+				table.remove(op,opptr)
+				-- Remove the callback from the selection 
+				sel.pauseSelection()
+				sel.resumeSelection()
+			end
+		}
+		sel.resumeSelection(dragcb)
+	else
+		dragcb()
+	end	
+end
+
 -- Start Drag operation
 function GUI.toolbar.buttons.dragButton:action()
 	local hook, helpID, opptrlgl, opptr
@@ -767,7 +861,7 @@ function GUI.toolbar.buttons.dragButton:action()
 		-- Add the hook
 		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	end
-	-- First get items to move
+	-- First get items to drag
 	if #sel.selListCopy() == 0 then
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
@@ -1181,6 +1275,7 @@ local function rotateFlip(para)
 end
 
 function GUI.mainDlg:k_any(c)
+	--print("Key pressed MAIN DIALOG")
 	if c < 255 then
 		print("Pressed "..string.char(c))
 		local map = {
@@ -1278,6 +1373,7 @@ function GUI.mainDlg:k_any(c)
 			cnvobj:refresh()				
 			return iup.IGNORE 		
 		end
+		--print("ESCAPE pressed MAIN DIALOG")
 	end
 	return iup.CONTINUE
 end
