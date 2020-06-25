@@ -2,11 +2,13 @@
 require("submodsearcher")
 local LGL = require("lua-gl")
 local tu = require("tableUtils")
+local fd = require("iupcFocusDialog")
+
 local sel = require("selection")
 local unre = require("undoredo")
 local comp = require("component")
-
 local GUI = require("GUIStructures")
+local netobj = require("netobj")
 
 iup.ImageLibOpen()
 iup.SetGlobal("IMAGESTOCKSIZE","32")
@@ -200,7 +202,7 @@ function GUI.toolbar.buttons.loadButton:action()
 					mode = "LUAGL",
 				}
 				opptr = #op
-				hook = cnvobj:addHook("UNDOADDED",resumeSel)
+				hook = cnvobj:addHook("UNDOADDED",resumeSel,"To finish load")
 			end
 		end
 	end
@@ -266,7 +268,7 @@ function GUI.toolbar.buttons.addComponentButton:action()
 				mode = "LUAGL",
 			}
 			opptr = #op
-			hook = cnvobj:addHook("UNDOADDED",resumeSel)
+			hook = cnvobj:addHook("UNDOADDED",resumeSel,"To finish adding new component")
 		end
 	end
 end
@@ -324,9 +326,12 @@ end
 -- msg is the help message table
 -- cb is the operation callback table
 -- finish is a operation finish table
--- The function will handle i-1 successive left clicks where i is the number of messages
--- finish has a lengthof i-1 to have finish functions after each callback but the last one is made
--- cb has i-1 callback functions at most and 1 function at min. If a cb call returns true then the mode of op entry is LUAGL otherwise it remains unchanged
+-- The function will handle n successive left clicks where n is the max of #msg-1,#cb
+-- finish can have a max of #msg-1,#cb number of finishers
+-- If finish[0] is present it will be called if the operation finish is called before the 1s click
+-- If cb[0] is present it will be called as soon as undo groupin is enabled.
+-- If a cb call returns true then the mode of op entry is LUAGL otherwise it remains unchanged. If a cb call returns "STOP" then manageClicks ends immediately without adding a UNDOADDED hook or waiting for any more clicks if those remain
+-- All the operations that happen with Manageclicks are grouped into 1 group of Undo operation
 -- The timeline is as follows:
 --[[
 	Display Message [1] ----> Left Click [1] ----> Display Message [2] + callback[1] ----> .....
@@ -351,15 +356,14 @@ end
 ]]
 local function manageClicks(msg,cb,finish)
 	local hook,helpID,opptr
-	local msgIndex = 2
+	local index = 2
+	
 	-- Function for operation end
 	local function resumeSel()
 		popHelpText(helpID)
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
-		if op[opptr].mode == "LUAGL" then
-			unre.endGroup()
-		end
+		unre.endGroup()
 		table.remove(op,opptr)
 	end
 	local function getClick(button,pressed,x,y,status)
@@ -370,34 +374,35 @@ local function manageClicks(msg,cb,finish)
 				cnvobj:removeHook(hook)
 				sel.resumeSelection()
 				table.remove(op,opptr)
-				finish[msgIndex-1](x,y,status)
+				finish[index-1]()
 			end
 			local cbret
-			if cb[msgIndex-1] then
-				cbret = cb[msgIndex-1](x,y,status)
-				if cbret then
+			if cb[index-1] then
+				cbret = cb[index-1](x,y,status)
+				if cbret and cbret ~= "STOP" then
 					op[opptr].mode = "LUAGL"
-					unre.beginGroup()
 				end
 			end
 			popHelpText(helpID)
-			helpID = pushHelpText(msg[msgIndex])
-			msgIndex = msgIndex + 1
-			if msgIndex > #msg then
+			if msg[index] then
+				helpID = pushHelpText(msg[index])
+			end
+			index = index + 1
+			if index > #msg and index > #cb + 1 then
 				cnvobj:removeHook(hook)
-				-- If the last callback returned false i.e. the last callback did something which did not involve a Lua-GL operation then we cannot wait for the UNDOADDED hook to be triggerred so just call resumeSel immediately
-				if not cbret then
+				-- If the last callback returned STOP i.e. the last callback did something which did not involve a Lua-GL operation then we cannot wait for the UNDOADDED hook to be triggerred so just call resumeSel immediately
+				if cbret == "STOP" then
 					resumeSel()
 				else
-					hook = cnvobj:addHook("UNDOADDED",resumeSel)
+					hook = cnvobj:addHook("UNDOADDED",resumeSel,"To finish manageClicks")
 				end
 			end
 		end
 	end
 	sel.pauseSelection()
-	helpID = pushHelpText(msg[1])
+	unre.beginGroup()
 	-- Add the hook
-	hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
+	hook = cnvobj:addHook("MOUSECLICKPOST",getClick,"To get clicks for manageClicks")
 	-- Setup the operation
 	opptr = #op + 1
 	op[opptr] = {
@@ -406,9 +411,30 @@ local function manageClicks(msg,cb,finish)
 			cnvobj:removeHook(hook)
 			sel.resumeSelection()
 			table.remove(op,opptr)
+			if finish[0] then
+				finish[0]()
+			end
+			unre.endGroup()
 			popHelpText(helpID)
 		end,
 	}
+	local cbret
+	if cb[0] then
+		cbret = cb[0]()
+		if cbret and cbret ~= "STOP" then
+			op[opptr].mode = "LUAGL"
+		end
+	end
+	helpID = pushHelpText(msg[1])
+	if index > #msg and index > #cb + 1 then
+		cnvobj:removeHook(hook)
+		-- If the last callback returned STOP i.e. the last callback did something which did not involve a Lua-GL operation then we cannot wait for the UNDOADDED hook to be triggerred so just call resumeSel immediately
+		if cbret == "STOP" then
+			resumeSel()
+		else
+			hook = cnvobj:addHook("UNDOADDED",resumeSel,"To finish manageClicks")
+		end
+	end
 end
 
 -- Draw line object
@@ -589,56 +615,40 @@ function GUI.toolbar.buttons.textButton:action()
 		"Alignment: %l|"..table.concat(alignList,"|").."|\n"..
 		"Orientation: %a[0,360]\n","","Courier, 12","0 0 0",asi,0)
 	if ret then
-		-- Create a representation of the text at the location of the mouse pointer and then start its move
-		-- Set refX,refY as the mouse coordinate on the canvas
-		local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
-		unre.beginGroup()
-		local o = cnvobj:drawObj("TEXT",{{x=refX,y=refY}},{text=text})
-		-- If the formatting is not the same as the default then add a formatting attribute for the text
-		if color ~= "0 0 0" or font ~= "Courier, 12" or as ~= "base right" or ori ~= 0 then
-			local typeface,style,size = font:match("(.-),([%a%s]*)%s*([+-]?%d+)$")
-			size = cnvobj:fontPt2Pixel(tonumber(size))
-			style = "" and c.PLAIN or style
-			local clr = {}
-			clr[1],clr[2],clr[3] = color:match("(%d%d*)%s%s*(%d%d*)%s%s*(%d%d*)")
-			clr[1] = tonumber(clr[1])
-			clr[2] = tonumber(clr[2])
-			clr[3] = tonumber(clr[3])
-			-- Also add the attribute to the object
-			o.vattr = {color = clr,typeface = typeface, style = style,size=size,align=align[alignList[as+1]],orient = ori}
-			cnvobj.attributes.visualAttr[o] = {
-				visualAttr = cnvobj.getTextAttrFunc(o.vattr),
-				vAttr = -1	-- Unique attribute not stored in the bank
-			}
+		local function cb()
+			-- Create a representation of the text at the location of the mouse pointer and then start its move
+			-- Set refX,refY as the mouse coordinate on the canvas
+			local refX,refY = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
+			local o = cnvobj:drawObj("TEXT",{{x=refX,y=refY}},{text=text})
+			-- If the formatting is not the same as the default then add a formatting attribute for the text
+			if color ~= "0 0 0" or font ~= "Courier, 12" or as ~= "base right" or ori ~= 0 then
+				local typeface,style,size = font:match("(.-),([%a%s]*)%s*([+-]?%d+)$")
+				size = cnvobj:fontPt2Pixel(tonumber(size))
+				style = "" and c.PLAIN or style
+				local clr = {}
+				clr[1],clr[2],clr[3] = color:match("(%d%d*)%s%s*(%d%d*)%s%s*(%d%d*)")
+				clr[1] = tonumber(clr[1])
+				clr[2] = tonumber(clr[2])
+				clr[3] = tonumber(clr[3])
+				-- Also add the attribute to the object
+				o.vattr = {color = clr,typeface = typeface, style = style,size=size,align=align[alignList[as+1]],orient = ori}
+				cnvobj.attributes.visualAttr[o] = {
+					visualAttr = cnvobj.getTextAttrFunc(o.vattr),
+					vAttr = -1	-- Unique attribute not stored in the bank
+				}
+			end
+			return true	-- Set operation as LUAGL
 		end
 		local hook, helpID,opptr,opptrlgl
-		local function getClick(button,pressed,x,y,status)
-			if button == cnvobj.MOUSE.BUTTON1 and pressed == 1 then
-				cnvobj:removeHook(hook)
-				unre.endGroup()
-				popHelpText(helpID)
-				table.remove(op,opptr)
-				sel.resumeSelection()
-			end
+		local function finish()
+			cnvobj.op[opptrlgl].finish()
 		end
-		-- Add the hook
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
-		helpID = pushHelpText("Click to place text")
-	-- Setup the operation
-		opptr = #op + 1
-		op[opptr] = {
-			mode = "LUAGL",
-			finish = function()
-				cnvobj:removeHook(hook)
-				unre.endGroup()
-				table.remove(op,opptr)
-				popHelpText(helpID)
-				cnvobj.op[opptrlgl].finish()
-				sel.resumeSelection()
-			end,
-		}
+		manageClicks({
+				"Click to place text"
+			},{[0]=cb},{[0] = finish}
+		)
 		opptrlgl = cnvobj:moveObj({o})
-	end
+	end		-- if ret ends here
 end
 
 function GUI.toolbar.buttons.printButton:action()
@@ -659,41 +669,37 @@ function GUI.toolbar.buttons.checkButton:action()
 	cnvobj:load(s)
 end
 
--- Start Move operation
+-- Start Copy operation
 function GUI.toolbar.buttons.copyButton:action()
 	local hook, helpID, opptrlgl, opptr, copyStr
-	local function wrapup()
-		unre.endGroup()
-		cnvobj:removeHook(hook)
-	end
 	local function cb()
 		local x,y = cnvobj:snap(cnvobj:sCoor2dCoor(cnvobj:getMouseOnCanvas()))
 		opptrlgl = cnvobj:load(copyStr,nil,nil,x,y,true)
-		hook = cnvobj:addHook("UNDOADDED",wrapup)
 		return true	-- To set op mode to LUAGL
 	end
 	local function finish()
 		cnvobj.op[opptrlgl].finish()
-		wrapup()
 	end
 	local function copycb()
+		-- Remove the callback from the selection 
+		sel.pauseSelection()
+		sel.resumeSelection()
 		popHelpText(helpID)
 		if opptr then
 			table.remove(op,opptr)	-- manageClicks manages its own operation table
 		end
 		-- Get the copy of the selected items
-		sel.turnOFFVisuals()
+		sel.turnOFFVisuals()	-- Turn off the selection visuals so that when Lua-GL copies those elements they selection visual attributes do not become the default visual attributes of the copied items
 		local copy = cnvobj:copy((sel.selListCopy()))
 		sel.turnONVisuals()
 		copyStr = tu.t2sr(copy)
-		unre.beginGroup()
 		manageClicks({
 				"Click to copy",
 				"Click to place"
 			},{cb},{finish}
 		)
 	end
-	-- First get items to move
+	-- First get items to copy
 	if #sel.selListCopy() == 0 then
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
@@ -727,6 +733,9 @@ function GUI.toolbar.buttons.moveButton:action()
 		cnvobj.op[opptrlgl].finish()
 	end
 	local function movecb()
+		-- Remove the callback from the selection 
+		sel.pauseSelection()
+		sel.resumeSelection()
 		popHelpText(helpID)
 		if opptr then
 			table.remove(op,opptr)	-- manageClicks manages its own operation table
@@ -777,15 +786,83 @@ function GUI.toolbar.buttons.attachObj:action()
 			opptrlgl = cnvobj:drag({obj})
 			return true	-- To set op mode to LUAGL
 		else
-			local s = segs
-			if #segs > 1 then
-				-- We need to give the option to select which segment
+			local s = {
+				conn = segs[1].conn,
+				seg = segs[1].seg[1]
+			}
+			local function attach()
+				print("Attach object "..obj.id.." to connector "..cnvobj.drawn.conn[s.conn].id.." segment "..s.seg)
+				-- Attach the obj to the segment in s
+				netobj.newNetobj(obj,s,x,y)
+				-- Add operation to undo stack
+				
 			end
-			-- Connect the obj to the segment in s
-			
-			-- Add operation to undo stack
-			
-			return false	-- So that manageClicks ends
+			if #segs > 1 or #segs[1].seg > 1 then
+				-- We need to give the option to select which segment
+				local list = iup.flatlist{bgcolor=iup.GetGlobal("DLGBGCOLOR"),visiblelines = #segs,visiblecolumns=15}
+				function list:k_any(c)
+					return iup.CONTINUE
+				end
+				local doneButton = iup.flatbutton{title = "DONE",expand="HORIZONTAL"}
+				local seldlg = iup.dialog{iup.vbox{list,doneButton};border="NO",resize="NO",minbox="NO",menubox="NO"}
+				function seldlg:k_any(c)
+					if c == iup.K_ESC then
+						-- Hide the dialog
+						seldlg:hide()
+						unre.doUndo(true)	-- Skip Redo
+						-- Undo the entire operation
+						return iup.IGNORE
+					end
+					return iup.IGNORE
+				end
+				local li = 0
+				for j = 1,#segs do
+					for k = 1,#segs[j].seg do
+						li = li + 1
+						list[tostring(li)] = "Connector: "..segs[j].conn.." Segment: "..segs[j].seg[k]
+					end
+				end
+				local done
+				local function getSelected()
+					if not done then
+						done = true	-- To make it run only once
+					else
+						return
+					end
+					local val = list.value
+					val = tonumber(val)
+					if val and val ~= 0 then
+						-- This is a connector segment
+						local c = val
+						local ci = 0
+						for k = 1,#segs do
+							if #segs[k].seg+ci >= c then
+								s = {
+									conn = segs[k].conn,
+									seg = segs[k].seg[c-ci]
+								}
+								break
+							else
+								ci = ci + #segs[k].seg
+							end
+						end		-- for k = 1,#s do ends
+					else
+						unre.doUndo(true)	-- Skip Redo
+					end		-- if val ~= 0 then ends
+					attach()
+				end		-- local function getSelected() ends
+				local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(-?%d%d*)x(-?%d%d*)$")
+				gx,gy = tonumber(gx),tonumber(gy)
+				--print("Showing selection dialog at "..gx..","..gy)
+				function doneButton:flat_action()
+					seldlg:hide()
+					getSelected()
+				end
+				fd.popup(seldlg,gx,gy,getSelected)
+			else
+				attach()
+			end
+			return "STOP"	-- So that manageClicks ends
 		end
 	end
 	local function cb1(x,y,status)
@@ -807,16 +884,16 @@ function GUI.toolbar.buttons.attachObj:action()
 			callBacks = {cb1,cb2}
 			finishers = {finish,finish}
 			manageClicks(msgs,callBacks,finishers)
-			-- Add the hook
-			hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 		else
 			sel.deselectAll()
+			cnvobj:refresh()
 		end
 	end
 	-- First get the object to drag and attach
 	local sList,objs,conns = sel.selListCopy()
 	if not (#objs == 1 and #conns == 0)then
 		sel.deselectAll()
+		cnvobj:refresh()
 		-- Number of items not 1 so stop the selection and resume it with a callback which is called as soon as a selection is made.
 		sel.pauseSelection()
 		helpID = pushHelpText("Select object to attach")
@@ -849,6 +926,9 @@ function GUI.toolbar.buttons.dragButton:action()
 		cnvobj.op[opptrlgl].finish()
 	end
 	local function dragcb()
+		-- Remove the callback from the selection 
+		sel.pauseSelection()
+		sel.resumeSelection()
 		popHelpText(helpID)
 		if opptr then
 			table.remove(op,opptr)	-- manageClicks manages its own operation table
@@ -858,8 +938,6 @@ function GUI.toolbar.buttons.dragButton:action()
 				"Click to place"
 			},{cb},{finish}
 		)
-		-- Add the hook
-		hook = cnvobj:addHook("MOUSECLICKPOST",getClick)
 	end
 	-- First get items to drag
 	if #sel.selListCopy() == 0 then
@@ -885,20 +963,22 @@ function GUI.toolbar.buttons.dragButton:action()
 end
 
 function GUI.toolbar.buttons.delButton:action()
-	-- Function to group objects together
+	-- Function to delete
 	local helpID, opptr
 	local function delcb()
 		local _,objs,conns = sel.selListCopy() 
 		sel.pauseSelection()
 		popHelpText(helpID)
+		unre.beginGroup()		
 		for i = 1,#objs do
 			cnvobj:removeObj(objs[i])
 		end
-		cnvobj:removeSegment(conns)
+		cnvobj:removeSegments(conns)
+		unre.endGroup()
 		sel.resumeSelection()
 		cnvobj:refresh()
 	end
-	-- First get objects to group
+	-- First get items to delete
 	local _,objs,conns = sel.selListCopy() 
 	if #objs == 0 and #conns == 0 then
 		-- No items so stop the selection and resume it with a callback which is called as soon as a selection is made.
@@ -990,7 +1070,7 @@ do
 			sel.resumeSelection()
 		end
 		-- Add the hook
-		hook = cnvobj:addHook("UNDOADDED",endop)
+		hook = cnvobj:addHook("UNDOADDED",endop,"To finalize port move operation")
 		-- Start the interactive move
 		MODE = "ADDPORT"
 		helpID = pushHelpText("Click to place port")
@@ -1238,6 +1318,9 @@ local function rotateFlip(para)
 			return true	-- To set op mode to LUAGL
 		end
 		local function startRotation()
+			-- Remove the callback from the selection 
+			sel.pauseSelection()
+			sel.resumeSelection()
 			popHelpText(helpID)
 			if opptr then
 				table.remove(op,opptr)

@@ -51,7 +51,8 @@ do
 		end
 	end
 	-- Function to do undo from the diff
-	function doundo(cnvobj,diff)
+	-- if norefresh is true then canvas refresh is not done
+	function doundo(cnvobj,diff,norefresh)
 		local rm = cnvobj.rM
 		conn = conn or require("lua-gl.connector")
 		objects = objects or require("lua-gl.objects")
@@ -121,7 +122,9 @@ do
 		end
 		-- Create the drawndiff for the redo action
 		undopost(cnvobj,key)
-		cnvobj:refresh()
+		if not norefresh then
+			cnvobj:refresh()
+		end
 	end
 end
 

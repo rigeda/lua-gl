@@ -1484,10 +1484,11 @@ objFuncs = {
 	moveSegment = conn.moveSegment,
 	moveConn = conn.moveConn,
 	removeConn = conn.removeConn,
-	removeSegment = conn.removeSegment,
+	removeSegments = conn.removeSegments,
 	getConnFromID = conn.getConnFromID,
 	getConnFromXY = conn.getConnFromXY,
 	getConninRect = conn.getConninRect,
+	getSegTree = conn.getSegTree,
 	--setConnVisualAttr = conn.setConnVisualAttr,
 	---- HOOKS--------------
 	addHook = hooks.addHook,

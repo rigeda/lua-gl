@@ -10,6 +10,7 @@ local tonumber = tonumber
 local error = error
 local pairs = pairs
 local tostring = tostring
+local setmetatable = setmetatable
 
 local utility = require("lua-gl.utility")
 local tu = require("tableUtils")
@@ -17,6 +18,8 @@ local coorc = require("lua-gl.CoordinateCalc")
 local router = require("lua-gl.router")
 local GUIFW = require("lua-gl.guifw")
 local PORTS = require("lua-gl.ports")
+
+local WEAKV = {__mode="v"}	-- metatable to set weak values
 
 -- Only for debug
 local print = print
@@ -1850,7 +1853,7 @@ end
 	seg = <integer>					-- segment index of the connector
 }
 ]]
-removeSegment = function(cnvobj,segList)
+removeSegments = function(cnvobj,segList)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end	
@@ -1882,6 +1885,102 @@ moveSegment = function(cnvobj,segList,offx,offy)
 	return moveConn(cnvobj,splitConnectorAtSegments(cnvobj,segList),offx,offy)
 end
 
+-- Function to return the segment connection tree from the given segment. It returns an array of tables
+-- Each entry in the array contains a table containing an array of segments at that step (in key segs). 
+-- The table also contains another array containing ports that the segments in the previous step ended in (in key ports).
+-- The table also contains another array containing coordinates that were junctions at this step (in key juncs)
+-- Note: Both arrays are tables with weak values to allow the segment collection in case connectors are manipulated.
+getSegTree = function(cnvobj,conn,seg)
+	-- Function to return the list of segments in the connector conn whose one of the end point is x,y
+	local function segsOnNode(conn,x,y,seg)
+		local segs = setmetatable({},WEAKV)
+		for i = 1,#conn.segments do
+			if conn.segments[i].start_x == x and conn.segments[i].start_y == y and conn.segments[i] ~= seg then
+				segs[#segs + 1] = conn.segments[i]
+			elseif conn.segments[i].end_x == x and conn.segments[i].end_y == y and conn.segments[i] ~= seg then
+				segs[#segs + 1] = conn.segments[i]
+			end
+		end
+		return segs
+	end
+	
+	local function portsOnNode(x,y)
+		local prts = setmetatable({},WEAKV)
+		local p = PORTS.getPortFromXY(cnvobj,seg.start_x,seg.start_y)
+		for i = 1,#p do
+			prts[#prts + 1] = p[i]
+		end
+		return prts
+	end
+	local segTree = {}	-- To store the tree
+	local juncs = {}
+	local nextStep = segsOnNode(conn,seg.start_x,seg.start_y,seg)
+	if #nextStep > 1 then
+		juncs[#juncs + 1] = {seg.start_x,seg.start_y}
+	end
+	local segs = segsOnNode(conn,seg.end_x,seg.end_y,seg,seg)
+	if #segs > 1 then
+		juncs[#juncs + 1] = {seg.end_x,seg.end_y}
+	end
+	tu.mergeArrays(segs,nextStep)
+	local prts = portsOnNode(seg.start_x,seg.start_y)
+	tu.mergeArrays(portsOnNode(seg.end_x,seg.end_y),prts)
+	segTree[#segTree + 1] = {
+		ports = prts,
+		segs = nextStep,
+		juncs = juncs
+	}
+	while #segTree[#segTree].segs > 0 do
+		juncs = {}
+		local segList = segTree[#segTree].segs
+		for i = 1,#segList do
+			nextStep = segsOnNode(conn,segList[i].start_x,segList[i].start_y,segList[i])
+			if #nextStep > 1 then
+				juncs[#juncs + 1] = {segList[i].start_x,segList[i].start_y}
+			end
+			-- Remove any segments already in segTree
+			for j = #nextStep,1,-1 do
+				local found
+				for k = 1,#segTree do
+					if tu.inArray(segTree[k].segs,nextStep[j]) then
+						found = true
+						break
+					end
+				end
+				if found then
+					table.remove(nextStep,j)
+				end
+			end
+			segs = segsOnNode(conn,segList[i].end_x,segList[i].end_y,segList[i])
+			if #segs > 1 then
+				juncs[#juncs + 1] = {segList[i].end_x,segList[i].end_y}
+			end
+			-- Remove any segments already in segTree
+			for j = #segs,1,-1 do
+				local found
+				for k = 1,#segTree do
+					if tu.inArray(segTree[k].segs,segs[j]) then
+						found = true
+						break
+					end
+				end
+				if found then
+					table.remove(segs,j)
+				end
+			end
+			tu.mergeArrays(segs,nextStep)
+			prts = portsOnNode(seg.start_x,seg.start_y)
+			tu.mergeArrays(portsOnNode(seg.end_x,seg.end_y),prts)
+		end
+		segTree[#segTree + 1] = {
+			ports = prts,
+			segs = nextStep,
+			juncs = juncs
+		}
+	end
+	return segTree
+end
+
 -- Function to get the coordinates from where each segment in seglist would need rerouting when it is dragged. Only the starting coordinate of the routing and the offset of that coordinate from the segment end is needed. Since in the drag operation the segment is moved by a certain offset. So after the move by the offset simply generate segments from all starting coordinates in dragnodes to the new coordinates obtained by adding the drag offset and the offset stored in the dragnodes structure to reach their respective segment ends.
 -- objList is a list of objects that are being dragged together.
 -- If a segment is connected to a port of an object in objList then its end is not added in dragNodes since it will not need rerouting
@@ -1900,7 +1999,7 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 		which = <string>,	-- either "start_" or "end_" to mark which coordinate of the segment this is
 	}
 	]]
-	-- Function to return the list of segments whose one of the end point is x,y
+	-- Function to return the list of segments in the connector conn whose one of the end point is x,y
 	local function segsOnNode(conn,x,y)
 		local segs = {}
 		for i = 1,#conn.segments do
@@ -1916,8 +2015,8 @@ generateRoutingStartNodes = function(cnvobj,segList,objList)
 	-- Function to add x,y coordinate to dragNodes if all segments connected to it are not in the segList array
 	local segsToAdd = {}
 	local function updateDragNodes(conn,segI,which)
-		local refSeg = conn.segments[segI]
-		local x,y = refSeg[which.."x"],refSeg[which.."y"]
+		local refSeg = conn.segments[segI]	-- The segment structure whose dragNodes are to be calculated
+		local x,y = refSeg[which.."x"],refSeg[which.."y"]	-- The coordinates to which the routing has to be done
 		local segs = segsOnNode(conn,x,y)
 		local allSegs=true		-- to indicate if all segments in segs are in segList (at least 1 segment is in segList which coordinate is x,y)
 		for j = 1,#segs do

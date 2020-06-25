@@ -28,6 +28,7 @@ end
 
 function endGroup()
 	group = false
+	print("End LUAGLGROUP")
 end
 
 local function updateButtons()
@@ -62,10 +63,10 @@ local function addUndoStack(diff)
 					obj = {diff}
 				}
 				newGroup = false
+				print("Add LUAGLGROUP to stack")
 			else
 				tab[#tab].obj[#tab[#tab].obj + 1] = diff
 			end
-			print("Add LUAGLGROUP to stack")
 		else
 			tab[#tab + 1] = {
 				type = "LUAGL",
@@ -91,11 +92,12 @@ function doUndo(skipRedo)
 			toRedo = true
 			beginGroup()
 			for j = #undo[i].obj,1,-1 do
-				cnvobj:undo(undo[i].obj[j])
+				cnvobj:undo(undo[i].obj[j],true)
 			end
 			table.remove(undo,i)
 			toRedo = false
 			endGroup()
+			cnvobj:refresh()
 			break
 		end
 	end
@@ -136,7 +138,7 @@ end
 
 function resumeUndoRedo()
 	if not hook then
-		hook = cnvobj:addHook("UNDOADDED",addUndoStack)
+		hook = cnvobj:addHook("UNDOADDED",addUndoStack,"To add operations to the Undo Stack")
 	end
 end
 
@@ -151,5 +153,5 @@ function init(cnvO,ub,rb)
 	group = false
 	newGroup = false
 	updateButtons()
-	hook = cnvobj:addHook("UNDOADDED",addUndoStack)
+	hook = cnvobj:addHook("UNDOADDED",addUndoStack,"To add operations to the Undo Stack")
 end

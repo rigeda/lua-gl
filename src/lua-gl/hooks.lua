@@ -20,17 +20,20 @@ end
 {
 	key = <string>,			-- string which tells when the hook has to be executed
 	func = <function>,		-- function code for the hook that is executed
+	info = <string>,		-- OPTIONAL any string description/information to associate with the hook. Can be used for logging or debugging purposes
 	id = <integer>			-- Unique ID for the hook. Format is H<num> i.e. H followed by a unique number
 }
 ]]
 -- Hooks are located at cnvobj.hook
 
---[[ DEFINED HOOKS IN lua-gl
+--[[ DEFINED HOOKS IN lua-gl (keys)
 MOUSECLICKPRE
 MOUSECLICKPOST
 UNDOADDED
 RESIZED
 ]]
+-- Hooks are processed in the order they were added
+-- A hook function is only called once for a hook event. Even if it was added multiple times
 function processHooks(cnvobj, key, params)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
@@ -56,7 +59,11 @@ function processHooks(cnvobj, key, params)
 	end
 end
 
-addHook = function(cnvobj,key,func)
+-- Function to add a hook
+-- key is the key at which the hook will be executed. For the list of valid keys see the top of this module
+-- func is the function that is called to execute the hook
+-- info is a string info to associate with the hook for logging and debugging purposes
+addHook = function(cnvobj,key,func,info)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
@@ -66,6 +73,7 @@ addHook = function(cnvobj,key,func)
 	local hook = {
 		key = key,
 		func = func,
+		info = info,
 		id = "H"..tostring(cnvobj.hook.ids + 1)
 	}
 	local index = #cnvobj.hook

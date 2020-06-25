@@ -39,7 +39,7 @@ and the entry for the connector structure is a weak value table having the 3 ent
 }
 ]]
 local components = {ids = 0}
-local WEAKV = {__mode="v"}	-- metatable to set weak keys
+local WEAKV = {__mode="v"}	-- metatable to set weak values
 
 local function copyComponent(comp)
 	local c = {
@@ -223,9 +223,9 @@ function loadComponents(comps,items,IDMAP)
 			end
 		end
 		for j = 1,#its do
-			itd[#itd + 1] = {
+			itd[#itd + 1] = setmetatable({
 				type = its[j].type
-			}
+			},WEAKV)
 			if its[j].type == "object" then
 				itd[#itd].xa = its[j].xa
 				itd[#itd].ya = its[j].ya

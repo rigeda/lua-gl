@@ -77,10 +77,11 @@ local function updateSelList()
 	end
 end
 
+-- Init does not start the selection functionality. Call resumeSelection to start that.
 function init(cvobj, gui,objSelC,connSelC)
 	cnvobj = cvobj
 	GUI = gui
-	cnvobj:addHook("UNDOADDED",updateSelList)
+	cnvobj:addHook("UNDOADDED",updateSelList,"To update the selection list")
 	objSelColor = objSelC or {255, 162, 232}
 	connSelColor = connSelC or {255, 128, 255}
 end
@@ -184,7 +185,7 @@ function deselectAll()
 	GUI.statBarM.title = ""
 end
 
-local function setSelectedDisplay()
+local function setSelectedDisplay(nocallback)
 	-- Set the selection attribute
 	for i,v in pairs(selList) do
 		local attr
@@ -214,7 +215,7 @@ local function setSelectedDisplay()
 	end
 	GUI.statBarM.title = tostring(#selListCopy()).." selected"
 	cnvobj:refresh()	
-	if callback and type(callback) == "function" and #selListCopy() > 0 then
+	if not nocallback and callback and type(callback) == "function" and #selListCopy() > 0 then
 		callback()
 	end
 end
@@ -243,7 +244,7 @@ end
 
 -- Function to turn ON the visual indications of the element being selected
 function turnONVisuals()
-	setSelectedDisplay(0)
+	setSelectedDisplay(true)
 end
 
 -- Button_CB callback to select stuff. Set as a hook in MOUSECLICKPOST event
@@ -611,7 +612,7 @@ function resumeSelection(cb)
 	if selID then
 		cnvobj:removeHook(selID)
 	end
-	selID = cnvobj:addHook("MOUSECLICKPRE",selection_cb)	
+	selID = cnvobj:addHook("MOUSECLICKPRE",selection_cb,"To process a click for selection of items")	
 end
 
 function pauseSelection()
