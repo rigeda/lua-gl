@@ -15,12 +15,61 @@ end
 
 local cnvobj, hook, undoButton, redoButton 
 local undo,redo = {},{}		-- The UNDO and REDO stacks
+-- Each entry in the undo/redo stack is a table with the following structure:
+--[[
+	{	-- Array of items where each item is:
+		{
+			type = <string>, 	-- can be "LUAGL", "FUNCTION"
+			item = <table> or <function>	-- table if type is LUAGL then it is the diff table
+											-- function if type is FUNCTION
+		}	
+	}
+]]
+
 local toRedo = false
 local doingRedo = false
 local skip = false
 local group = false
 local newGroup = false
 
+-- Behavior of addUndoStack with the above flags 1=true, 0 = false
+--[[
+skip		doingRedo		toRedo		group		newGroup		addUndoStack Behavior
+	0			0			0				0			0			Redo stack emptied, new single undo item added  to new entry in stack
+	0			0			0				0			1		*	INVALID CONFIG SINCE group=0 newgroup has no affect
+	0			0			0				1			0			Redo stack emptied, new single undo item added to previous entry in the stack
+	0			0			0				1			1			Redo stack emptied, new single undo item added to new entry in the stack
+	0			0			1				0			0		*	INVALID CONFIG since redo stack would be emptied and then item added to it
+	0			0			1				0			1		*	INVALID CONFIG since redo stack would be emptied and then item added to it
+	0			0			1				1			0		*	INVALID CONFIG since redo stack would be emptied and then item added to it
+	0			0			1				1			1		*	INVALID CONFIG since redo stack would be emptied and then item added to it
+	0			1			0				0			0			New single redo item added to new entry in stack
+	0			1			0				0			1		*	INVALID CONFIG SINCE group=0 newGroup has no affect
+	0			1			0				1			0			New single redo item added to previous entry in the stack
+	0			1			0				1			1			New single redo item added to new entry in the stack
+	0			1			1				0			0		*	INVALID CONFIG toRedo cannot be 1 when doingRedo is 1
+	0			1			1				0			1		*	INVALID CONFIG toRedo cannot be 1 when doingRedo is 1
+	0			1			1				1			0		*	INVALID CONFIG toRedo cannot be 1 when doingRedo is 1
+	0			1			1				1			1		*	INVALID CONFIG toRedo cannot be 1 when doingRedo is 1
+	1			0			0				0			0			Nothing Done					
+	1			0			0				0			1			Nothing Done
+	1			0			0				1			0			Nothing Done
+	1			0			0				1			1			Nothing Done
+	1			0			1				0			0			Nothing Done
+	1			0			1				0			1			Nothing Done
+	1			0			1				1			0			Nothing Done
+	1			0			1				1			1			Nothing Done
+	1			1			0				0			0			Nothing Done
+	1			1			0				0			1			Nothing Done
+	1			1			0				1			0			Nothing Done
+	1			1			0				1			1			Nothing Done
+	1			1			1				0			0			Nothing Done
+	1			1			1				0			1			Nothing Done
+	1			1			1				1			0			Nothing Done
+	1			1			1				1			1			Nothing Done
+
+
+]]
 function beginGroup()
 	newGroup = true
 	group = true
@@ -29,6 +78,10 @@ end
 function endGroup()
 	group = false
 	print("End LUAGLGROUP")
+end
+
+function continueGroup()
+	group = true
 end
 
 local function updateButtons()
@@ -44,33 +97,57 @@ local function updateButtons()
 	end	
 end
 
-local function addUndoStack(diff)
+--[[
+addUndoStack has to behave accordingly for the 4 following situations:									group		newGroup	doingRedo	toRedo
+1. When a operation is happenning in a group of operations that are to be clumped as 1 operation			1			0/1			0			0
+2. When a operation is happenning 																			0			X			0			0
+3. When undo is happenning and a operation was done in a group of operations								1			0/1			0			1
+4. When undo is happenning for a single operation 															0			X			0			1
+5. When redo is happenning and a operation was done in a group of operations								1			0/1			1			0
+6. When redo is happenning for a single operation															0			X			1			0
+
+skip just disables addUndoStack to do anything
+]]
+local function addUndoStack(diff,func)
 	local tab = undo
 	if toRedo then 
 		print("Doing UNDO",skip)
 		tab = redo 
-	elseif not doingRedo then
-		redo = {}	-- Redo is emptied if any action is done
-	else
-		print("DOING REDO",skip)
 	end
 	if not skip then
+		if not doingRedo then
+			redo = {}	-- Redo is emptied if any action is done
+		end
+		local ty = "LUAGL"
+		local it = diff
+		if not diff then	-- This is function
+			ty = "FUNCTION"
+			it = func
+		end
 		if group then
 			-- To group multiple luagl actions into 1 undo action of the host application
 			if newGroup then
 				tab[#tab + 1] = {
-					type = "LUAGLGROUP",
-					obj = {diff}
+					{
+						type = ty,
+						item = it
+					}
 				}
 				newGroup = false
-				print("Add LUAGLGROUP to stack")
+				print("Add GROUP to stack")
 			else
-				tab[#tab].obj[#tab[#tab].obj + 1] = diff
+				tab[#tab][#tab[#tab]+1] = {
+					type=ty,
+					item=it
+				}
+				print("Add LUAGL to group")
 			end
 		else
 			tab[#tab + 1] = {
-				type = "LUAGL",
-				obj = diff
+				{
+					type = ty,
+					item = it
+				}
 			}
 			print("Add LUAGL to stack")
 		end
@@ -78,29 +155,26 @@ local function addUndoStack(diff)
 	updateButtons()
 end
 
+function addUndoFunction(func)
+	addUndoStack(nil,func)
+end
+
 -- skipRedo if true will skip adding the action to the redo stack
 function doUndo(skipRedo)
 	skip = skipRedo
-	for i = #undo,1,-1 do
-		if undo[i].type == "LUAGL" then
-			toRedo = true
-			cnvobj:undo(undo[i].obj)
-			table.remove(undo,i)
-			toRedo = false
-			break
-		elseif undo[i].type == "LUAGLGROUP" then
-			toRedo = true
-			beginGroup()
-			for j = #undo[i].obj,1,-1 do
-				cnvobj:undo(undo[i].obj[j],true)
-			end
-			table.remove(undo,i)
-			toRedo = false
-			endGroup()
-			cnvobj:refresh()
-			break
+	local i = #undo
+	toRedo = true
+	beginGroup()
+	for j = #undo[i],1,-1 do
+		if undo[i][j].type == "LUAGL" then
+			cnvobj:undo(undo[i][j].item)
+		else	-- undo[i][j].type == "FUNCTION"
+			undo[i][j].item()
 		end
 	end
+	table.remove(undo,i)
+	endGroup()
+	toRedo = false
 	skip = false
 	updateButtons()
 end
@@ -108,25 +182,19 @@ end
 -- skipUndo if true will skip adding the action to the undo stack
 function doRedo(skipUndo)
 	skip = skipUndo
-	for i = #redo,1,-1 do
-		if redo[i].type == "LUAGL" then
-			doingRedo = true
+	local i = #redo
+	doingRedo = true
+	beginGroup()
+	for j = #redo[i],1,-1 do
+		if redo[i][j].type == "LUAGL" then
 			cnvobj:undo(redo[i].obj)
-			table.remove(redo,i)
-			doingRedo = false
-			break
-		elseif redo[i].type == "LUAGLGROUP" then
-			doingRedo = true
-			beginGroup()
-			for j = #redo[i].obj,1,-1 do
-				cnvobj:undo(redo[i].obj[j])
-			end
-			table.remove(redo,i)
-			doingRedo = false
-			endGroup()
-			break
+		else	-- redo[i][j].type == "FUNCTION"
+			redo[i][j].item()
 		end
 	end	
+	table.remove(redo,i)
+	doingRedo = false
+	endGroup()
 	skip = false
 	updateButtons()
 end	
