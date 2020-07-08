@@ -8,6 +8,7 @@ local floor = math.floor
 local sqrt = math.sqrt
 
 local unre = require("undoredo")
+local tu = require("tableUtils")
 
 local M = {}
 package.loaded[...] = M
@@ -17,16 +18,92 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
+-- netobj structure is an array of tables. Each table is a weak value table with the following elements:
+--[[
+{
+	id = <string>,				-- ID of the net object
+	obj = <luagl object>,		-- object structure
+	xa = <integer>,				-- The anchor points of the obj
+	ya = <integer>,				-- The anchor points of the obj
+	conn = <lua-gl connector>,	-- connector structure
+	seg = <lua-gl segment>,		-- segment structure
+	x1 = <integer>,				-- segment startx
+	y1 = <integer>,				-- segment starty
+	x2 = <integer>,				-- segment endx
+	y2 = <integer>				-- segment endy
+	segTree = <table>			-- structure containing 
+}
+]]
 local netobjs = {ids=0}
 local hook,cnvobj
 local WEAKV = {__mode="v"}	-- metatable to set weak values
 
+-- Function to backup a netobj
+-- It does not point to the actual object/connector/segment structures in the Lua-GL data structures. 
+-- This is helpful because undo/redo options may change the table addresses. So it is better to refer them from their values
+local function backupNetObj(no)
+	local n = {
+		id = no.id,
+		obj = no.obj and no.obj.id,
+		xa = no.xa,
+		ya = no.ya,
+		conn = no.conn and no.conn.id,
+		x1 = no.x1,
+		y1 = no.y1,
+		x2 = no.x2,
+		y2 = no.y2,
+		segTree = no.segTree
+	}
+	local i = tu.inArray(no.conn.segments,no.seg)
+	if i then
+		n.seg = i
+	end
+	return n
+end
+
+-- Function to restore the backed up netobj as returned by backupNetObj function
+local function restoreNetObj(no)
+	local n = {
+			id = no.id,
+			xa = no.xa,
+			ya = no.ya,
+			obj = no.obj and cnvobj:getObjFromID(no.obj),
+			x1 = no.x1,
+			x2 = no.x2,
+			y1 = no.y1,
+			y2 = no.y2,
+			conn = no.conn and cnvobj:getConnFromID(no.conn),
+			segTree = no.segTree
+	}
+	n.seg = no.conn and no.seg and n.conn.segments[no.seg] 
+	return n
+end
+
 function deleteNetObj(id)
+	local index
 	for i = 1,#netobjs do
 		if netobjs[i].id == id then
-			table.remove(netobjs,i)
-			return true	-- id found and deleted
+			index = i
+			break
 		end
+	end
+	if index then
+		-- Setup and return the undo/redo functions
+		local no,undo,redo
+		undo = function()
+			table.insert(netobjs,index,restoreNetObj(no))
+			return redo
+		end
+		redo = function()
+			-- Create a backup of the component structure to be used for the undo function
+			no = backupNetObj(netobjs[index])
+			table.remove(netobjs,index)
+			return undo
+		end
+		redo()
+		-- Add the undo function
+		unre.addUndoFunction(undo)
+		return true	-- id found and deleted
 	end
 	return false	-- id not found
 end
@@ -35,8 +112,8 @@ end
 local function updateNetobjPos()
 	-- Remove the hook
 	cnvobj:removeHook(hook)
-	-- Pause undo-redo
-	unre.pauseUndoRedo()
+	-- Add this to previous group
+	unre.continueGroup()
 	-- Loop through each netobj and check if any needs to be moved
 	collectgarbage()	-- Clean up any segments/connectors that were deleted
 	for i = 1,#netobjs do
@@ -46,6 +123,7 @@ local function updateNetobjPos()
 			deleteNetObj(no.id)
 		-- Check if the segment exists
 		elseif not no.seg then
+			local n = backupNetObj(no)
 			-- segment does not exist
 			-- Go through the segTree to find another segment where to move the netobj
 			local st = no.segTree
@@ -106,11 +184,28 @@ local function updateNetobjPos()
 			if not found then
 				-- Remove the netobj entry
 				deleteNetObj(no.id)
+			else
+				-- Setup and return the undo/redo functions
+				local undo,redo
+				undo = function()
+					-- Restore the backed up component structure
+					table.insert(netobjs,i,restoreNetObj(n))
+					return redo
+				end
+				redo = function()
+					-- Create a backup of the component structure to be used for the undo function
+					n = backupNetObj(netobjs[i])
+					table.remove(netobjs,i)
+					return undo
+				end
+				-- Add the undo function
+				unre.addUndoFunction(undo)
 			end
 		else
 			-- segment exists
 			-- Check if it moved then move the netobj accordingly
 			if no.seg.start_x ~= no.x1 or no.seg.start_y ~= no.y1 or no.seg.end_x ~= no.x2 or no.seg.end_y ~= no.y2 then
+				local n = backupNetObj(no)
 				-- Segment was moved so move the netobj
 				local nx1,ny1,nx2,ny2 = no.seg.start_x,no.seg.start_y,no.seg.end_x,no.seg.end_y
 				-- THe new anchor xb,yb are defined as:
@@ -133,14 +228,34 @@ local function updateNetobjPos()
 				no.x2 = nx2
 				no.y2 = ny2
 				no.segTree = cnvobj:getSegTree(no.conn,no.seg)
+				-- Setup and return the undo/redo functions
+				local undo,redo
+				undo = function()
+					-- Restore the backed up component structure
+					table.insert(netobjs,i,restoreNetObj(n))
+					return redo
+				end
+				redo = function()
+					-- Create a backup of the component structure to be used for the undo function
+					n = backupNetObj(netobjs[i])
+					table.remove(netobjs,i)
+					return undo
+				end
+				-- Add the undo function
+				unre.addUndoFunction(undo)
 			end
 		end
 	end		-- for i = 1,#netobjs do ends
 	-- Resume Undo Redo
-	unre.resumeUndoRedo()
+	unre.endGroup()
 	hook = cnvobj:addHook("UNDOADDED",updateNetobjPos,"To update netobj positions")
 end
 
+-- Function to create a new netobj entry
+-- cs is a table with keys:
+--	* conn - index of the connector in cnvobj.drawn.conn
+--  * seg - index of the segment in the connector to which the object needs to be attached
+-- x,y is the anchor coordinate for the object. This coordinate would be on the segment
 function newNetobj(obj,cs,x,y)
 	netobjs.ids = netobjs.ids + 1
 	local seg = cnvobj.drawn.conn[cs.conn].segments[cs.seg]
@@ -157,7 +272,23 @@ function newNetobj(obj,cs,x,y)
 		y2 = seg.end_y
 		segTree = cnvobj:getSegTree(cnvobj.drawn.conn[cs.conn],seg)	-- Get the segment tree from cs to move netobj to the right segment
 	},WEAKV)
-	netobj[#netobjs + 1] = no
+	netobjs[#netobjs + 1] = no
+	local index = #netobjs
+	-- Setup and return the undo/redo functions
+	local n,undo,redo
+	undo = function()
+		-- Restore the backed up component structure
+		table.insert(netobjs,index,restoreNetObj(n))
+		return redo
+	end
+	redo = function()
+		-- Create a backup of the component structure to be used for the undo function
+		n = backupNetObj(netobjs[index])
+		table.remove(netobjs,index)
+		return undo
+	end
+	-- Add the undo function
+	unre.addUndoFunction(undo)
 	return no
 end
 

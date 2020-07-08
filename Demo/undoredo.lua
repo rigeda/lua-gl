@@ -17,12 +17,15 @@ local cnvobj, hook, undoButton, redoButton
 local undo,redo = {},{}		-- The UNDO and REDO stacks
 -- Each entry in the undo/redo stack is a table with the following structure:
 --[[
-	{	-- Array of items where each item is:
+	{	-- Array of items where each item is either of the 2 samples below:
 		{
-			type = <string>, 	-- can be "LUAGL", "FUNCTION"
-			item = <table> or <function>	-- table if type is LUAGL then it is the diff table
-											-- function if type is FUNCTION
-		}	
+			type = "LUAGL",
+			diff = <table> -- It is the diff table
+		},
+		{
+			type = "FUNCTION",
+			func = <function>,	-- function to do the undo/redo task. The function should return another function which would do the redo/undo task
+		}
 	}
 ]]
 
@@ -118,37 +121,26 @@ local function addUndoStack(diff,func)
 		if not doingRedo then
 			redo = {}	-- Redo is emptied if any action is done
 		end
-		local ty = "LUAGL"
-		local it = diff
+		local t= {}
 		if not diff then	-- This is function
-			ty = "FUNCTION"
-			it = func
+			t.type = "FUNCTION"
+			t.func = func
+		else
+			t.type = "LUAGL"
+			t.diff = diff
 		end
 		if group then
 			-- To group multiple luagl actions into 1 undo action of the host application
 			if newGroup then
-				tab[#tab + 1] = {
-					{
-						type = ty,
-						item = it
-					}
-				}
+				tab[#tab + 1] = {t}
 				newGroup = false
 				print("Add GROUP to stack")
 			else
-				tab[#tab][#tab[#tab]+1] = {
-					type=ty,
-					item=it
-				}
+				tab[#tab][#tab[#tab]+1] = t
 				print("Add LUAGL to group")
 			end
 		else
-			tab[#tab + 1] = {
-				{
-					type = ty,
-					item = it
-				}
-			}
+			tab[#tab + 1] = {t}
 			print("Add LUAGL to stack")
 		end
 	end
@@ -156,7 +148,9 @@ local function addUndoStack(diff,func)
 end
 
 function addUndoFunction(func)
-	addUndoStack(nil,func)
+	if hook then	-- Undo Redo is not paused
+		addUndoStack(nil,func)
+	end
 end
 
 -- skipRedo if true will skip adding the action to the redo stack
@@ -167,9 +161,11 @@ function doUndo(skipRedo)
 	beginGroup()
 	for j = #undo[i],1,-1 do
 		if undo[i][j].type == "LUAGL" then
-			cnvobj:undo(undo[i][j].item)
+			cnvobj:undo(undo[i][j].diff)	-- redo is added automatically when addUndoStack is called as a hook for UNDOADDED
 		else	-- undo[i][j].type == "FUNCTION"
-			undo[i][j].item()
+			local redoFunc = undo[i][j].func()
+			-- Add item to redo stack to redo
+			addUndoFunction(redoFunc)
 		end
 	end
 	table.remove(undo,i)
@@ -187,9 +183,10 @@ function doRedo(skipUndo)
 	beginGroup()
 	for j = #redo[i],1,-1 do
 		if redo[i][j].type == "LUAGL" then
-			cnvobj:undo(redo[i].obj)
+			cnvobj:undo(redo[i][j].diff)
 		else	-- redo[i][j].type == "FUNCTION"
-			redo[i][j].item()
+			local undoFunc = redo[i][j].func()
+			addUndoFunction(undoFunc)
 		end
 	end	
 	table.remove(redo,i)

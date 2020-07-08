@@ -4,8 +4,10 @@ local setmetatable = setmetatable
 local tostring = tostring
 local pairs = pairs
 local table = table
+local collectgarbage = collectgarbage
 
 local tu = require("tableUtils")
+local unre = require("undoredo")
 
 
 local M = {}
@@ -24,7 +26,7 @@ The components structure will be an array of the following tables:
 	items = {},
 	IDMAP = {}		-- Table containing mapping of Object and Connector IDs loaded on the canvas to the Object and Connector IDs on the file
 }
-Here items is a table where an entry for object structure is a weak value table having the 2 entries:
+Here items is a table where an entry for object structure is a weak value table having the 4 entries:
 {
 	type = "object",
 	obj = <object structure>,
@@ -39,6 +41,7 @@ and the entry for the connector structure is a weak value table having the 3 ent
 }
 ]]
 local components = {ids = 0}
+local cnvobj
 local WEAKV = {__mode="v"}	-- metatable to set weak values
 
 local function copyComponent(comp)
@@ -57,14 +60,74 @@ local function copyComponent(comp)
 	return c
 end
 
-function getComponentFromID(id)
-	local ind
-	for i = 1,#components do
-		if components[i].id == id then
-			ind = i 
-			break
+-- Function to backup a component
+-- The difference between copyComponent and backupComponent is that backupComponent does not point to the actual object/connector/segment structures in the Lua-GL
+-- data structures. This is helpful because undo/redo options may change the table addresses. So it is better to refer them from their values
+local function backupComponent(comp)
+	local c = {
+		id = comp.id,
+		file = comp.file,
+		items = {},
+		IDMAP = tu.copyTable(comp.IDMAP,{}),
+	}
+	for i = 1,#comp.items do
+		local item = {
+			type = comp.items[i].type
+		}
+		if item.type == "object" then
+			if comp.items[i].obj then
+				item.obj = comp.items[i].obj.id	-- store the object id instead of the structure table since the structure table address may change as a result of undo
+				item.xa = comp.items[i].xa
+				item.ya = comp.items[i].ya
+			end
+		else
+			if comp.items[i].conn and comp.items[i].seg then
+				item.conn = comp.items[i].conn.id
+				item.seg = tu.inArray(comp.items[i].conn,comp.items[i].seg)
+			end
+		end
+		c.items[#c.items + 1] = item
+	end
+	return c
+end
+
+-- Function to restore the component to the proper format to be stored in the component data structure
+-- comp is a component structure as returned by backupComponent
+local function restoreComponent(comp)
+	local c = {
+		id = comp.id,
+		file = comp.file,
+		items = {},
+		IDMAP = tu.copyTable(comp.IDMAP,{}),
+	}
+	for i = 1,#comp.items do
+		local item = {
+			type = comp.items[i].type
+		}
+		local add	-- Only add those items whose structures are not already garbage collected
+		if item.type == "object" then
+			item.obj = cnvobj:getObjFromID(comp.items[i].obj)
+			if item.obj then
+				add = true
+				item.xa = comp.items[i].xa
+				item.ya = comp.items[i].ya
+			end
+		else	
+			item.conn = cnvobj:getConnFromID(comp.items[i].conn)
+			if item.conn then
+				add = true
+				item.seg = item.conn.segments[comp.items[i].seg]
+			end
+		end
+		if add then
+			c.items[#c.items + 1] = setmetatable(item,WEAKV)
 		end
 	end
+	return c
+end
+
+function getComponentFromID(id)
+	local ind = tu.inArray(components,id,function(one,two) return one.id == two end)
 	if not ind then
 		return
 	end
@@ -73,13 +136,7 @@ function getComponentFromID(id)
 end
 
 function getComponentFromFile(file)
-	local ind
-	for i = 1,#components do
-		if components[i].file == file then
-			ind = i
-			break
-		end
-	end	
+	local ind = tu.inArray(components,file,function(one,two) return one.file == file end)
 	if not ind then
 		return 
 	end
@@ -101,13 +158,52 @@ function comps()
 end
 
 function deleteComponent(id)
+	local index
 	for i = 1,#components do
 		if components[i].id == id then
-			table.remove(components,i)
+			index = i
 			break
 		end
 	end
-	return true
+	if index then
+		-- Setup and return the undo/redo functions
+		local c,undo,redo
+		undo = function()
+			table.insert(components,index,restoreComponent(c))
+			return redo
+		end
+		redo = function()
+			-- Create a backup of the component structure to be used for the undo function
+			c = backupComponent(components[index])
+			table.remove(components,index)
+			return undo
+		end
+		redo()
+		-- Add the undo function
+		unre.addUndoFunction(undo)
+		return true
+	end
+	return false
+end
+
+-- Function to update the components structure by removing components who have been removed in Lua-GL
+function updateComponents()
+	collectgarbage()
+	for i = #components,1,-1 do
+		local found
+		-- Check if any item is found
+		for j = 1,#components[i].items do
+			if components[i].items[j].type == "object" then
+				found = components[i].items[j].obj and true
+			else
+				found = components[i].items[j].conn and components[i].items[j].seg and true
+			end
+			if found then break end
+		end
+		if not found then
+			deleteComponent(components[i].id)
+		end
+	end
 end
 
 -- items is an array with either of the 2 things:
@@ -129,6 +225,7 @@ function newComponent(file,fileDat,items,IDMAP)
 			items = {},
 			IDMAP = tu.copyTable(IDMAP,{})
 	}
+	local index = #components
 	local dData = tu.s2tr(fileDat)
 	local it = components[#components].items
 	for i = 1,#items do
@@ -157,6 +254,20 @@ function newComponent(file,fileDat,items,IDMAP)
 				},WEAKV)
 		end
 	end
+	-- Setup and return the undo/redo functions
+	local c,undo,redo
+	redo = function()
+		table.insert(components,index,restoreComponent(c))
+		return undo
+	end
+	undo = function()
+		-- Create a backup of the component structure to be used for the undo function
+		c = backupComponent(components[index])
+		table.remove(components,index)
+		return redo
+	end
+	-- Add the undo function
+	unre.addUndoFunction(undo)
 	return copyComponent(components[#components])
 end
 
@@ -164,27 +275,7 @@ end
 function saveComponents()
 	local tab = {}
 	for i = 1,#components do
-		tab[#tab + 1] = {
-			id = components[i].id,
-			file = components[i].file,
-			items = {},
-			IDMAP = tu.copyTable(components[i].IDMAP,{}),
-		}
-		local it = tab[#tab].items
-		for j = 1,#components[i].items do
-			it[#it + 1] = {
-				type = components[i].items[j].type
-			}			
-			if it[#it].type == "object" then
-				it[#it].xa = components[i].items[j].xa
-				it[#it].ya = components[i].items[j].ya
-				it[#it].obj = components[i].items[j].obj.id
-			else
-				-- connector
-				it[#it].conn = components[i].items[j].conn.id
-				it[#it].seg = tu.inArray(components[i].items[j].conn,components[i].items[j].seg)
-			end
-		end
+		tab[#tab + 1] = backupComponent(components[i])
 	end
 	return tab
 end
@@ -195,6 +286,9 @@ end
 -- IDMAP is the mapping of the IDs in the loaded structure to IDs in the file. This is also returned by the Lua-gl load function
 -- comps is the saved components table as returned by saveComponents function above
 function loadComponents(comps,items,IDMAP)
+	local retList = {}
+	local ci = {}	-- To store indexes of all the components added
+	local undo,redo
 	for i = 1,#comps do
 		components.ids = components.ids + 1
 		components[#components + 1] = {
@@ -202,7 +296,8 @@ function loadComponents(comps,items,IDMAP)
 				file = comps[i].file,
 				items = {},
 				IDMAP = {}
-		}		
+		}
+		ci[#ci + 1] = #components
 		-- Now add the items for this component
 		local itd = components[#components].items
 		local its = comps[i].items
@@ -241,7 +336,31 @@ function loadComponents(comps,items,IDMAP)
 		for k,v in pairs(ids) do
 			idd[getLoadedID(k)] = v
 		end
+		retList[#retList + 1] = components[#components].id
+	end		-- for i = 1,#comps do ends
+	table.sort(ci)
+	local c
+	redo = function()
+		for i = #ci,1,-1 do
+			table.insert(components,ci[i],restoreComponent(c[i-#c+1]))
+		end
+		return undo
 	end
-	return true
+	undo = function()
+		c = {}
+		-- Create a backup of the component structure to be used for the undo function
+		for i = #ci,1,-1 do 
+			c[#c+1] = backupComponent(components[ci[i]])
+			table.remove(components,ci[i])
+		end
+		return redo
+	end
+	-- Add the undo function
+	unre.addUndoFunc(undo)
+	return retList	
+end
+
+function init(cnvO)
+	cnvobj = cnvO
 end
 
