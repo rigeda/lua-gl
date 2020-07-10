@@ -118,7 +118,7 @@ local function addUndoStack(diff,func)
 		tab = redo 
 	end
 	if not skip then
-		if not doingRedo then
+		if not doingRedo and not toRedo then
 			redo = {}	-- Redo is emptied if any action is done
 		end
 		local t= {}

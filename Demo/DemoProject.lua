@@ -59,6 +59,8 @@ unre.init(cnvobj,GUI.toolbar.buttons.undoButton,GUI.toolbar.buttons.redoButton)
 sel.init(cnvobj,GUI)
 -- Initialize component system
 comp.init(cnvobj)
+-- Initialize the netobj system
+netobj.init(cnvobj)
 
 sel.resumeSelection()
 
@@ -227,18 +229,20 @@ local function manageClicks(msg,cb,finish)
 	-- Function for operation end
 	local function cleanup()
 		popHelpText(helpID)
-		cnvobj:removeHook(hook)
-		sel.resumeSelection()
 		if cb[index] then
 			cb[index]()
 		end
+		cnvobj:removeHook(hook)
+		sel.resumeSelection()
 		unre.endGroup()
 		table.remove(op,opptr)
 	end
 	local function doCallback(x,y,status)
+		popHelpText(helpID)
+		local fi = index
 		op[opptr].finish = function()
-			if finish[index] then
-				finish[index]()
+			if finish[fi] then
+				finish[fi]()
 			end
 			cleanup()
 		end
@@ -752,12 +756,13 @@ function GUI.toolbar.buttons.attachObj:action()
 	local function finish()
 		cnvobj.op[opptrlgl].finish()
 	end
+	local function dummy() end
 	local function cb2(x,y,status)
 		-- Check if there is a connector here
 		local conn,segs = cnvobj:getConnFromXY(x,y)
 		if #segs == 0 then
 			-- Need to keep clicking so add callback and msg to the tables passed to manageClicks
-			callBacks[#callBacks + 1] = cb2
+			table.insert(callBacks,#callBacks,cb2)
 			finishers[#finishers + 1] = finish
 			msgs[#msgs + 1] = "Click connector to attach"
 			opptrlgl = cnvobj:drag({obj})
@@ -847,6 +852,9 @@ function GUI.toolbar.buttons.attachObj:action()
 	local function dragcb()
 		local sList,objs,conns = sel.selListCopy()
 		if #objs == 1 and #conns == 0 then
+			-- Remove the callback from the selection 
+			sel.pauseSelection()
+			sel.resumeSelection()
 			obj = objs[1]
 			popHelpText(helpID)
 			if opptr then
@@ -854,10 +862,11 @@ function GUI.toolbar.buttons.attachObj:action()
 			end
 			msgs = {
 				"Click to set anchor point and drag",
-				"Click connector to attach"
+				"Click connector to attach",
+				"Click connector to attach",
 			}
-			callBacks = {cb1,cb2}
-			finishers = {finish,finish}
+			callBacks = {dummy,cb1,cb2,dummy}
+			finishers = {dummy,finish,finish,finish}
 			manageClicks(msgs,callBacks,finishers)
 		else
 			sel.deselectAll()
@@ -1202,6 +1211,8 @@ function GUI.toolbar.buttons.newButton:action()
 	sel.init(cnvobj,GUI)
 	-- Initialize component system
 	comp.init(cnvobj)
+	-- Initialize the netobj system
+	netobj.init(cnvobj)
 	sel.resumeSelection()
 	cnvobj:refresh()
 end

@@ -186,16 +186,18 @@ local function updateNetobjPos()
 				deleteNetObj(no.id)
 			else
 				-- Setup and return the undo/redo functions
-				local undo,redo
+				local undo
 				undo = function()
+					-- Backup the netobj
+					local bac = backupNetObj(netobjs[i])
+					local no = netobjs[i]
+					-- Drag the object
+					cnvobj:drag({no.obj},n.xa-no.xa,n.ya-no.ya)
+					-- Delete the netobj
+					table.remove(netobjs,i)
 					-- Restore the backed up component structure
 					table.insert(netobjs,i,restoreNetObj(n))
-					return redo
-				end
-				redo = function()
-					-- Create a backup of the component structure to be used for the undo function
-					n = backupNetObj(netobjs[i])
-					table.remove(netobjs,i)
+					n = bac
 					return undo
 				end
 				-- Add the undo function
@@ -221,6 +223,7 @@ local function updateNetobjPos()
 				local L = (ndy^2+ndx^2)*((no.ya-no.y1)^2+(no.xa-no.x1)^2)/((no.y2-no.y1)^2+(no.x2-no.x1)^2)
 				local xb = floor(sqrt(L/(m+1)))+nx1
 				local yb = floor(m*(xb-nx1)) + ny1
+				cnvobj:drag({no.obj},xb-no.xa,yb-no.ya)
 				no.xa = xb
 				no.ya = yb
 				no.x1 = nx1
@@ -229,16 +232,18 @@ local function updateNetobjPos()
 				no.y2 = ny2
 				no.segTree = cnvobj:getSegTree(no.conn,no.seg)
 				-- Setup and return the undo/redo functions
-				local undo,redo
+				local undo
 				undo = function()
+					-- Backup the netobj
+					local bac = backupNetObj(netobjs[i])
+					local no = netobjs[i]
+					-- Drag the object
+					cnvobj:drag({no.obj},n.xa-no.xa,n.ya-no.ya)
+					-- Delete the netobj
+					table.remove(netobjs,i)
 					-- Restore the backed up component structure
 					table.insert(netobjs,i,restoreNetObj(n))
-					return redo
-				end
-				redo = function()
-					-- Create a backup of the component structure to be used for the undo function
-					n = backupNetObj(netobjs[i])
-					table.remove(netobjs,i)
+					n = bac
 					return undo
 				end
 				-- Add the undo function
@@ -246,7 +251,7 @@ local function updateNetobjPos()
 			end
 		end
 	end		-- for i = 1,#netobjs do ends
-	-- Resume Undo Redo
+	-- End the undo group
 	unre.endGroup()
 	hook = cnvobj:addHook("UNDOADDED",updateNetobjPos,"To update netobj positions")
 end
@@ -269,7 +274,7 @@ function newNetobj(obj,cs,x,y)
 		x1 = seg.start_x,
 		y1 = seg.start_y,
 		x2 = seg.end_x,
-		y2 = seg.end_y
+		y2 = seg.end_y,
 		segTree = cnvobj:getSegTree(cnvobj.drawn.conn[cs.conn],seg)	-- Get the segment tree from cs to move netobj to the right segment
 	},WEAKV)
 	netobjs[#netobjs + 1] = no
@@ -293,6 +298,6 @@ function newNetobj(obj,cs,x,y)
 end
 
 function init(cnvO)
-	local cnvobj = cnvO
+	cnvobj = cnvO
 	hook = cnvobj:addHook("UNDOADDED",updateNetobjPos,"To update netobj positions")
 end

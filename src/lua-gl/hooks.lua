@@ -50,7 +50,7 @@ function processHooks(cnvobj, key, params)
 			done[#done + 1] = cnvobj.hook[i].func
 			local status, val = pcall(cnvobj.hook[i].func, table.unpack(params))
 			if not status then
-				error("error: " .. val)
+				error("Key: "..key.." Hook info: "..cnvobj.hook[i].info.." error: " .. val)
 			end
 			i = 1
 		else
