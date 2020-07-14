@@ -81,7 +81,6 @@ _VERSION = "B20.05.27"
 DEBUG:
 
 TASKS:
-* Connector labeling - object to segment grouping
 * Add object resize functionality
 ]]
 

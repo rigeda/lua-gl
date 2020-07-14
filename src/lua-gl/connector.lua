@@ -1724,8 +1724,8 @@ splitConnectorAtSegments = function(cnvobj,segList)
 	
 	-- Need to split the connector at the points which will break the connector as a result of the move
 	-- We need to split every connector in the list to separate the segments being moved and not being moved into different connectors
-	local connM = {}	-- List of connectors moving
-	local connNM = {}	-- List of connectors not moving
+	local connM = {}	-- List of connectors moving (consisting of the segments in segList)
+	local connNM = {}	-- List of connectors not moving (consisting of the remaining segments not in segList)
 	
 	-- Function to check if the segment segS touches any connector segment end in connA. 
 	-- If yes then it is added to that connector if not then anotehr connector is created in connA and the segment added to that
@@ -1734,7 +1734,7 @@ splitConnectorAtSegments = function(cnvobj,segList)
 		for k = 1,#connA do
 			for l = 1,#connA[k].segments do
 				local seg = connA[k].segments[l]
-				if seg.start_x == segS.start_y and seg.start_y == segS.start_y or
+				if seg.start_x == segS.start_x and seg.start_y == segS.start_y or
 				  seg.end_x == segS.start_x and seg.end_y == segS.start_y or
 				  seg.start_x == segS.end_x and seg.start_y == segS.end_y or
 				  seg.end_x == segS.end_x and seg.end_y == segS.end_y then

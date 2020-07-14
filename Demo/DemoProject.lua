@@ -227,9 +227,9 @@ local function manageClicks(msg,cb,finish)
 	local index = 1
 	
 	-- Function for operation end
-	local function cleanup()
+	local function cleanup(stop)
 		popHelpText(helpID)
-		if cb[index] then
+		if not stop and cb[index] then
 			cb[index]()
 		end
 		cnvobj:removeHook(hook)
@@ -244,7 +244,7 @@ local function manageClicks(msg,cb,finish)
 			if finish[fi] then
 				finish[fi]()
 			end
-			cleanup()
+			cleanup(true)
 		end
 		local cbret
 		if cb[index] then
@@ -259,7 +259,7 @@ local function manageClicks(msg,cb,finish)
 			cnvobj:removeHook(hook)
 			-- If the last callback returned STOP i.e. the last callback did something which did not involve a Lua-GL operation then we cannot wait for the UNDOADDED hook to be triggerred so just call resumeSel immediately
 			if cbret == "STOP" then
-				cleanup()
+				cleanup(true)
 			else
 				hook = cnvobj:addHook("UNDOADDED",cleanup,"To cleanup manageClicks")
 			end
@@ -642,10 +642,11 @@ end
 
 -- To run code to debug
 function GUI.toolbar.buttons.checkButton:action()
-	local f = io.open("../test/schematic.dia")
-	local s = f:read("*a")
-	f:close()
-	cnvobj:load(s)
+	--local f = io.open("../test/schematic.dia")
+	--local s = f:read("*a")
+	--f:close()
+	local c = cnvobj
+	--cnvobj:load(s)
 end
 
 -- Start Copy operation
