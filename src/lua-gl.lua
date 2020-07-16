@@ -1488,6 +1488,8 @@ objFuncs = {
 	getConnFromXY = conn.getConnFromXY,
 	getConninRect = conn.getConninRect,
 	getSegTree = conn.getSegTree,
+	checkSegment = function(cnvobj,seg) return cnvobj.rM:getSegment(seg) and true end,	-- To check if segment present
+	checkConn = function(cnvobj,conn) return tu.inArray(cnvobj.drawn.conn,conn) end,
 	--setConnVisualAttr = conn.setConnVisualAttr,
 	---- HOOKS--------------
 	addHook = hooks.addHook,
@@ -1498,6 +1500,7 @@ objFuncs = {
 	removePort = ports.removePort,			-- Remove a port given the portID
 	getPortFromID = ports.getPortFromID,	-- Get the port structure from the port ID
 	getPortFromXY = ports.getPortFromXY,	-- get the port structure close to x,y
+	checkPort = function(cnvobj,port) return tu.inArray(cnvobj.drawn.port,port) end,
 	---- OBJECTS------------
 	drawObj = objects.drawObj,				-- Draw object
 	dragObj = objects.dragObj,				-- drag object(s)/group(s)
@@ -1508,6 +1511,7 @@ objFuncs = {
 	getObjFromXY = objects.getObjFromXY,
 	getObjinRect = objects.getObjinRect,
 	populateGroupMembers = objects.populateGroupMembers,
+	checkObj = function(cnvobj,obj) return tu.inArray(cnvobj.drawn.obj,obj) end,
 	--setObjVisualAttr = objects.setObjVisualAttr,
 	-----GRAPHICS-----------
 	getTextAttrFunc = GUIFW.getTextAttrFunc,

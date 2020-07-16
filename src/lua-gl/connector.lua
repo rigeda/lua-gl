@@ -2375,8 +2375,8 @@ dragSegment = function(cnvobj,segList,offx,offy,finalRouter,jsFinal,dragRouter,j
 		cnvobj.op[opptr] = nil
 		cnvobj.cnv.button_cb = oldBCB
 		cnvobj.cnv.motion_cb = oldMCB
-		cnvobj:refresh()
 		utility.undopost(cnvobj,key)
+		cnvobj:refresh()
 	end
 		
 	cnvobj.op[opptr] = op

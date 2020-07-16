@@ -2,6 +2,7 @@
 -- NOTE: The module does not allow for multiple independent instances to be created in the application since undo/redo stacks are 1
 
 local table = table
+local os = os
 
 local print = print
 
@@ -73,18 +74,33 @@ skip		doingRedo		toRedo		group		newGroup		addUndoStack Behavior
 
 
 ]]
-function beginGroup()
-	newGroup = true
-	group = true
-end
+do
+	local groupid	-- This allows nested calls to beginGroup/continueGroup - endGroup by independent operations be inside the outermost call
+	function beginGroup()
+		if not groupid then
+			newGroup = true
+			group = true
+			groupid = os.time()
+			return groupid
+		end
+	end
 
-function endGroup()
-	group = false
-	print("End LUAGLGROUP")
-end
+	function endGroup(gid)
+		if gid == groupid then
+			group = false
+			groupid = nil
+			print("End LUAGLGROUP")
+		end
+	end
 
-function continueGroup()
-	group = true
+	function continueGroup()
+		if not groupid then
+			group = true
+			groupid = os.time()
+			return groupid
+		end
+	end
+
 end
 
 local function updateButtons()
@@ -158,7 +174,7 @@ function doUndo(skipRedo)
 	skip = skipRedo
 	local i = #undo
 	toRedo = true
-	beginGroup()
+	local unregrp = beginGroup()
 	for j = #undo[i],1,-1 do
 		if undo[i][j].type == "LUAGL" then
 			cnvobj:undo(undo[i][j].diff)	-- redo is added automatically when addUndoStack is called as a hook for UNDOADDED
@@ -169,7 +185,7 @@ function doUndo(skipRedo)
 		end
 	end
 	table.remove(undo,i)
-	endGroup()
+	endGroup(unregrp)
 	toRedo = false
 	skip = false
 	updateButtons()
@@ -180,7 +196,7 @@ function doRedo(skipUndo)
 	skip = skipUndo
 	local i = #redo
 	doingRedo = true
-	beginGroup()
+	local unregrp = beginGroup()
 	for j = #redo[i],1,-1 do
 		if redo[i][j].type == "LUAGL" then
 			cnvobj:undo(redo[i][j].diff)
@@ -191,7 +207,7 @@ function doRedo(skipUndo)
 	end	
 	table.remove(redo,i)
 	doingRedo = false
-	endGroup()
+	endGroup(unregrp)
 	skip = false
 	updateButtons()
 end	

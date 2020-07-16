@@ -35,6 +35,7 @@ do
 		if not started then
 			-- Take a backup of the drawn table
 			drawnBAC,map = tu.copyTable(cnvobj.drawn,{},true)
+			--drawnBAC = {}
 			cnvobj.drawndiff = nil
 			started = true
 			return drawnBAC
@@ -46,8 +47,9 @@ do
 			hooks = hooks or require("lua-gl.hooks")
 			-- Get the diff object for the drawn table
 			cnvobj.drawndiff = tu.diffTable(cnvobj.drawn,drawnBAC,map.d2s)
+			--cnvobj.drawndiff = {}
+			started = false		-- Started = false before processing hooks to allow any actions taken by the hook to generate another undo event.
 			hooks.processHooks(cnvobj,"UNDOADDED",{cnvobj.drawndiff})
-			started = false
 		end
 	end
 	-- Function to do undo from the diff

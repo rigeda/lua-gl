@@ -223,7 +223,7 @@ end
 	        (finish [3])												(finish[4])
 ]]
 local function manageClicks(msg,cb,finish)
-	local hook,helpID,opptr
+	local hook,helpID,opptr,unregrp
 	local index = 1
 	
 	-- Function for operation end
@@ -234,7 +234,7 @@ local function manageClicks(msg,cb,finish)
 		end
 		cnvobj:removeHook(hook)
 		sel.resumeSelection()
-		unre.endGroup()
+		unre.endGroup(unregrp)
 		table.remove(op,opptr)
 	end
 	local function doCallback(x,y,status)
@@ -271,7 +271,7 @@ local function manageClicks(msg,cb,finish)
 		end
 	end
 	sel.pauseSelection()
-	unre.beginGroup()
+	unregrp = unre.beginGroup()
 	-- Add the hook
 	hook = cnvobj:addHook("MOUSECLICKPOST",getClick,"To get clicks for manageClicks")
 	-- Setup the operation
@@ -955,13 +955,13 @@ function GUI.toolbar.buttons.delButton:action()
 		local _,objs,conns = sel.selListCopy() 
 		sel.pauseSelection()
 		popHelpText(helpID)
-		unre.beginGroup()		
+		local unregrp = unre.beginGroup()		
 		for i = 1,#objs do
 			cnvobj:removeObj(objs[i])
 		end
 		cnvobj:removeSegments(conns)
 		comp.updateComponents()
-		unre.endGroup()
+		unre.endGroup(unregrp)
 		sel.resumeSelection()
 		cnvobj:refresh()
 	end
@@ -1107,7 +1107,7 @@ function GUI.toolbar.buttons.refreshButton:action()
 		comp.deleteComponent(id)
 		return true
 	end
-	unre.beginGroup()
+	local unregrp = unre.beginGroup()
 	local compDone = {}
 	-- Store the previous components in prevCo
 	local prevCo = {}
@@ -1146,7 +1146,7 @@ function GUI.toolbar.buttons.refreshButton:action()
 			end		-- if getFileData(file) then ends
 		end		-- if not compDone[component.id] then ends
 	end		-- for component in comp.comps() do ends
-	unre.endGroup()
+	unre.endGroup(unregrp)
 	-- Now refresh the canvas
 	cnvobj:refresh()
 end

@@ -39,7 +39,7 @@ end
 -- routing matrix metatable
 local rmMeta = {
 	__index = {
-		addSegment = function(rm,key,x1,y1,x2,y2)
+		addSegment = function(rm,key,x1,y1,x2,y2)	-- key can be anything to index the router segment. In lua-gl it is actually the segment table itself.
 			if y1 == y2 then
 				-- This segment is horizontal
 				rm.hsegs[key] ={x1 = x1,x2=x2,y1=y1,y2=y2}
@@ -56,6 +56,24 @@ local rmMeta = {
 			rm.vsegs[key] = nil
 			return true
 		end,
+		getSegment = function(rm,key)	-- Returns the copy of the structure stored in the outing matrix fot the given key
+			if rm.hsegs[key] then
+				return {
+					x1 = rm.hsegs[key].x1, 
+					y1 = rm.hsegs[key].y1, 
+					x2 = rm.hsegs[key].x2, 
+					y2 = rm.hsegs[key].y2
+				}
+			elseif rm.vsegs[key] then
+				return {
+					x1 = rm.vsegs[key].x1, 
+					y1 = rm.vsegs[key].y1, 
+					x2 = rm.vsegs[key].x2, 
+					y2 = rm.vsegs[key].y2
+				}
+			end
+			return nil
+		end,
 		addBlockingRectangle = function(rm,key,x1,y1,x2,y2)
 			rm.blksegs[key] = {x1=x1,y1=y1,x2=x2,y2=y2}
 			fillLimits(rm,x1,y1)
@@ -64,6 +82,17 @@ local rmMeta = {
 		end,
 		removeBlockingRectangle = function(rm,key)
 			rm.blksegs[key] = nil
+		end,
+		getBlockingRectangle = function(rm,key)
+			if rm.blksegs[key] then
+				return {
+					x1 = rm.blksegs[key].x1, 
+					y1 = rm.blksegs[key].y1, 
+					x2 = rm.blksegs[key].x2, 
+					y2 = rm.blksegs[key].y2
+				}
+			end
+			return nil
 		end,
 		addPort = function(rm,key,x,y)
 			if not rm.ports[x] then
