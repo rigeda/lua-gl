@@ -35,7 +35,7 @@ end
 	segTree = <table>			-- structure containing 
 }
 ]]
-local netobjs = {ids=0}
+local netobjs, PAUSE
 local hook,cnvobj
 local WEAKV = {__mode="v"}	-- metatable to set weak values
 
@@ -64,7 +64,7 @@ end
 
 -- Function to restore the backed up netobj as returned by backupNetObj function
 local function restoreNetObj(no)
-	local n = {
+	local n = setmetatable({
 			id = no.id,
 			xa = no.xa,
 			ya = no.ya,
@@ -76,19 +76,13 @@ local function restoreNetObj(no)
 			conn = no.conn and cnvobj:getConnFromID(no.conn),
 			segTree = no.segTree,
 			[no.segTree] = true
-	}
+	},WEAKV)
 	n.seg = no.conn and no.seg and n.conn.segments[no.seg] 
 	return n
 end
 
 function deleteNetObj(id)
-	local index
-	for i = 1,#netobjs do
-		if netobjs[i].id == id then
-			index = i
-			break
-		end
-	end
+	local index = tu.inArray(netobjs,id,function(no,id) return no.id == id end)
 	if index then
 		-- Setup and return the undo/redo functions
 		local no,undo,redo
@@ -112,8 +106,10 @@ end
 
 -- Function to update the position of all net objects
 local function updateNetobjPos()
-	-- Remove the hook
-	cnvobj:removeHook(hook)
+	if PAUSE then
+		return
+	end
+	PAUSE = true
 	-- Add this to previous group
 	local unregrp = unre.continueGroup()
 	-- Loop through each netobj and check if any needs to be moved
@@ -122,6 +118,8 @@ local function updateNetobjPos()
 		local no = netobjs[i]
 		-- Check if the obj exists
 		if not cnvobj:checkObj(no.obj) then
+			-- Add this to previous group
+			unregrp = unregrp or unre.continueGroup()
 			deleteNetObj(no.id)
 		-- Check if the segment exists
 		elseif not cnvobj:checkSegment(no.seg) then
@@ -140,6 +138,8 @@ local function updateNetobjPos()
 					-- New anchor point
 					local xn,yn = floor((v.start_x + v.end_x)/2),floor((v.start_y+v.end_y)/2)
 					local offx,offy = xn-no.xa,yn-no.ya
+					-- Add this to previous group
+					unregrp = unregrp or unre.continueGroup()
 					cnvobj:dragObj({no.obj},offx,offy)
 					no.xa = xn
 					no.ya = yn
@@ -169,6 +169,8 @@ local function updateNetobjPos()
 							-- New anchor point
 							local xn,yn = floor((seg.start_x + seg.end_x)/2),floor((seg.start_y+seg.end_y)/2)
 							local offx,offy = xn-no.xa,yn-no.ya
+							-- Add this to previous group
+							unregrp = unregrp or unre.continueGroup()
 							cnvobj:dragObj({no.obj},offx,offy)
 							no.xa = xn
 							no.ya = yn
@@ -186,24 +188,30 @@ local function updateNetobjPos()
 				end		-- for j = 1,#st do ends
 			end		-- if not found then ends
 			if not found then
+				-- Add this to previous group
+				unregrp = unregrp or unre.continueGroup()
 				-- Remove the netobj entry
 				deleteNetObj(no.id)
 			else
 				-- Setup and return the undo/redo functions
 				local undo
+				local index = i
+				local prevno = n
 				undo = function()
 					-- Backup the netobj
-					local bac = backupNetObj(netobjs[i])
-					local no = netobjs[i]
+					local bac = backupNetObj(netobjs[index])
+					local no = netobjs[index]
 					-- Drag the object
-					cnvobj:drag({no.obj},n.xa-no.xa,n.ya-no.ya)
+					cnvobj:drag({no.obj},prevno.xa-no.xa,prevno.ya-no.ya)
 					-- Delete the netobj
-					table.remove(netobjs,i)
+					table.remove(netobjs,index)
 					-- Restore the backed up component structure
-					table.insert(netobjs,i,restoreNetObj(n))
-					n = bac
+					table.insert(netobjs,index,restoreNetObj(prevno))
+					prevno = bac
 					return undo
 				end
+				-- Add this to previous group
+				unregrp = unregrp or unre.continueGroup()
 				-- Add the undo function
 				unre.addUndoFunction(undo)
 			end
@@ -243,6 +251,8 @@ local function updateNetobjPos()
 						yb = floor(m*(xb-nx2)) + ny2
 					end
 				end
+				-- Add this to previous group
+				unregrp = unregrp or unre.continueGroup()
 				cnvobj:drag({no.obj},xb-no.xa,yb-no.ya)
 				no.xa = xb
 				no.ya = yb
@@ -254,27 +264,30 @@ local function updateNetobjPos()
 				no[no.segTree] = true
 				-- Setup and return the undo/redo functions
 				local undo
+				local index = i
+				local prevno = n
 				undo = function()
 					-- Backup the netobj
-					local bac = backupNetObj(netobjs[i])
-					local no = netobjs[i]
+					local bac = backupNetObj(netobjs[index])
+					local no = netobjs[index]
 					-- Drag the object
-					cnvobj:drag({no.obj},n.xa-no.xa,n.ya-no.ya)
+					cnvobj:drag({no.obj},prevno.xa-no.xa,prevno.ya-no.ya)
 					-- Delete the netobj
-					table.remove(netobjs,i)
+					table.remove(netobjs,index)
 					-- Restore the backed up component structure
-					table.insert(netobjs,i,restoreNetObj(n))
-					n = bac
+					table.insert(netobjs,index,restoreNetObj(prevno))
+					prevno = bac
 					return undo
 				end
+				-- Add this to previous group
+				unregrp = unregrp or unre.continueGroup()
 				-- Add the undo function
 				unre.addUndoFunction(undo)
 			end
 		end
 	end		-- for i = 1,#netobjs do ends
-	-- End the undo group
 	unre.endGroup(unregrp)
-	hook = cnvobj:addHook("UNDOADDED",updateNetobjPos,"To update netobj positions")
+	PAUSE = nil
 end
 
 -- Function to create a new netobj entry
@@ -305,14 +318,14 @@ function newNetobj(obj,cs,x,y)
 	-- Setup and return the undo/redo functions
 	local n,undo,redo
 	undo = function()
-		-- Restore the backed up component structure
-		table.insert(netobjs,index,restoreNetObj(n))
-		return redo
-	end
-	redo = function()
 		-- Create a backup of the component structure to be used for the undo function
 		n = backupNetObj(netobjs[index])
 		table.remove(netobjs,index)
+		return redo
+	end
+	redo = function()
+		-- Restore the backed up component structure
+		table.insert(netobjs,index,restoreNetObj(n))
 		return undo
 	end
 	-- Add the undo function
@@ -322,5 +335,6 @@ end
 
 function init(cnvO)
 	cnvobj = cnvO
+	netobjs = {ids=0}
 	hook = cnvobj:addHook("UNDOADDED",updateNetobjPos,"To update netobj positions")
 end

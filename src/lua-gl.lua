@@ -74,7 +74,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-_VERSION = "B20.05.27"
+_VERSION = "B20.07.16"
 
 --- TASKS
 --[[

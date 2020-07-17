@@ -1891,14 +1891,19 @@ end
 -- The table also contains another array containing coordinates that were junctions at this step (in key juncs)
 -- Note: Both arrays are tables with weak values to allow the segment collection in case connectors are manipulated.
 getSegTree = function(cnvobj,conn,seg)
+	local segList = {seg}
 	-- Function to return the list of segments in the connector conn whose one of the end point is x,y
 	local function segsOnNode(conn,x,y,seg)
 		local segs = setmetatable({},WEAKV)
 		for i = 1,#conn.segments do
-			if conn.segments[i].start_x == x and conn.segments[i].start_y == y and conn.segments[i] ~= seg then
-				segs[#segs + 1] = conn.segments[i]
-			elseif conn.segments[i].end_x == x and conn.segments[i].end_y == y and conn.segments[i] ~= seg then
-				segs[#segs + 1] = conn.segments[i]
+			if not tu.inArray(segList,conn.segments[i]) then
+				if conn.segments[i].start_x == x and conn.segments[i].start_y == y then
+					segs[#segs + 1] = conn.segments[i]
+					segList[#segList + 1] = conn.segments[i]
+				elseif conn.segments[i].end_x == x and conn.segments[i].end_y == y then
+					segs[#segs + 1] = conn.segments[i]
+					segList[#segList + 1] = conn.segments[i]
+				end
 			end
 		end
 		return segs
@@ -1906,7 +1911,7 @@ getSegTree = function(cnvobj,conn,seg)
 	
 	local function portsOnNode(x,y)
 		local prts = setmetatable({},WEAKV)
-		local p = PORTS.getPortFromXY(cnvobj,seg.start_x,seg.start_y)
+		local p = PORTS.getPortFromXY(cnvobj,x,y)
 		for i = 1,#p do
 			prts[#prts + 1] = p[i]
 		end
@@ -1938,35 +1943,9 @@ getSegTree = function(cnvobj,conn,seg)
 			if #nextStep > 1 then
 				juncs[#juncs + 1] = {segList[i].start_x,segList[i].start_y}
 			end
-			-- Remove any segments already in segTree
-			for j = #nextStep,1,-1 do
-				local found
-				for k = 1,#segTree do
-					if tu.inArray(segTree[k].segs,nextStep[j]) then
-						found = true
-						break
-					end
-				end
-				if found then
-					table.remove(nextStep,j)
-				end
-			end
 			segs = segsOnNode(conn,segList[i].end_x,segList[i].end_y,segList[i])
 			if #segs > 1 then
 				juncs[#juncs + 1] = {segList[i].end_x,segList[i].end_y}
-			end
-			-- Remove any segments already in segTree
-			for j = #segs,1,-1 do
-				local found
-				for k = 1,#segTree do
-					if tu.inArray(segTree[k].segs,segs[j]) then
-						found = true
-						break
-					end
-				end
-				if found then
-					table.remove(segs,j)
-				end
 			end
 			tu.mergeArrays(segs,nextStep)
 			prts = portsOnNode(seg.start_x,seg.start_y)

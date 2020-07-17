@@ -4,6 +4,8 @@
 local table = table
 local os = os
 
+
+local tostring = tostring
 local print = print
 
 local M = {}
@@ -14,7 +16,7 @@ else
 	_ENV = M		-- Lua 5.2+
 end
 
-local cnvobj, hook, undoButton, redoButton 
+local cnvobj, hook, undoButton, redoButton, PAUSE
 local undo,redo = {},{}		-- The UNDO and REDO stacks
 -- Each entry in the undo/redo stack is a table with the following structure:
 --[[
@@ -81,6 +83,7 @@ do
 			newGroup = true
 			group = true
 			groupid = os.time()
+			print("Setup new UNDO GROUP at stack ",#undo+1,#redo+1)
 			return groupid
 		end
 	end
@@ -89,7 +92,7 @@ do
 		if gid == groupid then
 			group = false
 			groupid = nil
-			print("End LUAGLGROUP")
+			print("End UNDO GROUP at stack ",#undo,#redo)
 		end
 	end
 
@@ -97,6 +100,7 @@ do
 		if not groupid then
 			group = true
 			groupid = os.time()
+			print("Add more to previous GROUP at stack ",#undo,#redo)
 			return groupid
 		end
 	end
@@ -128,10 +132,16 @@ addUndoStack has to behave accordingly for the 4 following situations:									g
 skip just disables addUndoStack to do anything
 ]]
 local function addUndoStack(diff,func)
+	if PAUSE then
+		return
+	end
 	local tab = undo
 	if toRedo then 
 		print("Doing UNDO",skip)
 		tab = redo 
+	end
+	if doingRedo then
+		print("Doing Redo",skip)
 	end
 	if not skip then
 		if not doingRedo and not toRedo then
@@ -150,14 +160,14 @@ local function addUndoStack(diff,func)
 			if newGroup then
 				tab[#tab + 1] = {t}
 				newGroup = false
-				print("Add GROUP to stack")
+				print(diff and "Add LUAGL UNDO item in new GROUP to stack "..tostring(#tab) or "Add UNDO function in new group to stack "..tostring(#tab))
 			else
 				tab[#tab][#tab[#tab]+1] = t
-				print("Add LUAGL to group")
+				print(diff and "Add LUAGL UNDO item to group at stack "..tostring(#tab) or "Add UNDO function in new group to stack at "..tostring(#tab))
 			end
 		else
 			tab[#tab + 1] = {t}
-			print("Add LUAGL to stack")
+			print(diff and "Add LUAGL UNDO ITEM to stack as 1 item group at stack "..tostring(#tab) or "Add UNDO function to stack as 1 item group at stack "..tostring(#tab))
 		end
 	end
 	updateButtons()
@@ -213,14 +223,11 @@ function doRedo(skipUndo)
 end	
 
 function pauseUndoRedo()
-	cnvobj:removeHook(hook)
-	hook = nil
+	PAUSE = true
 end
 
 function resumeUndoRedo()
-	if not hook then
-		hook = cnvobj:addHook("UNDOADDED",addUndoStack,"To add operations to the Undo Stack")
-	end
+	PAUSE = nil
 end
 
 function init(cnvO,ub,rb)

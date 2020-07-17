@@ -68,7 +68,7 @@ getObjFromXY = function(cnvobj,x,y)
 	if not cnvobj or type(cnvobj) ~= "table" then
 		return nil,"Not a valid lua-gl object"
 	end
-	print("Check object at ",x,y)
+	--print("Check object at ",x,y)
 	local objs = cnvobj.drawn.obj
 	if #objs == 0 then
 		return {}
@@ -1067,9 +1067,9 @@ dragObj = function(cnvobj,objList,offx,offy,dragRouter,jsDrag,finalRouter,jsFina
 			error()
 		end
 		-- Reset mode
-		cnvobj:refresh()
 		cnvobj.op[opptr] = nil
 		utility.undopost(cnvobj,key)
+		cnvobj:refresh()
 	end
 	
 	local op = {}

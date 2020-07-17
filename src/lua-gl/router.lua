@@ -423,7 +423,7 @@ end
 --  = 0 then do not generate jumping segment
 -- Function returns the x,y coordinates up to which the segments were generated
 function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
-	print("GENERATE SEGMENTS",X,Y,x,y,"jumpSeg="..jumpSeg,jumpSeg>0)
+	--print("GENERATE SEGMENTS",X,Y,x,y,"jumpSeg="..jumpSeg,jumpSeg>0)
 	local grdx,grdy = cnvobj.grid.snapGrid and cnvobj.grid.grid_x or 1, cnvobj.grid.snapGrid and cnvobj.grid.grid_y or 1
 	local minX = cnvobj.size and -floor(cnvobj.size.width/2)
 	local maxX = cnvobj.size and floor(cnvobj.size.width/2)
@@ -442,9 +442,9 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
 		return true
 	end
 	local rM = cnvobj.rM
-	print("Do BFS srcX="..srcX..",srcY="..srcY..",destX="..destX..",destY="..destY..",stepX="..grdx..",stepY="..grdy..",minX="..(minX or "NIL")..",minY="..(minY or "NIL")..",maxX="..(maxX or "NIL")..",maxY="..(maxY or "NIL"))
+	--print("Do BFS srcX="..srcX..",srcY="..srcY..",destX="..destX..",destY="..destY..",stepX="..grdx..",stepY="..grdy..",minX="..(minX or "NIL")..",minY="..(minY or "NIL")..",maxX="..(maxX or "NIL")..",maxY="..(maxY or "NIL"))
     local shortestPathString = router(rM, srcX, srcY, destX, destY, grdx, grdy, minX, minY, maxX, maxY)
-	print("GENSEGS:",shortestPathString,#shortestPathString)
+	--print("GENSEGS:",shortestPathString,#shortestPathString)
 	
 	local xstep = {
 		U = 0,
@@ -484,7 +484,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
 		reY = t.start_y + grdy* (st-i)*ystep[c]
 		t.end_y = reY
 		segments[#segments + 1] = t
-		print("Generated Segment")
+		--print("Generated Segment")
 		-- Add the segment to routing matrix with t as the key
 		--print("Add segment",t.start_x,t.start_y,t.end_x,t.end_y)
 		rM:addSegment(t,t.start_x,t.start_y,t.end_x,t.end_y)
@@ -492,7 +492,7 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
     end
 	if jumpSeg>0 and (reX ~= destX or reY ~= destY) then
 		-- Add a segment for the last jump, this is a jumping connector
-		print("Generate jumpSeg")
+		--print("Generate jumpSeg")
 		local s = {
 			start_x = reX,
 			start_y = reY,
@@ -506,6 +506,6 @@ function generateSegments(cnvobj, X,Y,x, y,segments,router,jumpSeg)
 		-- Set the attribute for the jumping segment
 		cnvobj.attributes.visualAttr[s] = jumpSeg == 1 and {vAttr = 5,visualAttr = GUIFW.getFilledObjAttrFunc(cnvobj.viewOptions.visualProp[5]),attr = cnvobj.viewOptions.visualProp[5]}	-- The default jumping connector attribute
 	end
-	print("FINISH GENSEGS")
+	--print("FINISH GENSEGS")
 	return reX,reY
 end
