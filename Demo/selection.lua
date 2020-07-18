@@ -359,6 +359,7 @@ local function selection_cb(button,pressed,x,y, status)
 					if c == iup.K_ESC then
 						-- Hide the dialog
 						seldlg:hide()
+						unre.resumeUndoRedo()
 						return iup.IGNORE
 					end
 					return iup.IGNORE
@@ -492,6 +493,7 @@ local function selection_cb(button,pressed,x,y, status)
 						end		-- if val ~= 0 then ends
 					end		-- if multiple then ends
 					setSelectedDisplay()
+					unre.resumeUndoRedo()
 				end		-- local function getSelected() ends
 				local gx,gy = iup.GetGlobal("CURSORPOS"):match("^(-?%d%d*)x(-?%d%d*)$")
 				gx,gy = tonumber(gx),tonumber(gy)
@@ -546,6 +548,7 @@ local function selection_cb(button,pressed,x,y, status)
 					end
 				end		
 				setSelectedDisplay()
+				unre.resumeUndoRedo()
 			end		-- if #i + #s > 1 then ends
 		elseif mode == "RECT" then	-- if mode == "POINT" then else
 			if not multiple then
@@ -601,8 +604,8 @@ local function selection_cb(button,pressed,x,y, status)
 				end
 			end		
 			setSelectedDisplay()
+			unre.resumeUndoRedo()
 		end		-- -- if mode == "POINT" then ends
-		unre.resumeUndoRedo()
 	end		-- if button == cnvobj.MOUSE.BUTTON1 and pressed == 0 then ends
 end
 
