@@ -22,6 +22,7 @@ end
 	func = <function>,		-- function code for the hook that is executed
 	info = <string>,		-- OPTIONAL any string description/information to associate with the hook. Can be used for logging or debugging purposes
 	id = <integer>			-- Unique ID for the hook. Format is H<num> i.e. H followed by a unique number
+	disable = <boolean>		-- if true then the hook is not processed
 }
 ]]
 -- Hooks are located at cnvobj.hook
@@ -46,7 +47,7 @@ function processHooks(cnvobj, key, params)
 	--for i=#cnvobj.hook, 1, -1 do
 	local i = 1
 	while i <= #cnvobj.hook do
-		if cnvobj.hook[i].key == key and not tu.inArray(done,cnvobj.hook[i].func) then
+		if not cnvobj.hook[i].disable and cnvobj.hook[i].key == key and not tu.inArray(done,cnvobj.hook[i].func) then
 			done[#done + 1] = cnvobj.hook[i].func
 			local status, val = pcall(cnvobj.hook[i].func, table.unpack(params))
 			if not status then

@@ -1,7 +1,6 @@
 -- Module in DemoProject for attaching objects to connectors
 
 local tostring = tostring
-local setmetatable = setmetatable
 local collectgarbage = collectgarbage
 local next = next
 local floor = math.floor
@@ -37,7 +36,6 @@ end
 ]]
 local netobjs, PAUSE
 local hook,cnvobj
-local WEAKV = {__mode="v"}	-- metatable to set weak values
 
 -- Function to backup a netobj
 -- It does not point to the actual object/connector/segment structures in the Lua-GL data structures. 
@@ -45,39 +43,35 @@ local WEAKV = {__mode="v"}	-- metatable to set weak values
 local function backupNetObj(no)
 	local n = {
 		id = no.id,
-		obj = no.obj and no.obj.id,
+		obj = no.obj,
 		xa = no.xa,
 		ya = no.ya,
-		conn = no.conn and no.conn.id,
+		conn = no.conn,
 		x1 = no.x1,
 		y1 = no.y1,
 		x2 = no.x2,
 		y2 = no.y2,
-		segTree = no.segTree
+		segTree = no.segTree,
+		seg = no.seg
 	}
-	local i = tu.inArray(no.conn.segments,no.seg)
-	if i then
-		n.seg = i
-	end
 	return n
 end
 
 -- Function to restore the backed up netobj as returned by backupNetObj function
 local function restoreNetObj(no)
-	local n = setmetatable({
-			id = no.id,
-			xa = no.xa,
-			ya = no.ya,
-			obj = no.obj and cnvobj:getObjFromID(no.obj),
-			x1 = no.x1,
-			x2 = no.x2,
-			y1 = no.y1,
-			y2 = no.y2,
-			conn = no.conn and cnvobj:getConnFromID(no.conn),
-			segTree = no.segTree,
-			[no.segTree] = true
-	},WEAKV)
-	n.seg = no.conn and no.seg and n.conn.segments[no.seg] 
+	local n = {
+		id = no.id,
+		xa = no.xa,
+		ya = no.ya,
+		obj = no.obj,
+		x1 = no.x1,
+		x2 = no.x2,
+		y1 = no.y1,
+		y2 = no.y2,
+		conn = no.conn,
+		segTree = no.segTree,
+		seg = no.seg
+	}
 	return n
 end
 
@@ -116,175 +110,120 @@ local function updateNetobjPos()
 	collectgarbage()	-- Clean up any segments/connectors that were deleted
 	for i = 1,#netobjs do
 		local no = netobjs[i]
+		local obj = cnvobj:getObjFromID(no.obj)
 		-- Check if the obj exists
-		if not cnvobj:checkObj(no.obj) then
-			-- Add this to previous group
+		if not obj then
+			-- Object no longer there
+			-- Add this undo to previous group
 			unregrp = unregrp or unre.continueGroup()
 			deleteNetObj(no.id)
 		-- Check if the segment exists
-		elseif not cnvobj:checkSegment(no.seg) then
-			local n = backupNetObj(no)
-			-- segment does not exist
-			-- Go through the segTree to find another segment where to move the netobj
-			local st = no.segTree
-			-- Step through the segTree
-			local found
-			for j = 1,#st do
-				-- CHeck if any segments exist at this step
-				local k,v = next(st[j].segs)
-				if cnvobj:checkSegment(v) then
-					found = true
-					-- Attach the netobj to this segment (v)
-					-- New anchor point
-					local xn,yn = floor((v.start_x + v.end_x)/2),floor((v.start_y+v.end_y)/2)
-					local offx,offy = xn-no.xa,yn-no.ya
+		else
+			-- Check if the segment exists
+			-- For the segment to exist the connector should exist (with the same ID) and the segment at the index should match up with the stored coordinates
+			local segExist
+			local c = cnvobj:getConnFromID(no.conn)
+			if c then
+				local seg = c.segments[no.seg]
+				if seg and seg.start_x == no.x1 and seg.start_y == no.y1 and seg.end_x == no.x2 and seg.end_y == no.y2 then
+					segExist = true
+				end
+			end
+			if not segExist then
+				local n = backupNetObj(no)
+				-- segment does not exist
+				-- Go through the segTree to find another segment where to move the netobj
+				local st = no.segTree
+				-- Step through the segTree
+				local found
+				for j = 1,#st do
+					-- CHeck if any segments exist at this step
+					local k,v = next(st[j].segs)
+					local segI = tu.inArray(c.segments,v)
+					if cnvobj:checkSegment(v) and segI then
+						found = true
+						-- Attach the netobj to this segment (v)
+						-- New anchor point
+						local xn,yn = floor((v.start_x + v.end_x)/2),floor((v.start_y+v.end_y)/2)
+						local offx,offy = xn-no.xa,yn-no.ya
+						-- Add this to previous group
+						unregrp = unregrp or unre.continueGroup()
+						cnvobj:dragObj({obj},offx,offy)
+						no.xa = xn
+						no.ya = yn
+						no.seg = segI
+						no.x1 = v.start_x
+						no.y1 = v.start_y
+						no.x2 = v.end_x
+						no.y2 = v.end_y
+						no.segTree = cnvobj:getSegTree(c,v)
+						break
+					end				
+				end
+				if not found then
+					-- Check if there are any ports that it can connect to to 
+					for j = 1,#st do
+						-- Check if there are any ports
+						local k,v = next(st[j].ports)
+						if cnvobj:checkPort(v) then
+							if #v.conn > 0 then
+								found = true
+								-- Attach to any other segment connected to the port
+								local c,s = cnvobj:getConnFromXY(v.x,v.y)
+								local conn = cnvobj.drawn.conn[s[1].conn]
+								local seg = conn.segments[s[1].seg[1]]
+								-- Attach the netobj to this segment (seg)
+								-- New anchor point
+								local xn,yn = floor((seg.start_x + seg.end_x)/2),floor((seg.start_y+seg.end_y)/2)
+								local offx,offy = xn-no.xa,yn-no.ya
+								-- Add this to previous group
+								unregrp = unregrp or unre.continueGroup()
+								cnvobj:dragObj({obj},offx,offy)
+								no.xa = xn
+								no.ya = yn
+								no.seg = s[1].seg[1]
+								no.conn = conn.id
+								no.x1 = seg.start_x
+								no.y1 = seg.start_y
+								no.x2 = seg.end_x
+								no.y2 = seg.end_y
+								no.segTree = cnvobj:getSegTree(conn,seg)
+								break
+							end
+						end
+					end		-- for j = 1,#st do ends
+				end		-- if not found then ends
+				if not found then
 					-- Add this to previous group
 					unregrp = unregrp or unre.continueGroup()
-					cnvobj:dragObj({no.obj},offx,offy)
-					no.xa = xn
-					no.ya = yn
-					no.seg = v
-					no.x1 = v.start_x
-					no.y1 = v.start_y
-					no.x2 = v.end_x
-					no.y2 = v.end_y
-					no.segTree = cnvobj:getSegTree(no.conn,v)
-					no[no.segTree] = true
-					break
-				end				
-			end
-			if not found then
-				-- Check if there are any ports that it can connect to to 
-				for j = 1,#st do
-					-- Check if there are any ports
-					local k,v = next(st[j].ports)
-					if cnvobj:checkPort(v) then
-						if #v.conn > 0 then
-							found = true
-							-- Attach to any other segment connected to the port
-							local c,s = cnvobj:getConnFromXY(v.x,v.y)
-							local conn = cnvobj.drawn.conn[s[1].conn]
-							local seg = conn.segments[s[1].seg[1]]
-							-- Attach the netobj to this segment (seg)
-							-- New anchor point
-							local xn,yn = floor((seg.start_x + seg.end_x)/2),floor((seg.start_y+seg.end_y)/2)
-							local offx,offy = xn-no.xa,yn-no.ya
-							-- Add this to previous group
-							unregrp = unregrp or unre.continueGroup()
-							cnvobj:dragObj({no.obj},offx,offy)
-							no.xa = xn
-							no.ya = yn
-							no.seg = seg
-							no.conn = conn
-							no.x1 = seg.start_x
-							no.y1 = seg.start_y
-							no.x2 = seg.end_x
-							no.y2 = seg.end_y
-							no.segTree = cnvobj:getSegTree(conn,seg)
-							no[no.segTree] = true
-							break
-						end
-					end
-				end		-- for j = 1,#st do ends
-			end		-- if not found then ends
-			if not found then
-				-- Add this to previous group
-				unregrp = unregrp or unre.continueGroup()
-				-- Remove the netobj entry
-				deleteNetObj(no.id)
-			else
-				-- Setup and return the undo/redo functions
-				local undo
-				local index = i
-				local prevno = n
-				undo = function()
-					-- Backup the netobj
-					local bac = backupNetObj(netobjs[index])
-					local no = netobjs[index]
-					-- Drag the object
-					cnvobj:drag({no.obj},prevno.xa-no.xa,prevno.ya-no.ya)
-					-- Delete the netobj
-					table.remove(netobjs,index)
-					-- Restore the backed up component structure
-					table.insert(netobjs,index,restoreNetObj(prevno))
-					prevno = bac
-					return undo
-				end
-				-- Add this to previous group
-				unregrp = unregrp or unre.continueGroup()
-				-- Add the undo function
-				unre.addUndoFunction(undo)
-			end
-		else
-			-- segment exists
-			-- Check if it moved then move the netobj accordingly
-			if no.seg.start_x ~= no.x1 or no.seg.start_y ~= no.y1 or no.seg.end_x ~= no.x2 or no.seg.end_y ~= no.y2 then
-				local n = backupNetObj(no)
-				-- Segment was moved so move the netobj
-				local nx1,ny1,nx2,ny2 = no.seg.start_x,no.seg.start_y,no.seg.end_x,no.seg.end_y
-				-- The new anchor xb,yb are defined as:
-				-- xb = +/-sqrt(A2sq/(m^2+1))+nx2		-- + when nx1 > nx2 or ny1 > ny2
-				-- yb = m(xb-nx1)+ny1
-				-- Where m = (ny2-ny1)/(nx2-nx1)
-				-- 		      (ny2-ny1)^2 + (nx2-nx1)^2
-				--       A2sq = --------------------------- ( (ya-y1)^2 + (xa-x1)^2 )
-				--            (y2-y1)^2 + (x2-x1)^2
-				local ndy = ny2-ny1
-				local ndx = nx2-nx1
-				local m = ndx==0 and 0 or ndy/ndx
-				local A2sq = (ndy^2+ndx^2)*((no.ya-no.y1)^2+(no.xa-no.x1)^2)/((no.y2-no.y1)^2+(no.x2-no.x1)^2)
-				local xb,yb
-				if ny1 < ny2 then
-					if nx1 == nx2 then
-						xb = nx2
-						yb = ny2 - floor(sqrt(A2sq))
-					else
-						xb = nx2 - floor(sqrt(A2sq/(m^2+1)))
-						yb = floor(m*(xb-nx2)) + ny2
-					end
+					-- Remove the netobj entry
+					deleteNetObj(no.id)
 				else
-					if nx1 == nx2 then
-						xb = nx2
-						yb = ny2 + floor(sqrt(A2sq))
-					else
-						xb = nx2 + floor(sqrt(A2sq/(m^2+1)))
-						yb = floor(m*(xb-nx2)) + ny2
+					-- Setup and return the undo/redo functions
+					local undo
+					local index = i
+					local prevno = n
+					--local o = obj
+					undo = function()
+						-- Backup the netobj
+						local bac = backupNetObj(netobjs[index])
+						local no = netobjs[index]
+						-- Drag the object
+						--cnvobj:drag({o},prevno.xa-no.xa,prevno.ya-no.ya)
+						-- Delete the netobj
+						table.remove(netobjs,index)
+						-- Restore the backed up component structure
+						table.insert(netobjs,index,restoreNetObj(prevno))
+						prevno = bac
+						return undo
 					end
+					-- Add this to previous group
+					unregrp = unregrp or unre.continueGroup()
+					-- Add the undo function
+					unre.addUndoFunction(undo)
 				end
-				-- Add this to previous group
-				unregrp = unregrp or unre.continueGroup()
-				cnvobj:drag({no.obj},xb-no.xa,yb-no.ya)
-				no.xa = xb
-				no.ya = yb
-				no.x1 = nx1
-				no.y1 = ny1
-				no.x2 = nx2
-				no.y2 = ny2
-				no.segTree = cnvobj:getSegTree(no.conn,no.seg)
-				no[no.segTree] = true
-				-- Setup and return the undo/redo functions
-				local undo
-				local index = i
-				local prevno = n
-				undo = function()
-					-- Backup the netobj
-					local bac = backupNetObj(netobjs[index])
-					local no = netobjs[index]
-					-- Drag the object
-					cnvobj:drag({no.obj},prevno.xa-no.xa,prevno.ya-no.ya)
-					-- Delete the netobj
-					table.remove(netobjs,index)
-					-- Restore the backed up component structure
-					table.insert(netobjs,index,restoreNetObj(prevno))
-					prevno = bac
-					return undo
-				end
-				-- Add this to previous group
-				unregrp = unregrp or unre.continueGroup()
-				-- Add the undo function
-				unre.addUndoFunction(undo)
 			end
-		end
+		end		-- if not cnvobj:getObjFromID(no.obj) then else ends here
 	end		-- for i = 1,#netobjs do ends
 	unre.endGroup(unregrp)
 	PAUSE = nil
@@ -299,20 +238,19 @@ function newNetobj(obj,cs,x,y)
 	netobjs.ids = netobjs.ids + 1
 	local seg = cnvobj.drawn.conn[cs.conn].segments[cs.seg]
 	local segTree = cnvobj:getSegTree(cnvobj.drawn.conn[cs.conn],seg)  -- Get the segment tree from cs to move netobj to the right segment
-	local no = setmetatable({
+	local no = {
 		id = "NO"..tostring(netobjs.ids),
-		obj = obj,
+		obj = obj.id,
 		xa = x,	-- The anchor points of the obj
 		ya = y,	-- The anchor points of the obj
-		conn = cnvobj.drawn.conn[cs.conn],
-		seg = seg,
+		conn = cnvobj.drawn.conn[cs.conn].id,	-- connector id
+		seg = cs.seg,		-- store the segment index
 		x1 = seg.start_x,
 		y1 = seg.start_y,
 		x2 = seg.end_x,
 		y2 = seg.end_y,
 		segTree = segTree,
-		[segTree] = true,	-- To prevent segTree from being garbage collected
-	},WEAKV)
+	}
 	netobjs[#netobjs + 1] = no
 	local index = #netobjs
 	-- Setup and return the undo/redo functions

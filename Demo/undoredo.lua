@@ -7,6 +7,7 @@ local os = os
 
 local tostring = tostring
 local print = print
+local debug = debug
 
 local M = {}
 package.loaded[...] = M
@@ -83,7 +84,7 @@ do
 			newGroup = true
 			group = true
 			groupid = os.time()
-			print("Setup new UNDO GROUP at stack ",#undo+1,#redo+1)
+			print("-------------->Setup new UNDO GROUP at stack ",#undo+1,#redo+1)
 			return groupid
 		end
 	end
@@ -92,7 +93,7 @@ do
 		if gid == groupid then
 			group = false
 			groupid = nil
-			print("End UNDO GROUP at stack ",#undo,#redo)
+			print("<---------------End UNDO GROUP at stack ",#undo,#redo)
 		end
 	end
 
@@ -100,7 +101,7 @@ do
 		if not groupid then
 			group = true
 			groupid = os.time()
-			print("Add more to previous GROUP at stack ",#undo,#redo)
+			print("---------------->Add more to previous GROUP at stack ",#undo,#redo,"---------------------->")
 			return groupid
 		end
 	end
@@ -137,12 +138,9 @@ local function addUndoStack(diff,func)
 	end
 	local tab = undo
 	if toRedo then 
-		print("Doing UNDO",skip)
 		tab = redo 
 	end
-	if doingRedo then
-		print("Doing Redo",skip)
-	end
+	local trace
 	if not skip then
 		if not doingRedo and not toRedo then
 			redo = {}	-- Redo is emptied if any action is done
@@ -151,23 +149,27 @@ local function addUndoStack(diff,func)
 		if not diff then	-- This is function
 			t.type = "FUNCTION"
 			t.func = func
+			trace = debug.traceback():match(".-\n.-\n.-\n(.-)\n")
+			--print(debug.traceback())
 		else
 			t.type = "LUAGL"
 			t.diff = diff
+			trace = debug.traceback():match(".-\n.-\n.-\n.-\n.-\n(.-)\n")
+			--print(debug.traceback())
 		end
 		if group then
 			-- To group multiple luagl actions into 1 undo action of the host application
 			if newGroup then
 				tab[#tab + 1] = {t}
 				newGroup = false
-				print(diff and "Add LUAGL UNDO item in new GROUP to stack "..tostring(#tab) or "Add UNDO function in new group to stack "..tostring(#tab))
+				print(diff and "Add LUAGL UNDO from "..trace.." in new GROUP to stack "..tostring(#tab) or "Add UNDO function from "..trace.." in new group to stack "..tostring(#tab))
 			else
 				tab[#tab][#tab[#tab]+1] = t
-				print(diff and "Add LUAGL UNDO item to group at stack "..tostring(#tab) or "Add UNDO function in new group to stack at "..tostring(#tab))
+				print(diff and "Add LUAGL UNDO from "..trace.." to group at stack "..tostring(#tab) or "Add UNDO function from "..trace.." in new group to stack at "..tostring(#tab))
 			end
 		else
 			tab[#tab + 1] = {t}
-			print(diff and "Add LUAGL UNDO ITEM to stack as 1 item group at stack "..tostring(#tab) or "Add UNDO function to stack as 1 item group at stack "..tostring(#tab))
+			print(diff and "Add LUAGL UNDO from "..trace.." to stack as 1 item group at stack "..tostring(#tab) or "Add UNDO function from "..trace.." to stack as 1 item group at stack "..tostring(#tab))
 		end
 	end
 	updateButtons()
@@ -184,6 +186,13 @@ function doUndo(skipRedo)
 	skip = skipRedo
 	local i = #undo
 	toRedo = true
+	-- Disable all hooks except addUndoStack
+	for i = 1,#cnvobj.hook do
+		if cnvobj.hook[i].func ~= addUndoStack then
+			cnvobj.hook[i].disable = true
+		end
+	end
+	print("#################################DOING UNDO",skip)
 	local unregrp = beginGroup()
 	for j = #undo[i],1,-1 do
 		if undo[i][j].type == "LUAGL" then
@@ -198,6 +207,11 @@ function doUndo(skipRedo)
 	endGroup(unregrp)
 	toRedo = false
 	skip = false
+	print("#################################END UNDO",skip)
+	-- Enable all hooks
+	for i = 1,#cnvobj.hook do
+		cnvobj.hook[i].disable = nil
+	end	
 	updateButtons()
 end
 
@@ -206,6 +220,13 @@ function doRedo(skipUndo)
 	skip = skipUndo
 	local i = #redo
 	doingRedo = true
+	-- Disable all hooks except addUndoStack
+	for i = 1,#cnvobj.hook do
+		if cnvobj.hook[i].func ~= addUndoStack then
+			cnvobj.hook[i].disable = true
+		end
+	end
+	print("#################################DOING REDO",skip)
 	local unregrp = beginGroup()
 	for j = #redo[i],1,-1 do
 		if redo[i][j].type == "LUAGL" then
@@ -219,6 +240,11 @@ function doRedo(skipUndo)
 	doingRedo = false
 	endGroup(unregrp)
 	skip = false
+	print("#################################END REDO",skip)
+	-- Enable all hooks
+	for i = 1,#cnvobj.hook do
+		cnvobj.hook[i].disable = nil
+	end	
 	updateButtons()
 end	
 
