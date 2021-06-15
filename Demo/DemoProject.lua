@@ -225,10 +225,11 @@ end
 local function manageClicks(msg,cb,finish)
 	local hook,helpID,opptr,unregrp
 	local index = 1
-	
+	print("Manageclicks:#msg,#cb,#finish",#msg,#cb,#finish)
 	-- Function for operation end
-	local function cleanup(stop)
+	local function cleanup(params,stop)
 		popHelpText(helpID)
+		print("Manageclicks: Do cleanup",stop,index)
 		if not stop and cb[index] then
 			cb[index]()
 		end
@@ -244,10 +245,11 @@ local function manageClicks(msg,cb,finish)
 			if finish[fi] then
 				finish[fi]()
 			end
-			cleanup(true)
+			cleanup(nil,true)
 		end
 		local cbret
 		if cb[index] then
+			print("Call callback number:",index)
 			cbret = cb[index](x,y,status)
 			if cbret and cbret ~= "STOP" then
 				op[opptr].mode = "LUAGL"
@@ -259,7 +261,7 @@ local function manageClicks(msg,cb,finish)
 			cnvobj:removeHook(hook)
 			-- If the last callback returned STOP i.e. the last callback did something which did not involve a Lua-GL operation then we cannot wait for the UNDOADDED hook to be triggerred so just call resumeSel immediately
 			if cbret == "STOP" then
-				cleanup(true)
+				cleanup(nil,true)
 			else
 				hook = cnvobj:addHook("UNDOADDED",cleanup,"To cleanup manageClicks")
 			end
@@ -270,8 +272,8 @@ local function manageClicks(msg,cb,finish)
 			doCallback(x,y,status)
 		end
 	end
-	sel.pauseSelection()
-	unregrp = unre.beginGroup()
+	sel.pauseSelection()	-- clicks won't start the selection rectangle or select anything
+	unregrp = unre.beginGroup()	-- Start a undo-redo group
 	-- Add the hook
 	hook = cnvobj:addHook("MOUSECLICKPOST",getClick,"To get clicks for manageClicks")
 	-- Setup the operation
@@ -1032,6 +1034,7 @@ do
 	function GUI.toolbar.buttons.portButton:action()
 		-- Check if port mode already on then do nothing
 		if MODE == "ADDPORT" then
+			print("Already in addport")
 			return
 		end
 		local opptrlgl

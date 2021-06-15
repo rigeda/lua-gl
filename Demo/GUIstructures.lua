@@ -20,7 +20,7 @@ local GUI = {
 }
 
 -- Fill GUI up with elements
-GUI._VERSION = "1.20.07.16"
+GUI._VERSION = "1.21.06.14"
 GUI.images = require("images")
 GUI.statBarL = iup.label{title = "Ready",expand = "HORIZONTAL"}	-- Status Bar label left
 GUI.statBarM = iup.label{expand = "HORIZONTAL"}	-- Status Bar label middle to display the channel parameters
